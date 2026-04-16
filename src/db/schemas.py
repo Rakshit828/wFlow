@@ -20,6 +20,7 @@ class Nodes(Document):
     name: str
     description: str
     node_type: NodeTypeEnum
+    
 
 
 class EdgeTypeEnum(str, Enum):
