@@ -10,6 +10,13 @@ class Users(Document):
     updated_at: datetime
 
 
+class Oauth(Document):
+    user_id: Link[Users]
+    provider: str
+    access_token: str
+    refresh_token: str
+
+
 class NodeTypeEnum(str, Enum):
     GENERAL = "general"
     LLM = "llm"

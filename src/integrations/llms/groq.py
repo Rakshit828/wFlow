@@ -1,8 +1,10 @@
 from groq import AsyncGroq
 from enum import Enum
 from pydantic import BaseModel
-from typing import Literal
+from typing import Literal, Any, AsyncGenerator
+import asyncio as aio
 
+from src.integrations.llms.base import LLMClient
 from src.config import CONFIG
 
 
@@ -18,18 +20,21 @@ class GroqCallParams(BaseModel):
     system_prompt: str
     prompt: str
     max_tokens: int
-    reasoning_effort: Literal["low", "medium", "high", "medium", "none"]
+    reasoning_effort: Literal["low", "medium", "high", "none", "default"] = "default"
 
 
-class GroqClient:
+class GroqClient(LLMClient):
     def __init__(self, api_key: str | None = None):
         self._client: AsyncGroq = AsyncGroq(
             api_key=api_key if api_key else CONFIG.GROQ_API_KEY,
         )
-
-    async def _non_streaming_llm_call(
-        self, params: GroqCallParams
+        
+    async def inference(
+        self, params: GroqCallParams | dict[str, Any],
     ):
+        if not isinstance(params, GroqCallParams):
+            params = GroqCallParams(**params)
+
         response = await self._client.chat.completions.create(
             model=params.model.value,
             messages=[
@@ -43,10 +48,38 @@ class GroqClient:
         return response.choices[0].message
     
 
-    async def _streaming_llm_call(
-        self, params: GroqCallParams
-    ):
-        pass
+    async def stream(
+        self, params: GroqCallParams | dict[str, Any],
+    ) -> AsyncGenerator[str, None]:
+        if not isinstance(params, GroqCallParams):
+            params = GroqCallParams(**params)
 
-    async def call_groq(self, params: GroqCallParams, stream: bool = False):
-        pass
+        stream = await self._client.chat.completions.create(
+            messages=[
+                {"role": "system", "content": params.system_prompt},
+                {"role": "user", "content": params.prompt}
+            ],
+            model=params.model.value,
+            stream=True
+        )
+
+        async for chunk in stream:
+            content = chunk.choices[0].delta.content
+            if content:
+                yield content
+
+
+
+async def main():
+    groq = GroqClient()
+    async for chunk in groq.stream({
+        "model": GroqModelEnum.GPT_OSS_120B,
+        "max_tokens": 1000,
+        "system_prompt": "You are helpful AI assistant",
+        "prompt": "What is life."
+    }):
+        print(chunk, end=" ", flush=True)
+
+
+if __name__ == "__main__":
+    aio.run(main())

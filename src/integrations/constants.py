@@ -1,0 +1,1 @@
+GOOGLE_OPENID_SCOPES = "openid email profile"
