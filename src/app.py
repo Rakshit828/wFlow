@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from src.config import CONFIG
 from src.db.mongo.schemas import Users, Nodes, Pipelines
 from src.db.mongo.mongo_db import MongoClient
-
+from src.routes.auth_routes import auth_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -20,3 +20,5 @@ app = FastAPI(
     title="wFlow ---- AI Workflow Automation Tool", version=CONFIG.APP_VERSION,
     lifespan=lifespan
 )
+
+app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])

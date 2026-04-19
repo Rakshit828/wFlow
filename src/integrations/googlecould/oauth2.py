@@ -10,6 +10,7 @@ import httpx
 from src.integrations.oauth2 import OAuthInterface
 from src.config import CONFIG
 from src.db.redis import Redis
+from src.integrations.googlecould.types import GoogleAuthResponse, GoogleIDTokenPayload
 
 
 class GoogleOAuthInterface(OAuthInterface):
@@ -55,6 +56,7 @@ class GoogleOAuthInterface(OAuthInterface):
             "scope": scopes,
             "redirect_uri": CONFIG.GOOGLE_REDIRECT_URL,
             "state": state,
+            "access_type": "offline",
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
         }
@@ -79,18 +81,20 @@ class GoogleOAuthInterface(OAuthInterface):
             "redirect_uri": CONFIG.GOOGLE_REDIRECT_URL,
         }
 
-        async with self.async_client as client:
-            response = await client.post(CONFIG.GOOGLE_TOKEN_URL, data=data)
+        
+        response = await self.async_client.post(CONFIG.GOOGLE_TOKEN_URL, data=data)
 
         if response.status_code != 200:
             raise Exception(f"Google token exchange failed: {response.text}")
 
         tokens = response.json()
 
-        profile_info = await self.verify_oauth2_token_async(tokens.get("id_token"))
+        logger.info(f"Tokens response is : {tokens}")
 
-        return {
-            "access_token": tokens.get("access_token"),
-            "profile_info": profile_info,
-            "refresh_token": tokens.get("refresh_token"),
-        }
+        profile_info = await self.verify_oauth2_token_async(tokens.get("id_token"))
+        profile_info = GoogleIDTokenPayload(**profile_info)
+
+        return GoogleAuthResponse(
+            **tokens, 
+            decoded_id_token=profile_info
+        )
