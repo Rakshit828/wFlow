@@ -1,8 +1,9 @@
 from src.db.postgres.schemas import User, AppIntegrationsCredentials, OAuthAccounts
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_, update
 import uuid
 from datetime import datetime, timezone, timedelta
+from loguru import logger
 
 from src.services.encryption import encrypt_token
 from src.integrations.googlecould.types import GoogleAuthResponse
@@ -32,6 +33,7 @@ class UserRepository:
         )
         session.add(user)
         await session.flush()
+        logger.debug(f"User created : {user}")
         return user
 
 
@@ -63,7 +65,38 @@ class AppIntegrationsCredentialsRepository:
         )
         session.add(integration)
         await session.flush()
+        logger.debug(f"AppIntegrationsCredentials created : {integration}")
         return integration
+
+    async def update_with_new_scopes_and_tokens_google(
+        self,
+        user_id: int,
+        session: AsyncSession,
+        scopes: list[str],
+        access_token: str,
+        refresh_token: str,
+        access_token_expires_in: int,
+    ) -> None:
+        access_token_expiry = datetime.now(timezone.utc) + timedelta(
+            seconds=access_token_expires_in
+        )
+        stmt = (
+            update(AppIntegrationsCredentials)
+            .values(
+                {
+                    "access_token_enc": encrypt_token(access_token),
+                    "refresh_token_enc": encrypt_token(refresh_token),
+                    "access_token_expiry": access_token_expiry,
+                    "scopes": scopes,
+                }
+            )
+            .where(
+                AppIntegrationsCredentials.provider == "google",
+                AppIntegrationsCredentials.user_id == user_id,
+            )
+        )
+        await session.execute(stmt)
+        return None
 
 
 class OAuthAccountsRepository:
@@ -86,4 +119,5 @@ class OAuthAccountsRepository:
         )
         session.add(oauth_account)
         await session.flush()
+        logger.debug(f"OAuth Account created : {oauth_account}")
         return oauth_account

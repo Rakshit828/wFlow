@@ -17,6 +17,11 @@ class Config(BaseSettings):
 
     ENCRYPTION_KEY: str
 
+    JWT_SECRET: str
+    JWT_ALGORITHM: str
+    ACCESS_TOKEN_EXPIRY: str
+    REFRESH_TOKEN_EXPIRY: str
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 CONFIG = Config()

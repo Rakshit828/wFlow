@@ -6,6 +6,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
 from fastapi.concurrency import run_in_threadpool
 import httpx
+from typing import Literal
 
 from src.integrations.oauth2 import OAuthInterface
 from src.config import CONFIG
@@ -36,7 +37,11 @@ class GoogleOAuthInterface(OAuthInterface):
             raise ValueError(f"Invalid Token: {str(e)}")
 
     async def create_authorization_url(
-        self, db: Redis, scopes_requested: str | list[str]
+        self,
+        db: Redis,
+        scopes_requested: str | list[str],
+        prompt: Literal["none", "consent", "select_account", None] = None,
+        include_granted_scopes: bool = False,
     ):
         if isinstance(scopes_requested, list):
             scopes = " ".join(scopes_requested)
@@ -59,12 +64,13 @@ class GoogleOAuthInterface(OAuthInterface):
             "access_type": "offline",
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
+            "include_granted_scopes": include_granted_scopes,
         }
+
         url = f"{CONFIG.GOOGLE_AUTH_URL}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
         return url
 
-
-    async def exchange_for_code(self, db: Redis, code: str, state: str) -> dict:
+    async def exchange_for_code(self, db: Redis, code: str, state: str) -> dict[str, str]:
 
         redis_key = f"oauth:{state}"
         stored_verifier = await db.get(redis_key)
@@ -81,20 +87,19 @@ class GoogleOAuthInterface(OAuthInterface):
             "redirect_uri": CONFIG.GOOGLE_REDIRECT_URL,
         }
 
-        
         response = await self.async_client.post(CONFIG.GOOGLE_TOKEN_URL, data=data)
 
         if response.status_code != 200:
             raise Exception(f"Google token exchange failed: {response.text}")
 
         tokens = response.json()
-
+        return tokens
+    
+    
+    async def get_openid_auth_payload(self, tokens: dict[str, str]):
         logger.info(f"Tokens response is : {tokens}")
 
         profile_info = await self.verify_oauth2_token_async(tokens.get("id_token"))
         profile_info = GoogleIDTokenPayload(**profile_info)
 
-        return GoogleAuthResponse(
-            **tokens, 
-            decoded_id_token=profile_info
-        )
+        return GoogleAuthResponse(**tokens, decoded_id_token=profile_info)

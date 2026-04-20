@@ -10,3 +10,7 @@ wheels/
 .venv
 
 .env
+
+security_audit.md
+Auth.md
+security_audit.md.resolved

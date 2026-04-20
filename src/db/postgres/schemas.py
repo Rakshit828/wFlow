@@ -55,7 +55,7 @@ class AppIntegrationsCredentials(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    provider: Mapped[str] = mapped_column(pg.TEXT, nullable=False)
+    provider: Mapped[str] = mapped_column(pg.TEXT, nullable=False, index=True)
 
     access_token_enc: Mapped[str] = mapped_column(pg.TEXT, nullable=False)
     refresh_token_enc: Mapped[str | None] = mapped_column(pg.TEXT, nullable=True)
@@ -114,21 +114,3 @@ class OAuthAccounts(Base):
     integration: Mapped["AppIntegrationsCredentials"] = relationship(
         back_populates="oauth_link"
     )
-
-
-# class RefreshTokens(Base):
-#     __tablename__ = "refresh_tokens"
-#     id: Mapped[uuid.UUID] = mapped_column(
-#         pg.UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True
-#     )
-#     user_id: Mapped[uuid.UUID] = mapped_column(
-#         pg.UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
-#     )
-#     token_hash: Mapped[str] = mapped_column(pg.TEXT, nullable=False)
-#     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-#     expires_at: Mapped[datetime] = mapped_column(
-#         pg.TIMESTAMP(timezone=True), nullable=False
-#     )
-#     last_refresh_at: Mapped[str | None] = mapped_column(
-#         pg.TIMESTAMP, nullable=True
-#     )

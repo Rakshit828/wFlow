@@ -1,81 +1,115 @@
 import uuid
-import hashlib
-import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone, timedelta
 
 import jwt
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
+from loguru import logger
+from typing import Literal
+from fastapi import Response
 
-from app.config import get_settings
-from app.models.user import User, RefreshToken
+from src.config import CONFIG
 
-settings = get_settings()
 
-def create_access_token(user: User) -> str:
+def _parse_expiry(raw: str) -> timedelta:
+    """Convert human-friendly expiry strings to timedelta.
+
+    Supports: 30s, 15m, 1h, 7d
+    """
+    raw = raw.strip().lower()
+    unit = raw[-1]
+    value = int(raw[:-1])
+    mapping = {"s": "seconds", "m": "minutes", "h": "hours", "d": "days"}
+    if unit not in mapping:
+        raise ValueError(
+            f"Unsupported expiry unit '{unit}'. Use one of: {list(mapping.keys())}"
+        )
+    return timedelta(**{mapping[unit]: value})
+
+
+ACCESS_TOKEN_EXPIRY = _parse_expiry(CONFIG.ACCESS_TOKEN_EXPIRY)
+REFRESH_TOKEN_EXPIRY = _parse_expiry(CONFIG.REFRESH_TOKEN_EXPIRY)
+
+
+def create_jwt_token(
+    user_id: uuid.UUID,
+    token_type: Literal["access", "refresh"],
+    extra_claims: dict | None = None,
+) -> str:
     now = datetime.now(timezone.utc)
+    expires_at = now + (
+        ACCESS_TOKEN_EXPIRY if token_type == "access" else REFRESH_TOKEN_EXPIRY
+    )
     payload = {
-        "sub": str(user.id),
-        "email": user.email,
-        "roles": [r.name for r in user.roles],
-        "permissions": list({
-            f"{p.resource}:{p.action}"
-            for r in user.roles
-            for p in r.permissions
-        }),
+        "sub": str(user_id),
+        "type": "refresh",
         "iat": now,
-        "exp": now + timedelta(minutes=settings.access_token_expire_minutes),
-        "type": "access",
+        "exp": expires_at,
+        "jti": str(uuid.uuid4()),
     }
-    return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
+    if extra_claims:
+        payload.update(extra_claims)
 
-async def create_refresh_token(db: AsyncSession, user: User, family: str | None = None) -> str:
-    raw_token = secrets.token_urlsafe(64)
-    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
-    token_family = family or secrets.token_urlsafe(16)
+    token = jwt.encode(payload, CONFIG.JWT_SECRET, algorithm=CONFIG.JWT_ALGORITHM)
+    logger.debug(f"{token_type.capitalize()} token created for user {user_id}")
+    return token
 
-    refresh = RefreshToken(
-        user_id=user.id,
-        token_hash=token_hash,
-        family=token_family,
-        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days),
+
+def verify_token(token: str, expected_type: str = "access") -> dict:
+    """Decode and validate a JWT.
+
+    Parameters
+    ----------
+    token : str
+        The raw JWT string.
+    expected_type : str
+        Must match the ``type`` claim ("access" | "refresh").
+
+    Returns
+    -------
+    dict
+        The decoded payload.
+
+    Raises
+    ------
+    jwt.ExpiredSignatureError
+        Token has expired.
+    jwt.InvalidTokenError
+        Generic JWT validation failure.
+    ValueError
+        Token ``type`` claim does not match ``expected_type``.
+    """
+    payload = jwt.decode(
+        token,
+        CONFIG.JWT_SECRET,
+        algorithms=[CONFIG.JWT_ALGORITHM],
     )
-    db.add(refresh)
-    await db.flush()
-    return raw_token  # Return raw — hash stored in DB
 
-async def rotate_refresh_token(db: AsyncSession, raw_token: str) -> tuple[User, str]:
-    """Detect reuse attacks (revoke whole family), issue new token."""
-    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+    if payload.get("type") != expected_type:
+        raise ValueError(
+            f"Invalid token type: expected '{expected_type}', "
+            f"got '{payload.get('type')}'"
+        )
 
-    result = await db.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
-    )
-    stored = result.scalar_one_or_none()
+    return payload
 
-    if not stored:
-        raise ValueError("Refresh token not found")
 
-    if stored.is_revoked or stored.expires_at < datetime.now(timezone.utc):
-        # Reuse detected — revoke entire family (token rotation attack mitigation)
-        if stored.is_revoked:
-            await db.execute(
-                update(RefreshToken)
-                .where(RefreshToken.family == stored.family)
-                .values(is_revoked=True)
-            )
-        raise ValueError("Refresh token is invalid or expired")
-
-    # Revoke used token
-    stored.is_revoked = True
-    await db.flush()
-
-    # Load user and issue new token in same family
-    result = await db.execute(select(User).where(User.id == stored.user_id))
-    user = result.scalar_one()
-
-    new_raw = await create_refresh_token(db, user, family=stored.family)
-    return user, new_raw
-
-def decode_access_token(token: str) -> dict:
-    return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+def set_cookies(response: Response, tokens: dict[str, str]):
+    access_token = tokens.get("access_token")
+    refresh_token = tokens.get("refresh_token")
+    if access_token:
+        response.set_cookie(
+            key="access_token",
+            value=access_token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=int(ACCESS_TOKEN_EXPIRY.total_seconds()),
+        )
+    if refresh_token:
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=True,
+            samesite="lax",
+            max_age=int(REFRESH_TOKEN_EXPIRY.total_seconds()),
+        )
