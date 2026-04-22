@@ -20,6 +20,22 @@ class AuthErrors(Enum):
         message="User not found",
         error="user_not_found_when_updating_scope"
     )
+    INVALID_JWT_TOKEN_ERROR = ErrorDetail(
+        status_code=401,
+        message="Session expired! Please re-login.",
+        error="access_token_expired",
+    )
+    USER_NOT_FOUND_ERROR = ErrorDetail(
+        status_code=404,
+        message="Invalid access error.",
+        error="user_not_found"
+    )
+    PERMISSION_DENIED_ERROR = ErrorDetail(
+        status_code=400,
+        message="You are not allowed to access this service.",
+        error="permission_denied"
+    )
+    
 
 
 class AppError(Exception):

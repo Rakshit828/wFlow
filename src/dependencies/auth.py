@@ -1,62 +1,53 @@
-"""FastAPI dependencies for route protection via JWT cookies."""
+from fastapi import Request, Depends
+from fastapi.security import APIKeyCookie
 
-import uuid
+from src.services.tokens import decode_jwt_tokens
+from src.utils.exceptions import AppError, AuthErrors
+from src.repositories.auth_repository import UserRepository, Users
 
-from fastapi import Request, Depends, HTTPException, status
-import jwt
+class RefreshTokenBearer(APIKeyCookie):
+    def __init__(self):
+        super().__init__(name="refresh_token", auto_error=False)
 
-from src.services.tokens import verify_token
-from src.db.postgres.setup import get_session, AsyncSession
-from src.repositories.auth_repository import UserRepository
-from src.db.postgres.schemas import User
+    async def __call__(self, request: Request):
+        refresh_token = await super().__call__(request=request)
+        if refresh_token is None:
+            raise AppError(data=None, detail=AuthErrors.INVALID_JWT_TOKEN_ERROR.value)
+        decoded_token = decode_jwt_tokens(jwt_token=refresh_token)
+        return decoded_token
+
+
+class AccessTokenBearer(APIKeyCookie):
+    def __init__(self):
+        super().__init__(name="access_token", auto_error=False)
+
+    async def __call__(self, request: Request):
+        access_token = await super().__call__(request=request)
+        if access_token is None:
+            raise AppError(ata=None, detail=AuthErrors.INVALID_JWT_TOKEN_ERROR.value)
+        decoded_token = decode_jwt_tokens(jwt_token=access_token)
+        return decoded_token
+
 
 
 async def get_current_user(
-    request: Request,
-    session: AsyncSession = Depends(get_session),
-    user_repo: UserRepository = Depends(UserRepository),
-) -> User:
-    """Extract and validate the access_token cookie, then return the User.
+    token_data=Depends(AccessTokenBearer()),
+):
+    user_uid = token_data["sub"]
+    result: Users | None = await UserRepository.get_user_by_id(user_id=user_uid)
+    if result is not None:
+        return result
 
-    Usage:
-        @router.get("/protected")
-        async def protected_route(user: User = Depends(get_current_user)):
-            ...
-    """
-    token = request.cookies.get("access_token")
+    raise AppError()
 
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-        )
 
-    try:
-        payload = verify_token(token, expected_type="access")
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Access token has expired",
-        )
-    except (jwt.InvalidTokenError, ValueError) as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid access token: {e}",
-        )
+class RoleChecker:
+    def __init__(self, allowed_roles: list[str]):
+        self.allowed_roles = allowed_roles
 
-    user_id = payload.get("sub")
-    user = await user_repo.get_user_by_id(session, user_id)
+    def __call__(self, user: Users = Depends(get_current_user)):
+        if user.role not in self.allowed_roles:
+            raise AppError(data=None, detail=AuthErrors.PERMISSION_DENIED_ERROR.value)
 
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-        )
 
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is deactivated",
-        )
-
-    return user
+admin_checker = RoleChecker(["admin"])

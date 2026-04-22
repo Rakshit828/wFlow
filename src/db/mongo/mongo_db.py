@@ -5,7 +5,7 @@ import asyncio as aio
 import beanie
 from typing import Sequence
 
-from src.db.mongo.schemas import Users, Nodes, Pipelines
+from src.db.mongo.schemas import Users, AppIntegrations, OAuthAccounts 
 
 class MongoClient:
     def __init__(self, db_uri: str):
@@ -31,7 +31,7 @@ class MongoClient:
 
     async def init_beanie_odm(self, models: Sequence[beanie.Document] | None = None) -> None:
         if models is None:
-            models = [Users, Pipelines, Nodes]
+            models = [Users, AppIntegrations, OAuthAccounts]
         await beanie.init_beanie(
             database=self.db,
             document_models=models

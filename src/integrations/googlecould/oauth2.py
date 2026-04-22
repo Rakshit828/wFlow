@@ -11,7 +11,12 @@ from typing import Literal
 from src.integrations.oauth2 import OAuthInterface
 from src.config import CONFIG
 from src.db.redis import Redis
-from src.integrations.googlecould.types import GoogleAuthResponse, GoogleIDTokenPayload
+from src.integrations.googlecould.types import (
+    GoogleAuthResponse,
+    GoogleIDTokenPayload,
+    GoogleNewScopeResponse,
+    GoogleIDTokenPayloadOnlyEmail,
+)
 
 
 class GoogleOAuthInterface(OAuthInterface):
@@ -39,6 +44,7 @@ class GoogleOAuthInterface(OAuthInterface):
     async def create_authorization_url(
         self,
         db: Redis,
+        login_redirect: bool,
         scopes_requested: str | list[str],
         prompt: Literal["none", "consent", "select_account", None] = None,
         include_granted_scopes: bool = False,
@@ -59,18 +65,23 @@ class GoogleOAuthInterface(OAuthInterface):
             "client_id": CONFIG.GOOGLE_CLIENT_ID,
             "response_type": "code",
             "scope": scopes,
-            "redirect_uri": CONFIG.GOOGLE_REDIRECT_URL,
+            "redirect_uri": (
+                CONFIG.GOOGLE_LOGIN_REDIRECT_URL
+                if login_redirect
+                else CONFIG.GOOGLE_SCOPE_REDIRECT_URL
+            ),
             "state": state,
             "access_type": "offline",
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
-            "include_granted_scopes": include_granted_scopes,
         }
 
         url = f"{CONFIG.GOOGLE_AUTH_URL}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
         return url
 
-    async def exchange_for_code(self, db: Redis, code: str, state: str) -> dict[str, str]:
+    async def exchange_for_code_new_authorization(
+        self, db: Redis, code: str, state: str
+    ) -> dict[str, str]:
 
         redis_key = f"oauth:{state}"
         stored_verifier = await db.get(redis_key)
@@ -84,7 +95,7 @@ class GoogleOAuthInterface(OAuthInterface):
             "client_secret": CONFIG.GOOGLE_CLIENT_SECRET,
             "code_verifier": stored_verifier,
             "grant_type": "authorization_code",
-            "redirect_uri": CONFIG.GOOGLE_REDIRECT_URL,
+            "redirect_uri": CONFIG.GOOGLE_SCOPE_REDIRECT_URL,
         }
 
         response = await self.async_client.post(CONFIG.GOOGLE_TOKEN_URL, data=data)
@@ -95,7 +106,33 @@ class GoogleOAuthInterface(OAuthInterface):
         tokens = response.json()
         return tokens
     
-    
+    async def exchange_for_code(
+        self, db: Redis, code: str, state: str
+    ) -> dict[str, str]:
+
+        redis_key = f"oauth:{state}"
+        stored_verifier = await db.get(redis_key)
+        if not stored_verifier:
+            raise Exception("Session Expired or State Mismatch")
+        await db.delete(redis_key)
+
+        data = {
+            "code": code,
+            "client_id": CONFIG.GOOGLE_CLIENT_ID,
+            "client_secret": CONFIG.GOOGLE_CLIENT_SECRET,
+            "code_verifier": stored_verifier,
+            "grant_type": "authorization_code",
+            "redirect_uri": CONFIG.GOOGLE_LOGIN_REDIRECT_URL,
+        }
+
+        response = await self.async_client.post(CONFIG.GOOGLE_TOKEN_URL, data=data)
+
+        if response.status_code != 200:
+            raise Exception(f"Google token exchange failed: {response.text}")
+
+        tokens = response.json()
+        return tokens
+
     async def get_openid_auth_payload(self, tokens: dict[str, str]):
         logger.info(f"Tokens response is : {tokens}")
 
@@ -103,3 +140,11 @@ class GoogleOAuthInterface(OAuthInterface):
         profile_info = GoogleIDTokenPayload(**profile_info)
 
         return GoogleAuthResponse(**tokens, decoded_id_token=profile_info)
+
+    async def get_openid_payload_new_authorization(
+        self, tokens: dict[str, str]
+    ) -> GoogleNewScopeResponse:
+        logger.info(f"Tokens are : {tokens}")
+        decoded_jwt = await self.verify_oauth2_token_async(tokens.get("id_token"))
+        decoded_jwt = GoogleIDTokenPayloadOnlyEmail(**decoded_jwt)
+        return GoogleNewScopeResponse(**tokens, decoded_id_token=decoded_jwt)

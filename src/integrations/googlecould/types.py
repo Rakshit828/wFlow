@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, HttpUrl, Field, ConfigDict
+from pydantic import BaseModel, EmailStr, HttpUrl, Field, ConfigDict, computed_field
 from typing import Optional, List
 
 
@@ -24,11 +24,18 @@ class GoogleAuthResponse(BaseModel):
     expires_in: int
 
     refresh_token: Optional[str] = None
-    scopes: str
+    scope: str
     token_type: str
     decoded_id_token: GoogleIDTokenPayload
 
+    @computed_field()
+    @property
+    def scopes(self) -> list[str]:
+        return self.scope.split(" ")
+
+
     model_config = ConfigDict(extra="ignore")
+
 
 class GoogleIDTokenPayloadOnlyEmail(BaseModel):
     """This is the decoded id_token payload when all [openid, email] are requested."""
@@ -42,11 +49,16 @@ class GoogleIDTokenPayloadOnlyEmail(BaseModel):
     iat: int  # Issued at
     exp: int  # Expiration time
 
+
 class GoogleNewScopeResponse(BaseModel):
     access_token: str
     expires_in: int
     refresh_token: Optional[str] = None
-    scopes: str
+    scope: str
     token_type: str
-
     decoded_id_token: GoogleIDTokenPayloadOnlyEmail
+
+    @computed_field()
+    @property
+    def scopes(self) -> list[str]:
+        return self.scope.split(" ")

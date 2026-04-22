@@ -3,7 +3,7 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 
 from src.config import CONFIG
-from src.db.mongo.schemas import Users, Nodes, Pipelines
+from src.db.mongo.schemas import Users, AppIntegrations, OAuthAccounts
 from src.db.mongo.mongo_db import MongoClient
 from src.routes.auth_routes import auth_router
 from src.utils.exceptions import AppError
@@ -14,8 +14,8 @@ from loguru import logger
 async def lifespan(app: FastAPI):
     mongo_db = MongoClient(CONFIG.MONGO_DB_URI)
     app.state.mongo_db = mongo_db
-    await mongo_db.get_database("wflow_db")
-    await mongo_db.init_beanie_odm(models=[Users, Nodes, Pipelines])
+    await mongo_db.get_database(CONFIG.DATABASE_NAME)
+    await mongo_db.init_beanie_odm(models=[Users, AppIntegrations, OAuthAccounts])
 
     yield
 

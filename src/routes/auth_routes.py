@@ -1,38 +1,51 @@
-from fastapi import APIRouter, Request, Depends, Response, HTTPException, status
+from fastapi import APIRouter, Request, Depends, Response
 from fastapi.responses import RedirectResponse
 from loguru import logger
-import jwt
+from datetime import datetime, timedelta, timezone
 
 from src.db.redis import Redis, get_redis
 from src.integrations.googlecould.oauth2 import GoogleOAuthInterface
-from src.integrations.constants import GOOGLE_OPENID_SCOPES
-from src.db.postgres.setup import get_session, AsyncSession
-from src.integrations.googlecould.types import GoogleAuthResponse, GoogleNewScopeResponse
-from src.repositories.auth_repository import (
-    UserRepository,
-    AppIntegrationsCredentialsRepository,
-    OAuthAccountsRepository,
+from src.integrations.constants import GOOGLE_OPENID_SCOPES, GOOGLE_EMAIL_READONLY_SCOPE
+from src.integrations.googlecould.types import (
+    GoogleAuthResponse,
+    GoogleNewScopeResponse,
 )
 from src.models.auth_models import LoginResponse
-from src.services.tokens import (
-    create_jwt_token,
-    set_cookies
-)
+from src.services.tokens import create_jwt_tokens, set_cookies
+from src.dependencies.auth import AccessTokenBearer
+from src.db.mongo.schemas import Users, OAuthAccounts, AppIntegrations
+from src.repositories.auth_repository import UserRepository, OAuthAccountRepository
+from src.repositories.app_integrations import AppIntegrationsRepository
 from src.utils.exceptions import AuthErrors, AppError
+from typing import Literal
 
 auth_router = APIRouter()
 
 google_oauth = GoogleOAuthInterface()
 
 
-@auth_router.get("/google/login")
-async def google_login_redirect(redis: Redis = Depends(get_redis)):
+@auth_router.get("/google/redirect-url/{purpose}")
+async def google_login_redirect(
+    purpose: Literal["login", "new_scope"],
+    scope: str | None = None,
+    redis: Redis = Depends(get_redis),
+):
+    login_redirect = False
+    match (purpose):
+        case "login":
+            login_redirect = True
+            scopes = GOOGLE_OPENID_SCOPES if scope is None else scope
+        case "new_scope":
+            if scope == "gmail.readonly":
+                scopes = GOOGLE_EMAIL_READONLY_SCOPE
+        case _:
+            pass
+
     url: str = await google_oauth.create_authorization_url(
-        db=redis, scopes_requested=GOOGLE_OPENID_SCOPES
+        db=redis, scopes_requested=scopes, login_redirect=login_redirect
     )
     logger.debug(f"The url constructed is : {url}")
     return RedirectResponse(url)
-
 
 
 @auth_router.get("/google/callback", response_model=LoginResponse)
@@ -41,56 +54,54 @@ async def google_callback_and_exchange_codes(
     state: str,
     response: Response,
     redis: Redis = Depends(get_redis),
-    session: AsyncSession = Depends(get_session),
     user_repo: UserRepository = Depends(UserRepository),
-    integration_repo: AppIntegrationsCredentialsRepository = Depends(
-        AppIntegrationsCredentialsRepository
-    ),
-    oauth_repo: OAuthAccountsRepository = Depends(OAuthAccountsRepository),
+    oauth_repo: OAuthAccountRepository = Depends(OAuthAccountRepository),
 ) -> LoginResponse:
     """Callback for google login."""
     tokens: dict[str, str] = await google_oauth.exchange_for_code(
         db=redis, code=code, state=state
     )
-    auth_response: GoogleAuthResponse = await google_oauth.get_openid_auth_payload(tokens)
-
-    user = await user_repo.get_user_by_email(
-        session, auth_response.decoded_id_token.email
+    auth_response: GoogleAuthResponse = await google_oauth.get_openid_auth_payload(
+        tokens
     )
+
+    user = await user_repo.get_user_by_email(auth_response.decoded_id_token.email)
 
     if not user:
         # Create rows only if the user doesn't exist.
-        user = await user_repo.create_user(
-            session=session,
+        user: Users | None = await user_repo.create_user(
             email=auth_response.decoded_id_token.email,
             name=auth_response.decoded_id_token.name,
+            username=None,
             avatar_url=str(auth_response.decoded_id_token.picture),
             is_verified=auth_response.decoded_id_token.email_verified,
         )
 
-        integration = await integration_repo.create_integration(
-            session=session,
-            user_id=user.id,
-            provider="google",
-            access_token=auth_response.access_token,
-            refresh_token=auth_response.refresh_token,
-            scopes=auth_response.scopes.split(" "),
-            access_token_expires_in=auth_response.expires_in,
-            token_type=auth_response.token_type,
-        )
+        if user is None:
+            raise AppError()
 
         await oauth_repo.create_oauth_account(
-            session=session,
-            user_id=user.id,
-            integration_id=integration.id,
+            user_ref=user.id,
             provider="google",
-            auth_response=auth_response,
+            provider_email=auth_response.decoded_id_token.email,
+            is_email_verified=auth_response.decoded_id_token.email_verified,
+            scopes=auth_response.scopes,
+            provider_sub_id=auth_response.decoded_id_token.sub,
+            access_token=auth_response.access_token,
+            refresh_token=auth_response.refresh_token,
+            access_token_expiry=auth_response.expires_in,
+            refresh_token_expiry=None,
         )
 
-    access_token = create_jwt_token(user_id=user.id, token_type="access")
-    refresh_token = create_jwt_token(user.id, token_type="refresh")
+    tokens = await create_jwt_tokens(user.id, is_login=True)
 
-    set_cookies(response=response, tokens={"access_token": access_token, "refresh_token": refresh_token})
+    set_cookies(
+        response=response,
+        tokens={
+            "access_token": tokens["access_token"],
+            "refresh_token": tokens["refresh_token"],
+        },
+    )
 
     return LoginResponse(
         user_id=user.id,
@@ -99,47 +110,40 @@ async def google_callback_and_exchange_codes(
     )
 
 
-
-@auth_router.post("/refresh")
-async def refresh_access_token(
-    request: Request,
-    response: Response,
-    session: AsyncSession = Depends(get_session)
-):
-    pass
-
-
 @auth_router.get("/google/scope/callback")
 async def grant_new_scope(
     code: str,
     state: str,
+    decoded_token: str = Depends(AccessTokenBearer()),
     redis: Redis = Depends(get_redis),
-    session: AsyncSession = Depends(get_session),
     user_repo: UserRepository = Depends(UserRepository),
-    integration_repo: AppIntegrationsCredentialsRepository = Depends(
-        AppIntegrationsCredentialsRepository
-    ),
-    oauth_repo: OAuthAccountsRepository = Depends(OAuthAccountsRepository),
+    integration_repo: AppIntegrationsRepository = Depends(AppIntegrationsRepository),
 ):
-    tokens: dict[str, str] = await google_oauth.exchange_for_code(
+    user_id: str = decoded_token["sub"]
+    user: Users | None = await user_repo.get_user_by_id(user_id=user_id)
+    logger.info(f"User id decoded is: {user_id}")
+    if not user:
+        raise AppError(detail=AuthErrors.USER_NOT_FOUND_ERROR.value, data=None)
+
+    tokens: dict[str, str] = await google_oauth.exchange_for_code_new_authorization(
         db=redis, code=code, state=state
     )
-    new_scope_response: GoogleNewScopeResponse = await google_oauth.get_openid_auth_payload(tokens)
-
-    user = await user_repo.get_user_by_email(
-        session, new_scope_response.decoded_id_token.email
+    new_scope_response: GoogleNewScopeResponse = (
+        await google_oauth.get_openid_payload_new_authorization(tokens)
     )
 
     if not user:
         raise AppError(AuthErrors.USER_NOT_FOUND_WHEN_UPDATING_SCOPE.value, data=None)
-    
-    await integration_repo.update_with_new_scopes_and_tokens_google(
-        session=session,
-        user_id=user.id,
+    now = datetime.now(timezone.utc)
+    await integration_repo.add_new_integration(
+        user_ref=user,
+        provider="google",
+        service="google",  # Later add this logic of selecting service.
         scopes=new_scope_response.scopes,
         access_token=new_scope_response.access_token,
         refresh_token=new_scope_response.refresh_token,
-        access_token_expires_in=new_scope_response.expires_in
+        access_token_expiry=now + timedelta(seconds=new_scope_response.expires_in),
+        refresh_token_expiry=None,
     )
-    return None
 
+    return {"message": "Service integrated successfully."}
