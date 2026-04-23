@@ -6,6 +6,7 @@ from src.config import CONFIG
 from src.db.mongo.schemas import Users, AppIntegrations, OAuthAccounts
 from src.db.mongo.mongo_db import MongoClient
 from src.routes.auth_routes import auth_router
+from src.routes.app_integration_routes import integration_router
 from src.utils.exceptions import AppError
 from loguru import logger
 
@@ -27,7 +28,7 @@ app = FastAPI(
 )
 
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
-
+app.include_router(integration_router, prefix="/api/integration", tags=["App Integration"])
 
 @app.exception_handler(AppError)
 async def handle_app_error(req: Request, exc: AppError):

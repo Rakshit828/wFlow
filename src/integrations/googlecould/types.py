@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr, HttpUrl, Field, ConfigDict, computed_field
 from typing import Optional, List
+from src.integrations.googlecould.scopes import GOOGLE_EMAIL_ONLY_OPENID_SCOPE, GOOGLE_SERVICES
 
 
 class GoogleIDTokenPayload(BaseModel):
@@ -54,6 +55,7 @@ class GoogleNewScopeResponse(BaseModel):
     access_token: str
     expires_in: int
     refresh_token: Optional[str] = None
+    refresh_expires_in: int
     scope: str
     token_type: str
     decoded_id_token: GoogleIDTokenPayloadOnlyEmail
@@ -62,3 +64,11 @@ class GoogleNewScopeResponse(BaseModel):
     @property
     def scopes(self) -> list[str]:
         return self.scope.split(" ")
+
+    @computed_field
+    @property
+    def service(self) -> str:
+        scope_str = self.scope.replace(GOOGLE_EMAIL_ONLY_OPENID_SCOPE, "")
+        for service in GOOGLE_SERVICES:
+            if service in scope_str:
+                return service

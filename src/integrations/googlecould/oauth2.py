@@ -17,6 +17,12 @@ from src.integrations.googlecould.types import (
     GoogleNewScopeResponse,
     GoogleIDTokenPayloadOnlyEmail,
 )
+from src.integrations.googlecould.scopes import (
+    GOOGLE_SCOPES,
+    GOOGLE_OPENID_SCOPE,
+    GOOGLE_EMAIL_ONLY_OPENID_SCOPE,
+    get_scopes,
+)
 
 
 class GoogleOAuthInterface(OAuthInterface):
@@ -45,17 +51,11 @@ class GoogleOAuthInterface(OAuthInterface):
         self,
         db: Redis,
         login_redirect: bool,
-        scopes_requested: str | list[str],
-        prompt: Literal["none", "consent", "select_account", None] = None,
-        include_granted_scopes: bool = False,
+        scopes_requested: list[str] | None = None,
+        prompt: Literal["none", "consent", "select_account", None] = "consent",
     ):
-        if isinstance(scopes_requested, list):
-            scopes = " ".join(scopes_requested)
-        elif isinstance(scopes_requested, str):
-            scopes = scopes_requested
-        else:
-            raise TypeError("Invalid Type for parameter, scopes_requested=")
-
+        scopes = GOOGLE_OPENID_SCOPE if not scopes_requested else " ".join(scopes_requested)
+        
         state = secrets.token_urlsafe(32)
         code_verifier, code_challenge = self._generate_pkce_pair()
 
@@ -73,11 +73,13 @@ class GoogleOAuthInterface(OAuthInterface):
             "state": state,
             "access_type": "offline",
             "code_challenge": code_challenge,
+            "prompt": prompt,
             "code_challenge_method": "S256",
         }
 
         url = f"{CONFIG.GOOGLE_AUTH_URL}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
         return url
+
 
     async def exchange_for_code_new_authorization(
         self, db: Redis, code: str, state: str
@@ -105,7 +107,7 @@ class GoogleOAuthInterface(OAuthInterface):
 
         tokens = response.json()
         return tokens
-    
+
     async def exchange_for_code(
         self, db: Redis, code: str, state: str
     ) -> dict[str, str]:

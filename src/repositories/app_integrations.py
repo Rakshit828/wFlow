@@ -1,13 +1,66 @@
+from beanie.odm.operators.update.general import Set
+from beanie.odm.operators.update.array import AddToSet
+from beanie import PydanticObjectId
+from datetime import datetime
+from loguru import logger
+
 from src.db.mongo.schemas import AppIntegrations, Users
 from src.repositories.auth_repository import UserRepository
 from src.services.encryption import encrypt_token
-from datetime import datetime
-from loguru import logger
 
 
 class AppIntegrationsRepository:
     def __init__(self):
         self.__user_repo: UserRepository = UserRepository()
+    
+    async def find_app_integration(
+        self,
+        user_id: str,
+        provider: str,
+        service: str,
+    ) -> AppIntegrations | None:
+        integration = await AppIntegrations.find_one(
+            AppIntegrations.user.id == PydanticObjectId(user_id),
+            AppIntegrations.provider == provider,
+            AppIntegrations.service == service,
+        )
+        logger.info(f"Integration founded is : {integration}")
+        return integration
+    
+
+    async def update_app_integration(
+        self,
+        user_id: str,
+        provider: str,
+        service: str,
+        access_token: str,
+        refresh_token: str,
+        access_token_expiry: datetime,
+        refresh_token_expiry: datetime,
+        scopes: list[str] | None = None,
+    ) -> bool:
+        integration: AppIntegrations | None = await self.find_app_integration(
+            user_id=user_id,
+            provider=provider,
+            service=service
+        )
+        if integration is None:
+            return False
+        update_response = await integration.update(
+            Set(
+                {
+                    AppIntegrations.access_token_enc: encrypt_token(access_token),
+                    AppIntegrations.refresh_token_enc: encrypt_token(refresh_token),
+                    AppIntegrations.access_token_expiry: access_token_expiry,
+                    AppIntegrations.refresh_token_expiry: refresh_token_expiry,
+                }
+            ),
+            AddToSet({AppIntegrations.scopes: {"$each": scopes}}),
+        )
+        logger.info(f"Updated response is : {update_response}")
+
+        return True
+            
 
     async def add_new_integration(
         self,
@@ -25,7 +78,7 @@ class AppIntegrationsRepository:
             user: Users | None = self.__user_repo.get_user_by_id(user_id=user_ref)
         else:
             user = user_ref
-            
+
         if not user:
             logger.error(f"User with id {user_ref} doesn't exist.")
             return None

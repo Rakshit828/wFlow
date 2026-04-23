@@ -1,0 +1,1 @@
+## What if user dissconnets from google and revokes all access from google but user still exists in our db.

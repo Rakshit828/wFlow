@@ -24,7 +24,7 @@ class AccessTokenBearer(APIKeyCookie):
     async def __call__(self, request: Request):
         access_token = await super().__call__(request=request)
         if access_token is None:
-            raise AppError(ata=None, detail=AuthErrors.INVALID_JWT_TOKEN_ERROR.value)
+            raise AppError(data=None, detail=AuthErrors.INVALID_JWT_TOKEN_ERROR.value)
         decoded_token = decode_jwt_tokens(jwt_token=access_token)
         return decoded_token
 

@@ -110,7 +110,7 @@ def set_cookies(response: Response, tokens: dict[str, str]):
             max_age=int(ACCESS_TOKEN_EXPIRY.total_seconds()),
             httponly=True,
             secure=CONFIG.ENVIRONMENT == "production",
-            samesite="lax",
+            samesite="none",
             path="/",
         )
     
@@ -122,6 +122,6 @@ def set_cookies(response: Response, tokens: dict[str, str]):
             max_age=int(REFRESH_TOKEN_EXPIRY.total_seconds()),
             httponly=True,
             secure=CONFIG.ENVIRONMENT == "production",
-            samesite="lax",
+            samesite="none",
             path="/",
         )
