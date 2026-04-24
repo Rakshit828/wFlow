@@ -3,11 +3,11 @@ from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 
 from src.config import CONFIG
-from src.db.mongo.schemas import Users, AppIntegrations, OAuthAccounts
-from src.db.mongo.mongo_db import MongoClient
-from src.routes.auth_routes import auth_router
-from src.routes.app_integration_routes import integration_router
-from src.utils.exceptions import AppError
+from src.db.models import Users, AppIntegrations, OAuthAccounts
+from src.db.mongo_db import MongoClient
+from src.api.routes.auth_routes import auth_router
+from src.api.routes.app_integration_routes import integration_router
+from src.core.exceptions import AppError
 from loguru import logger
 
 

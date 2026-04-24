@@ -3,9 +3,9 @@ from datetime import datetime, timezone, timedelta
 from loguru import logger
 from beanie import PydanticObjectId
 
-from src.services.encryption import encrypt_token
+from src.core.security import encrypt_token
 from src.integrations.googlecould.types import GoogleAuthResponse
-from src.db.mongo.schemas import Users, AppIntegrations, OAuthAccounts
+from src.db.models import Users, AppIntegrations, OAuthAccounts
 
 
 class UserRepository:
@@ -19,37 +19,16 @@ class UserRepository:
 
     async def create_user(
         self,
-        email: str,
-        name: str | None,
-        username: str | None,
-        avatar_url: str,
-        is_verified: bool,
+        user: Users
     ) -> Users | None:
-        created_user = await Users.insert_one(
-            Users(
-                email=email,
-                full_name=name,
-                username=username,
-                avatar_url=avatar_url,
-                is_email_verified=is_verified,
-            )
-        )
+        created_user = await Users.insert(user)
         return created_user
 
 
 class OAuthAccountRepository:
     async def create_oauth_account(
         self,
-        user_ref: str,
-        provider: str,
-        provider_email: str,
-        provider_sub_id: str,
-        access_token: str,
-        access_token_expiry: datetime,
-        is_email_verified: bool = False,
-        scopes: list[str] | None = None,
-        refresh_token: str | None = None,
-        refresh_token_expiry: datetime | None = None,
+        oauth_account: OAuthAccounts
     ) -> OAuthAccounts | None:
         if scopes is None:
             scopes = []

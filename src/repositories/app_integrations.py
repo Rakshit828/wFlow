@@ -4,9 +4,9 @@ from beanie import PydanticObjectId
 from datetime import datetime
 from loguru import logger
 
-from src.db.mongo.schemas import AppIntegrations, Users
+from src.db.models import AppIntegrations, Users
 from src.repositories.auth_repository import UserRepository
-from src.services.encryption import encrypt_token
+from src.core.security import encrypt_token
 
 
 class AppIntegrationsRepository:

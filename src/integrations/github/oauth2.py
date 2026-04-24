@@ -1,4 +1,4 @@
-"""Contains the google specific login for OAuth 2.0."""
+"""Contains the github specific login and authorization and OAuth2.0.."""
 
 from src.integrations.oauth2 import OAuthInterface
 

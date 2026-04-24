@@ -55,7 +55,7 @@ class GoogleNewScopeResponse(BaseModel):
     access_token: str
     expires_in: int
     refresh_token: Optional[str] = None
-    refresh_expires_in: int
+    refresh_token_expires_in: int
     scope: str
     token_type: str
     decoded_id_token: GoogleIDTokenPayloadOnlyEmail

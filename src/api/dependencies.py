@@ -1,9 +1,18 @@
 from fastapi import Request, Depends
 from fastapi.security import APIKeyCookie
 
-from src.services.tokens import decode_jwt_tokens
-from src.utils.exceptions import AppError, AuthErrors
+from src.core.security import decode_jwt_tokens
+from src.core.exceptions import AppError, AuthErrors
 from src.repositories.auth_repository import UserRepository, Users
+from src.services.user_service import UserService
+from src.services.app_integration_service import AppIntegrationService
+
+def get_app_integration_service() -> AppIntegrationService:
+    return AppIntegrationService()
+
+def get_user_service() -> UserService:
+    return UserService()
+
 
 class RefreshTokenBearer(APIKeyCookie):
     def __init__(self):

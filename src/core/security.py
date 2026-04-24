@@ -1,32 +1,26 @@
+from cryptography.fernet import Fernet
+from src.config import CONFIG
 from beanie import PydanticObjectId
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 import jwt
 import uuid
 from loguru import logger
+
+from src.utils.utils import REFRESH_TOKEN_EXPIRY, ACCESS_TOKEN_EXPIRY
 from src.config import CONFIG
-from fastapi import Response
 
-# Helper functions
-def _parse_expiry(raw: str) -> timedelta:
-    """Convert human-friendly expiry strings to timedelta.
-
-    Supports: 30s, 15m, 1h, 7d
-    """
-    raw = raw.strip().lower()
-    unit = raw[-1]
-    value = int(raw[:-1])
-    mapping = {"s": "seconds", "m": "minutes", "h": "hours", "d": "days"}
-    if unit not in mapping:
-        raise ValueError(
-            f"Unsupported expiry unit '{unit}'. Use one of: {list(mapping.keys())}"
-        )
-    return timedelta(**{mapping[unit]: value})
+cipher_suite = Fernet(CONFIG.ENCRYPTION_KEY)
 
 
+def encrypt_token(token: str | None) -> str | None:
+    if not token:
+        return None
+    return cipher_suite.encrypt(token.encode()).decode()
 
-ACCESS_TOKEN_EXPIRY = _parse_expiry(CONFIG.ACCESS_TOKEN_EXPIRY)
-REFRESH_TOKEN_EXPIRY = _parse_expiry(CONFIG.REFRESH_TOKEN_EXPIRY)
-
+def decrypt_token(token_enc: str | None) -> str | None:
+    if not token_enc:
+        return None
+    return cipher_suite.decrypt(token_enc.encode()).decode()
 
 
 async def create_jwt_tokens(
@@ -99,29 +93,4 @@ def decode_jwt_tokens(jwt_token: str) -> str:
         pass
 
 
-def set_cookies(response: Response, tokens: dict[str, str]):
-    """Set JWT tokens as HTTP-only cookies in the response."""
-    
-    # Set access token cookie
-    if "access_token" in tokens:
-        response.set_cookie(
-            key="access_token",
-            value=tokens["access_token"],
-            max_age=int(ACCESS_TOKEN_EXPIRY.total_seconds()),
-            httponly=True,
-            secure=CONFIG.ENVIRONMENT == "production",
-            samesite="none",
-            path="/",
-        )
-    
-    # Set refresh token cookie if present
-    if "refresh_token" in tokens:
-        response.set_cookie(
-            key="refresh_token",
-            value=tokens["refresh_token"],
-            max_age=int(REFRESH_TOKEN_EXPIRY.total_seconds()),
-            httponly=True,
-            secure=CONFIG.ENVIRONMENT == "production",
-            samesite="none",
-            path="/",
-        )
+

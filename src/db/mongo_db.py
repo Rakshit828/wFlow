@@ -5,7 +5,8 @@ import asyncio as aio
 import beanie
 from typing import Sequence
 
-from src.db.mongo.schemas import Users, AppIntegrations, OAuthAccounts 
+from src.db.models import Users, AppIntegrations, OAuthAccounts 
+
 
 class MongoClient:
     def __init__(self, db_uri: str):
