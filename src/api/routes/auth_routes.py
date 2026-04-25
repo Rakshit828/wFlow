@@ -5,7 +5,10 @@ from loguru import logger
 from src.db.redis import Redis, get_redis
 from src.integrations.googlecould.oauth2 import GoogleOAuthInterface
 from src.schemas.auth_schemas import LoginResponse
-from src.api.dependencies import get_user_service, UserService
+from src.api.dependencies import get_user_service
+from src.services.user_service import UserService
+
+
 
 
 auth_router = APIRouter()
@@ -18,7 +21,7 @@ async def google_login_redirect(redis: Redis = Depends(get_redis)):
     url: str = await google_oauth.create_authorization_url(
         db=redis, login_redirect=True
     )
-
+    logger.info(f"Redirecting to {url} ")
     return RedirectResponse(url)
 
 

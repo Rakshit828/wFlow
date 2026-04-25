@@ -1,7 +1,7 @@
 from src.config import CONFIG
 from datetime import timedelta
 from fastapi import Response
-
+from loguru import logger
 
 def _parse_expiry(raw: str) -> timedelta:
     """Convert human-friendly expiry strings to timedelta.
@@ -35,7 +35,7 @@ def set_cookies(response: Response, tokens: dict[str, str]):
             max_age=int(ACCESS_TOKEN_EXPIRY.total_seconds()),
             httponly=True,
             secure=CONFIG.ENVIRONMENT == "production",
-            samesite="none",
+            samesite="lax",
             path="/",
         )
     
@@ -47,6 +47,8 @@ def set_cookies(response: Response, tokens: dict[str, str]):
             max_age=int(REFRESH_TOKEN_EXPIRY.total_seconds()),
             httponly=True,
             secure=CONFIG.ENVIRONMENT == "production",
-            samesite="none",
+            samesite="lax",
             path="/",
         )
+
+    logger.info(f"Cookies set are : {response.headers}")

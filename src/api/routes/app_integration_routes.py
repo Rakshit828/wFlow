@@ -18,7 +18,7 @@ async def google_new_scope_redirect(
     scopes: list[str] = Query(...),
     redis: Redis = Depends(get_redis),
     integration_service: AppIntegrationService = Depends(get_app_integration_service),
-    decoded_token: str = Depends(AccessTokenBearer),
+    decoded_token: str = Depends(AccessTokenBearer()),
 ):
     user_id: str = decoded_token["sub"]
     url = await integration_service.create_authz_url_for_new_scope_google(

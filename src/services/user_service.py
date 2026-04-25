@@ -1,12 +1,15 @@
 from src.repositories.auth_repository import UserRepository, OAuthAccountRepository
 from src.integrations.googlecould import GoogleOAuthInterface, GoogleAuthResponse
-from src.db.models import Users
+from src.db.models import Users, OAuthAccounts
 from src.core.exceptions import AppError
 from src.core.security import create_jwt_tokens
 from src.utils.utils import set_cookies
 from src.db.redis import Redis
 from src.schemas.auth_schemas import LoginResponse
 from fastapi import Response
+from fastapi.responses import RedirectResponse
+from src.core.security import encrypt_token
+from datetime import timedelta, datetime, timezone
 
 
 class UserService:
@@ -41,19 +44,28 @@ class UserService:
 
             if user is None:
                 raise AppError()
+            
+            access_token_enc = encrypt_token(auth_response.access_token)
+            refresh_token_enc = encrypt_token(auth_response.refresh_token)
+            now = datetime.now(timezone.utc)
+            refresh_token_expiry = now + timedelta(
+                seconds=auth_response.refresh_token_expires_in
+            )
+            access_token_expiry = now + timedelta(seconds=auth_response.expires_in)
 
-            await self.oauth_repo.create_oauth_account(
-                user_ref=user.id,
+            oauth_acc = OAuthAccounts(
+                user=user,
                 provider="google",
                 provider_email=auth_response.decoded_id_token.email,
-                is_email_verified=auth_response.decoded_id_token.email_verified,
-                scopes=auth_response.scopes,
                 provider_sub_id=auth_response.decoded_id_token.sub,
-                access_token=auth_response.access_token,
-                refresh_token=auth_response.refresh_token,
-                access_token_expiry=auth_response.expires_in,
-                refresh_token_expiry=None,
+                is_email_verified=auth_response.decoded_id_token.email_verified,
+                scopes=auth_response.scopes if auth_response.scopes else [],
+                access_token_enc=access_token_enc,
+                refresh_token_enc=refresh_token_enc,
+                access_token_expiry=access_token_expiry,
+                refresh_token_expiry=refresh_token_expiry,
             )
+            await self.oauth_repo.create_oauth_account(oauth_account=oauth_acc)
 
         tokens = await create_jwt_tokens(user.id, is_login=True)
 
@@ -65,10 +77,10 @@ class UserService:
             },
         )
 
-        return LoginResponse(
-            user_id=user.id,
-            email=user.email,
-            created_at=user.created_at,
-        )
+        # return LoginResponse(
+        #     user_id=user.id,
+        #     email=user.email,
+        #     created_at=user.created_at,
+        # )
 
-
+        return RedirectResponse("http://localhost:8000/docs")
