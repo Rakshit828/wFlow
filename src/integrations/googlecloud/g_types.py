@@ -1,6 +1,53 @@
 from pydantic import BaseModel, EmailStr, HttpUrl, Field, ConfigDict, computed_field
 from typing import Optional, List
-from src.integrations.googlecould.scopes import GOOGLE_EMAIL_ONLY_OPENID_SCOPE, GOOGLE_SERVICES
+from src.integrations.googlecloud.scopes import GOOGLE_EMAIL_ONLY_OPENID_SCOPE, GOOGLE_SERVICES
+from src.config import CONFIG
+from datetime import datetime
+from typing import TypedDict, List
+from enum import Enum
+
+
+class GoogleApiErrorDetail(TypedDict):
+    message: str
+    domain: str
+    reason: str
+    location: str
+    locationType: str
+
+class GoogleErrorStatus(str, Enum):
+    PERMISSION_DENIED = "PERMISSION_DENIED"
+    UNAUTHENTICATED = "UNAUTHENTICATED"
+    INVALID_ARGUMENT = "INVALID_ARGUMENT"
+    RESOURCE_EXHAUSTED = "RESOURCE_EXHAUSTED"
+
+    # These bottom constants are AI-Generated, not known till now
+    FAILED_PRECONDITION = "FAILED_PRECONDITION"
+    ABORTED = "ABORTED"
+    OUT_OF_RANGE = "OUT_OF_RANGE"
+    UNIMPLEMENTED = "UNIMPLEMENTED"
+    INTERNAL = "INTERNAL"
+    UNAVAILABLE = "UNAVAILABLE"
+    DATA_LOSS = "DATA_LOSS"
+    NOT_FOUND = "NOT_FOUND" 
+
+
+class GoogleApiErrorResponse(TypedDict):
+    code: int
+    message: str
+    errors: List[GoogleApiErrorDetail]
+    status: GoogleErrorStatus
+
+
+class CredentialsModel(BaseModel):
+    access_token: str
+    refresh_token: str
+    client_id: str | None = Field(default=CONFIG.GOOGLE_CLIENT_ID)
+    client_secret: str | None = Field(default=CONFIG.GOOGLE_CLIENT_SECRET)
+    scopes: list[str]
+    access_token_expiry: datetime
+    refresh_token_expiry: datetime
+
+    model_config = ConfigDict(extra="ignore")
 
 
 class GoogleIDTokenPayload(BaseModel):

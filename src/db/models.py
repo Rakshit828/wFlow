@@ -1,6 +1,7 @@
 from beanie import Document, Indexed, Link, before_event, Update, Insert
 from pydantic import EmailStr, Field, ConfigDict
-from typing import Optional, List, Annotated
+from typing import Optional, List, Annotated, Literal
+from pydantic import BaseModel
 from datetime import datetime, timezone
 
 
@@ -15,16 +16,11 @@ class Users(Document):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+    model_config = ConfigDict(name="users")
 
-    model_config = ConfigDict(
-        name = "users"
-    )
-    
-    
     @before_event(Update)
     def set_update(self):
         self.updated_at = datetime.now(tz=timezone.utc)
-
 
 
 class AppIntegrations(Document):
@@ -46,13 +42,12 @@ class AppIntegrations(Document):
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     model_config = ConfigDict(
-        name = "app_integrations",
-        indexes = [
+        name="app_integrations",
+        indexes=[
             [("user", 1), ("provider", 1), ("service", 1)],
-        ]
+        ],
     )
 
-    
     @before_event(Update)
     def set_update(self):
         self.updated_at = datetime.now(tz=timezone.utc)
@@ -74,13 +69,35 @@ class OAuthAccounts(Document):
     refresh_token_enc: Optional[str] = None
     refresh_token_expiry: Optional[datetime] = None
 
-    created_at: datetime = Field(default_factory=lambda : datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda : datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    model_config = ConfigDict(
-        name = "oauth_accounts"
-    )
-    
+    model_config = ConfigDict(name="oauth_accounts")
+
     @before_event(Update)
     def set_update(self):
         self.updated_at = datetime.now(tz=timezone.utc)
+
+
+class NodeMetadata(BaseModel):
+    pass
+
+class Edges(BaseModel):
+    node1: str
+    node2: str
+    etype: Literal["linear", "conditional", "parallel", "loop"]
+
+class Nodes(BaseModel):
+    name: str
+    description: str
+    node_type: Literal["llm", "integration", "api", "general", "data_source"]
+    metadata: NodeMetadata
+
+class Pipelines(Document):
+    name: str
+    description: str
+    nodes: List[Nodes]
+    edges: List[Edges]
+    stars: int
+    created_by: Link[Users]
+

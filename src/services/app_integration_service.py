@@ -2,11 +2,11 @@ from loguru import logger
 from datetime import datetime, timedelta, timezone
 
 from src.db.models import AppIntegrations, Users
-from src.integrations.googlecould.scopes import GOOGLE_SERVICES, GOOGLE_SCOPES
+from src.integrations.googlecloud.scopes import GOOGLE_SERVICES, GOOGLE_SCOPES
 from src.core.exceptions import GeneralIntegrationErrors, AppError, AuthErrors
 from src.repositories.app_integrations import AppIntegrationsRepository
 from src.repositories.auth_repository import UserRepository
-from src.integrations.googlecould import GoogleOAuthInterface, GoogleNewScopeResponse
+from src.integrations.googlecloud import GoogleOAuthInterface, GoogleNewScopeResponse
 from src.integrations.github.oauth2 import GithubOAuthInterface
 from src.db.redis import Redis
 

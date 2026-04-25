@@ -11,13 +11,13 @@ from typing import Literal
 from src.integrations.oauth2 import OAuthInterface
 from src.config import CONFIG
 from src.db.redis import Redis
-from src.integrations.googlecould.types import (
+from src.integrations.googlecloud.g_types import (
     GoogleAuthResponse,
     GoogleIDTokenPayload,
     GoogleNewScopeResponse,
     GoogleIDTokenPayloadOnlyEmail,
 )
-from src.integrations.googlecould.scopes import (
+from src.integrations.googlecloud.scopes import (
     GOOGLE_SCOPES,
     GOOGLE_OPENID_SCOPE,
     GOOGLE_EMAIL_ONLY_OPENID_SCOPE,

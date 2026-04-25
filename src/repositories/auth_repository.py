@@ -1,11 +1,8 @@
-import uuid
-from datetime import datetime, timezone, timedelta
+
 from loguru import logger
 from beanie import PydanticObjectId
 
-from src.core.security import encrypt_token
-from src.integrations.googlecould.types import GoogleAuthResponse
-from src.db.models import Users, AppIntegrations, OAuthAccounts
+from src.db.models import Users, OAuthAccounts
 
 
 class UserRepository:

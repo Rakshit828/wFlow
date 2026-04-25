@@ -7,12 +7,61 @@ from loguru import logger
 from src.db.models import AppIntegrations, Users
 from src.repositories.auth_repository import UserRepository
 from src.core.security import encrypt_token
+from src.schemas.mongo_projections import GetCredentialsOfIntegration
+
+
 
 
 class AppIntegrationsRepository:
     def __init__(self):
         self.__user_repo: UserRepository = UserRepository()
     
+    async def get_credentials_of_service(
+        self,
+        user_id: str,
+        provider: str,
+        service: str,
+    ) -> GetCredentialsOfIntegration | None:
+        creds = await AppIntegrations.find_one(
+            AppIntegrations.user.id == PydanticObjectId(user_id),
+            AppIntegrations.provider == provider,
+            AppIntegrations.service == service,
+            projection_model=GetCredentialsOfIntegration,
+        )
+        return creds
+    
+
+    async def update_credentials(
+        self,
+        user_id: str,
+        provider: str,
+        service: str,
+        access_token: str,
+        refresh_token: str,
+        access_token_expiry: datetime,
+        refresh_token_expiry: datetime,
+    ):
+        integration: AppIntegrations | None = await self.find_app_integration(
+            user_id=user_id,
+            provider=provider,
+            service=service
+        )
+        if integration is None:
+            return False
+        update_response = await integration.update(
+            Set(
+                {
+                    AppIntegrations.access_token_enc: encrypt_token(access_token),
+                    AppIntegrations.refresh_token_enc: encrypt_token(refresh_token),
+                    AppIntegrations.access_token_expiry: access_token_expiry,
+                    AppIntegrations.refresh_token_expiry: refresh_token_expiry,
+                }
+            ),
+        )
+        logger.info(f"Updated response is : {update_response}")
+        return True
+    
+
     async def find_app_integration(
         self,
         user_id: str,
@@ -37,7 +86,7 @@ class AppIntegrationsRepository:
         refresh_token: str,
         access_token_expiry: datetime,
         refresh_token_expiry: datetime,
-        scopes: list[str] | None = None,
+        scopes: list[str]
     ) -> bool:
         integration: AppIntegrations | None = await self.find_app_integration(
             user_id=user_id,

@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse
 from loguru import logger
 
 from src.db.redis import Redis, get_redis
-from src.integrations.googlecould.oauth2 import GoogleOAuthInterface
+from src.integrations.googlecloud.oauth2 import GoogleOAuthInterface
 from src.schemas.auth_schemas import LoginResponse
 from src.api.dependencies import get_user_service
 from src.services.user_service import UserService

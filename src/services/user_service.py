@@ -1,5 +1,5 @@
 from src.repositories.auth_repository import UserRepository, OAuthAccountRepository
-from src.integrations.googlecould import GoogleOAuthInterface, GoogleAuthResponse
+from src.integrations.googlecloud import GoogleOAuthInterface, GoogleAuthResponse
 from src.db.models import Users, OAuthAccounts
 from src.core.exceptions import AppError
 from src.core.security import create_jwt_tokens
