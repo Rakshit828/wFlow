@@ -8,7 +8,7 @@ from src.integrations.googlecloud.g_types import (
 
     GoogleApiErrorDetail,
     GoogleApiErrorResponse,
-    GoogleErrorStatus
+    GoogleErrorStatus,
 )
 from src.integrations.googlecloud.google_api_client import GoogleAPIClient
 from src.integrations.googlecloud.scopes import GOOGLE_SCOPES, GOOGLE_SERVICES
@@ -25,5 +25,5 @@ __all__ = [
     "GoogleAPIClient",
     "GoogleApiErrorDetail",
     "GoogleApiErrorResponse",
-    "GoogleErrorStatus"
+    "GoogleErrorStatus",
 ]

@@ -3,7 +3,7 @@ from loguru import logger
 from beanie import PydanticObjectId
 
 from src.db.models import Users, OAuthAccounts
-
+Users.update()
 
 class UserRepository:
     async def get_user_by_id(self, user_id: str) -> Users | None:

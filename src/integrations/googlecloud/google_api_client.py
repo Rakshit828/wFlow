@@ -1,41 +1,71 @@
 import httpx
-from typing import Tuple
-from src.config import CONFIG
+from typing import Tuple, Any, Dict
+from datetime import datetime, timedelta
+from loguru import logger
 
+from src.config import CONFIG
 from src.integrations.googlecloud import CredentialsModel
-from src.integrations.googlecloud import GoogleErrorStatus
+from src.integrations.googlecloud import GoogleErrorStatus, GoogleApiErrorResponse
 from src.repositories.app_integrations import AppIntegrationsRepository
 
 
 class GoogleAPIClient:
     def __init__(
         self,
-        integration_repo: AppIntegrationsRepository,
         credentials: CredentialsModel,
+        integration_repo: AppIntegrationsRepository,
         req_timeout: float = 30.0,
+        base_url: str = "https://www.googleapis.com",
         **kwargs,
     ):
         self.__client = httpx.AsyncClient(timeout=req_timeout, **kwargs)
-        self.credentials: CredentialsModel = credentials
-        self.integration_repo = integration_repo
+        self.__integration_repo: AppIntegrationsRepository = integration_repo
+        self.__credentials: CredentialsModel = credentials
+        self.base_url = base_url
 
-        self.base_url = "https://www.googleapis.com"
+    def _set_authorization_header(self, headers: dict) -> None:
+        headers["Authorization"] = f"Bearer {self.__credentials.access_token}"
+        return headers
 
-    async def perform_refresh(self):
+    async def do_refresh_actions(self):
         data = {
-            "client_id": CONFIG.GOOGLE_CLIENT_ID,
-            "client_secret": CONFIG.GOOGLE_CLIENT_SECRET,
-            "refresh_token": self.credentials.refresh_token,
+            "client_id": self.__credentials.client_id,
+            "client_secret": self.__credentials.client_secret,
+            "refresh_token": self.__credentials.refresh_token,
             "grant_type": "refresh_token",
         }
         response, json_response = await self.request(
-            method="POST",
-            endpoint=CONFIG.GOOGLE_TOKEN_URL,
+            "POST",
+            CONFIG.GOOGLE_TOKEN_URL,
             requires_bearer_token=False,
             use_base_url=False,
-            is_refresh=True,
             data=data,
         )
+
+        if response.status_code == 200:
+            logger.info(f"REfresh response is : {json_response}")
+            now = datetime.now()
+            self.__credentials.access_token = json_response["access_token"]
+            self.__credentials.access_token_expiry = (
+                timedelta(seconds=int(json_response["expires_in"])) + now
+            )
+            self.__credentials.refresh_token_expiry = (
+                timedelta(seconds=int(json_response["refresh_token_expires_in"])) + now
+            )
+            update_response = await self.__integration_repo.update_credentials(
+                integration_id=self.__credentials.integration_id,
+                access_token=self.__credentials.access_token,
+                access_token_expiry=self.__credentials.access_token_expiry,
+                refresh_token_expiry=self.__credentials.refresh_token_expiry,
+            )
+
+            logger.info(f"Tokens refreshed and updated successfully {update_response}.")
+
+    def _safe_json(self, response: httpx.Response) -> Dict[str, Any]:
+        try:
+            return response.json()
+        except Exception:
+            return {}
 
     async def request(
         self,
@@ -44,30 +74,52 @@ class GoogleAPIClient:
         requires_bearer_token: bool,
         use_base_url: str = True,
         is_refresh: bool = False,
+        is_retried_call: bool = False,
         **kwargs,
     ) -> Tuple[httpx.Response, dict]:
 
         if requires_bearer_token:
-            if kwargs.get("headers") is None:
-                kwargs["headers"] = {}
-            if "Authorization" not in kwargs["headers"]:
-                kwargs["headers"][
-                    "Authorization"
-                ] = f"Bearer {self.credentials.access_token if not is_refresh else self.credentials.refresh_token}"
+            kwargs["headers"] = {}
+
+            if not is_refresh:
+                kwargs["headers"] = self._set_authorization_header(kwargs["headers"])
 
         url = f"{self.base_url}/{endpoint.lstrip('/')}" if use_base_url else endpoint
         response = await self.__client.request(method, url, **kwargs)
-        json_response = response.json()
+
+        json_response = self._safe_json(response)
 
         if response.is_error:
+            json_error_body: GoogleApiErrorResponse = json_response.get("error")
+            logger.error(response)
             if (
-                # This is the condition for invalid access_token
                 response.status_code == 401
                 and requires_bearer_token
-                and json_response["error"]["status"]
-                == GoogleErrorStatus.UNAUTHENTICATED
+                and json_error_body["status"] == GoogleErrorStatus.UNAUTHENTICATED
             ):
-                await self.perform_refresh()
+                if is_retried_call:
+                    raise Exception("Impossible event.")
+
+                logger.info(f"Performing refresh.")
+                await self.do_refresh_actions()
+                response, json_response = await self.request(
+                    method,
+                    endpoint,
+                    requires_bearer_token,
+                    is_retried_call=True,
+                    **kwargs,
+                )
+                return response, json_response
+
+            elif (
+                response.status_code == 401
+                and is_refresh
+                and json_error_body["status"] == GoogleErrorStatus.UNAUTHENTICATED
+            ):
+                logger.error(f"Your refresh token has been expired too. Please retry.")
+                raise Exception(
+                    "Your refresh token has been expired too. Please retry."
+                )
 
         return response, json_response
 

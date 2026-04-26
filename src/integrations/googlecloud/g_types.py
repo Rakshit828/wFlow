@@ -1,6 +1,9 @@
 from pydantic import BaseModel, EmailStr, HttpUrl, Field, ConfigDict, computed_field
 from typing import Optional, List
-from src.integrations.googlecloud.scopes import GOOGLE_EMAIL_ONLY_OPENID_SCOPE, GOOGLE_SERVICES
+from src.integrations.googlecloud.scopes import (
+    GOOGLE_EMAIL_ONLY_OPENID_SCOPE,
+    GOOGLE_SERVICES,
+)
 from src.config import CONFIG
 from datetime import datetime
 from typing import TypedDict, List
@@ -13,6 +16,7 @@ class GoogleApiErrorDetail(TypedDict):
     reason: str
     location: str
     locationType: str
+
 
 class GoogleErrorStatus(str, Enum):
     PERMISSION_DENIED = "PERMISSION_DENIED"
@@ -28,7 +32,7 @@ class GoogleErrorStatus(str, Enum):
     INTERNAL = "INTERNAL"
     UNAVAILABLE = "UNAVAILABLE"
     DATA_LOSS = "DATA_LOSS"
-    NOT_FOUND = "NOT_FOUND" 
+    NOT_FOUND = "NOT_FOUND"
 
 
 class GoogleApiErrorResponse(TypedDict):
@@ -39,7 +43,10 @@ class GoogleApiErrorResponse(TypedDict):
 
 
 class CredentialsModel(BaseModel):
+    integration_id: str
+    user_id: str
     access_token: str
+    service: str
     refresh_token: str
     client_id: str | None = Field(default=CONFIG.GOOGLE_CLIENT_ID)
     client_secret: str | None = Field(default=CONFIG.GOOGLE_CLIENT_SECRET)
@@ -52,6 +59,7 @@ class CredentialsModel(BaseModel):
 
 class GoogleIDTokenPayload(BaseModel):
     """This is the decoded id_token payload when all [openid, email, profile] are requested."""
+
     iss: str  # Must be https://accounts.google.com
     azp: str  # Your Client ID
     aud: str  # Your Client ID
@@ -81,12 +89,12 @@ class GoogleAuthResponse(BaseModel):
     def scopes(self) -> list[str]:
         return self.scope.split(" ")
 
-
     model_config = ConfigDict(extra="ignore")
 
 
 class GoogleIDTokenPayloadOnlyEmail(BaseModel):
     """This is the decoded id_token payload when all [openid, email] are requested."""
+
     iss: str  # Must be https://accounts.google.com
     azp: str  # Your Client ID
     aud: str  # Your Client ID

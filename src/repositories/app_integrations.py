@@ -3,96 +3,87 @@ from beanie.odm.operators.update.array import AddToSet
 from beanie import PydanticObjectId
 from datetime import datetime
 from loguru import logger
+from typing import TypeVar, Optional, Union, Type
+from pydantic import BaseModel
 
 from src.db.models import AppIntegrations, Users
 from src.repositories.auth_repository import UserRepository
 from src.core.security import encrypt_token
-from src.schemas.mongo_projections import GetCredentialsOfIntegration
+from src.schemas.mongo_projections import CredentialsAndDataForApiClient
 
-
+ProjectionModelT = TypeVar("ProjectionModelT", bound=BaseModel)
 
 
 class AppIntegrationsRepository:
     def __init__(self):
         self.__user_repo: UserRepository = UserRepository()
-    
-    async def get_credentials_of_service(
+
+    async def find_app_integration_by_id(
         self,
-        user_id: str,
-        provider: str,
-        service: str,
-    ) -> GetCredentialsOfIntegration | None:
-        creds = await AppIntegrations.find_one(
-            AppIntegrations.user.id == PydanticObjectId(user_id),
-            AppIntegrations.provider == provider,
-            AppIntegrations.service == service,
-            projection_model=GetCredentialsOfIntegration,
+        integration_id: str,
+        projection_model: Optional[Type[ProjectionModelT]] = None,
+    ) -> Optional[Union[AppIntegrations, CredentialsAndDataForApiClient]]:
+        integration = await AppIntegrations.find_one(
+            AppIntegrations.id == PydanticObjectId(integration_id),
+            projection_model=projection_model if projection_model else AppIntegrations,
         )
-        return creds
-    
+        logger.info(f"Integration founded is : {integration}")
+        return integration
+
 
     async def update_credentials(
         self,
-        user_id: str,
-        provider: str,
-        service: str,
+        integration_id: str,
         access_token: str,
-        refresh_token: str,
         access_token_expiry: datetime,
         refresh_token_expiry: datetime,
     ):
-        integration: AppIntegrations | None = await self.find_app_integration(
-            user_id=user_id,
-            provider=provider,
-            service=service
-        )
-        if integration is None:
-            return False
-        update_response = await integration.update(
+        update_response = await AppIntegrations.find_one(
+            AppIntegrations.id == PydanticObjectId(integration_id)
+        ).update(
             Set(
                 {
                     AppIntegrations.access_token_enc: encrypt_token(access_token),
-                    AppIntegrations.refresh_token_enc: encrypt_token(refresh_token),
                     AppIntegrations.access_token_expiry: access_token_expiry,
                     AppIntegrations.refresh_token_expiry: refresh_token_expiry,
                 }
             ),
         )
-        logger.info(f"Updated response is : {update_response}")
-        return True
-    
+        return update_response
+
 
     async def find_app_integration(
         self,
         user_id: str,
         provider: str,
         service: str,
-    ) -> AppIntegrations | None:
-        integration = await AppIntegrations.find_one(
+        projection_model: Optional[Type[ProjectionModelT]] = None,
+    ) -> Optional[Union[list[AppIntegrations], list[ProjectionModelT]]]:
+        kwargs: dict = {}
+        if projection_model:
+            kwargs["projection_model"] = projection_model
+        else:
+            kwargs["projection_model"] = AppIntegrations
+
+        integration = await AppIntegrations.find(
             AppIntegrations.user.id == PydanticObjectId(user_id),
             AppIntegrations.provider == provider,
             AppIntegrations.service == service,
-        )
+            **kwargs,
+        ).to_list()
         logger.info(f"Integration founded is : {integration}")
         return integration
-    
 
     async def update_app_integration(
         self,
-        user_id: str,
-        provider: str,
-        service: str,
+        integration: AppIntegrations,
         access_token: str,
         refresh_token: str,
         access_token_expiry: datetime,
         refresh_token_expiry: datetime,
-        scopes: list[str]
+        scopes: list[str],
     ) -> bool:
-        integration: AppIntegrations | None = await self.find_app_integration(
-            user_id=user_id,
-            provider=provider,
-            service=service
-        )
+
         if integration is None:
             return False
         update_response = await integration.update(
@@ -109,7 +100,6 @@ class AppIntegrationsRepository:
         logger.info(f"Updated response is : {update_response}")
 
         return True
-            
 
     async def add_new_integration(
         self,

@@ -2,6 +2,20 @@ from src.config import CONFIG
 from datetime import timedelta
 from fastapi import Response
 from loguru import logger
+import time
+import functools
+
+def timer(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.perf_counter()
+        result = func(*args, **kwargs)
+        end = time.perf_counter()
+        print(f"{func.__name__} executed in {end - start:.6f} seconds")
+        return result
+    return wrapper
+
+
 
 def _parse_expiry(raw: str) -> timedelta:
     """Convert human-friendly expiry strings to timedelta.
