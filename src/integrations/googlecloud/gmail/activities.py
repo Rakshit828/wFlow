@@ -9,7 +9,9 @@ from src.integrations.googlecloud.gmail import (
     GmailRawResponse,
     ListLabelsResponse,
     SingleLabelResponse,
-    GetUserProfileResponse
+    GetUserProfileResponse,
+    ListAllLabelsInput,
+    GetSingleLableInput,
 )
 
 
@@ -23,7 +25,8 @@ def decode_base64(text: str) -> str:
 def build_read_email_query():
     pass
 
-async def get_user_profile(
+
+async def get_gmail_user_profile(
     api_client: GoogleAPIClient,
 ) -> GetUserProfileResponse:
     """
@@ -53,8 +56,9 @@ async def get_user_profile(
 
     return GetUserProfileResponse(**response_json)
 
-async def get_label_data(
-    api_client: GoogleAPIClient, label_id: str
+
+async def get_gmail_label_data(
+    node_input: GetSingleLableInput,
 ) -> SingleLabelResponse:
     """
     Fetch a single label for the authenticated Gmail user.
@@ -65,24 +69,23 @@ async def get_label_data(
     Returns:
         SingleLabelsResponse: Parsed response containing label metadata.
     """
+    api_client: GoogleAPIClient = node_input.gmail_api_client
+
     _, response_json = await api_client.request(
         "GET",
-        GmailApis.GET_LABEL.format(id=label_id),
+        GmailApis.GET_LABEL.format(id=node_input.label_id),
         requires_bearer_token=True,
     )
 
     if not response_json:
         raise ValueError("Empty response received from Gmail API while listing labels.")
-    
+
     print(response_json)
     return SingleLabelResponse(**response_json)
 
 
-async def list_labels(
-    api_client: GoogleAPIClient,
-    include_label_ids: list[str] | None = None,
-    max_results: int | None = None,
-    page_token: str | None = None,
+async def list_gmail_labels(
+    node_input: ListAllLabelsInput | None = None,
 ) -> ListLabelsResponse:
     """
     Fetch all labels for the authenticated Gmail user.
@@ -96,17 +99,17 @@ async def list_labels(
     Returns:
         ListLabelsResponse: Parsed response containing label metadata.
     """
-
+    api_client: GoogleAPIClient = node_input.gmail_api_client
     params = {}
 
-    if include_label_ids:
-        params["includeLabelIds"] = include_label_ids
+    if node_input.include_label_ids:
+        params["includeLabelIds"] = node_input.include_label_ids
 
-    if max_results:
-        params["maxResults"] = max_results
+    if node_input.max_results:
+        params["maxResults"] = node_input.max_results
 
-    if page_token:
-        params["pageToken"] = page_token
+    if node_input.page_token:
+        params["pageToken"] = node_input.page_token
 
     _, response_json = await api_client.request(
         "GET",
@@ -119,6 +122,7 @@ async def list_labels(
         raise ValueError("Empty response received from Gmail API while listing labels.")
     print(response_json)
     return ListLabelsResponse(**response_json)
+
 
 async def get_email(
     api_client: GoogleAPIClient,
@@ -140,7 +144,7 @@ async def get_email(
         return GmailFullMessage(**response_json)
     else:
         return GmailRawResponse(**response_json)
-    
+
 
 async def list_emails(
     api_client: GoogleAPIClient,

@@ -12,5 +12,5 @@ wheels/
 .env
 
 security_audit.md
+edge-cases.md
 Auth.md
-security_audit.md.resolved

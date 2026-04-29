@@ -7,6 +7,7 @@ from enum import Enum
 import base64
 from email import message_from_bytes
 from email.policy import default
+from src.integrations.googlecloud import GoogleAPIClient
 
 
 class CommonBaseModel(BaseModel):
@@ -188,3 +189,22 @@ class ReadEmailsIdModel(BaseModel):
     resultSizeEstimate: int | None = None
 
     model_config = ConfigDict(extra="ignore")
+
+
+# All the input models taken by the nodes.
+class ListAllLabelsInput(CommonBaseModel):
+    gmail_api_client: Optional[GoogleAPIClient] = Field(
+        default=None, alias="gmailApiClient"
+    )
+    include_label_ids: Optional[List[str]] = Field(
+        default=None, alias="includeLabelIds"
+    )
+    max_results: Optional[int] = Field(default=None, alias="maxResults")
+    page_token: Optional[str] = Field(default=None, alias="pageToken")
+
+
+class GetSingleLableInput(CommonBaseModel):
+    gmail_api_client: Optional[GoogleAPIClient] = Field(
+        default=None, alias="gmailApiClient"
+    )
+    label_id: str

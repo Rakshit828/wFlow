@@ -4,6 +4,8 @@ from typing import Optional, List, Annotated, Literal
 from pydantic import BaseModel
 from datetime import datetime, timezone
 
+from src.workflows.types import Node, Edge
+
 
 class Users(Document):
     email: Annotated[EmailStr, Indexed(unique=True)]
@@ -79,25 +81,16 @@ class OAuthAccounts(Document):
         self.updated_at = datetime.now(tz=timezone.utc)
 
 
-class NodeMetadata(BaseModel):
-    pass
-
-class Edges(BaseModel):
-    node1: str
-    node2: str
-    etype: Literal["linear", "conditional", "parallel", "loop"]
-
-class Nodes(BaseModel):
-    name: str
-    description: str
-    node_type: Literal["llm", "integration", "api", "general", "data_source"]
-    metadata: NodeMetadata
-
 class Pipelines(Document):
     name: str
     description: str
-    nodes: List[Nodes]
-    edges: List[Edges]
-    stars: int
+    nodes: List[Node]
+    edges: List[Edge]
+    visiblity: Literal["public", "private"]
+    stars: Optional[int] = None
     created_by: Link[Users]
 
+class PipelinesStars(Document):
+    user: Link[Users]
+    pipeline: Link[Pipelines]
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

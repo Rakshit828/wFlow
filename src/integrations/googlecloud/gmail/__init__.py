@@ -6,19 +6,25 @@ from src.integrations.googlecloud.gmail.types import (
     GmailRawResponse,
     ListLabelsResponse,
     SingleLabelResponse,
-    GetUserProfileResponse
+    GetUserProfileResponse,
+    ListAllLabelsInput,
+    GetSingleLableInput,
 )
-from src.integrations.googlecloud.gmail.activities import list_emails, get_email, list_labels, get_label_data
-
-
+from src.integrations.googlecloud.gmail.activities import (
+    list_emails,
+    get_email,
+    list_gmail_labels,
+    get_gmail_label_data,
+    get_gmail_user_profile
+)
 
 __all__ = [
     # Activities
     "list_emails",
     "get_email",
-    "list_labels",
-    "get_label_data",
-
+    "list_gmail_labels",
+    "get_gmail_label_data",
+    "get_gmail_user_profile",
 
     # Types
     "EmailIdsAndThreads",
@@ -29,4 +35,7 @@ __all__ = [
     "ListLabelsResponse",
     "SingleLabelResponse",
     "GetUserProfileResponse",
+    # Inputs
+    "ListAllLabelsInput",
+    "GetSingleLableInput",
 ]
