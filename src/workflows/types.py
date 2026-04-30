@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, model_validator
-from typing import Union, Callable, Dict, Any
+from typing import Union, Callable, Dict, Any, Type
 from bson import ObjectId
 import enum
 
@@ -22,19 +22,19 @@ class EdgesTypeEnum(str, enum.Enum):
 
 
 class ApplicationNode(BaseModel):
-    node_id: ObjectId
+    key: str 
     name: str
     fn: Callable | None = None
     description: str
     type: NodesTypeEnum
-    node_input_model: BaseModel | None = None
-    node_output_model: BaseModel | None = None
+    node_input_model: Type[BaseModel] | None = None
+    node_output_model: Type[BaseModel] | None = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class Node(BaseModel):
-    node_id: str
+    key: str 
     name: str
     type: NodesTypeEnum
     inputs: Dict[str, Any] = {}

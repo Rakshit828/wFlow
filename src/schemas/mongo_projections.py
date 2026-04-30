@@ -17,6 +17,7 @@ class CredentialsAndDataForApiClient(BaseModel):
     scopes: list[str]
     metadata: dict | None = None
 
+
     @computed_field
     @property
     def user_id(self) -> str:

@@ -1,32 +1,56 @@
 from src.integrations.googlecloud.gmail import (
     ListLabelsResponse,
     SingleLabelResponse,
-    get_label_data,
-    list_labels,
+    get_gmail_label_data,
+    list_gmail_labels,
+    send_email,
+    create_email_draft,
+    SendAndDraftEmailInput,
+    SendAndDraftEmailResponse,
     GetSingleLableInput,
     ListAllLabelsInput
 )
-from src.workflows.types import Node
+from src.workflows.types import ApplicationNode, NodesTypeEnum
 from bson import ObjectId
 
 
-LIST_USER_GMAIL_LABELS_NODE = Node(
-    node_id=ObjectId("69ee0680e46453fa19362171"),
-    name="list_labels",
-    fn=list_labels,
+LIST_USER_GMAIL_LABELS_NODE = ApplicationNode(
+    key="gmail.list_gmail_labels",
+    name="list_gmail_labels",
+    fn=list_gmail_labels,
     description="Lists all built-in and user-defined Gmail labels.",
-    type="INTEGRATION",
+    type=NodesTypeEnum.ACTION,
     node_input_model=ListAllLabelsInput,
     node_output_model=ListLabelsResponse
 )
 
-GET_SINGLE_GMAIL_LABEL_NODE = Node(
-    node_id=ObjectId("69ee0680e46453fa19362172"),
-    name="get_label_data",
-    fn=get_label_data,
+GET_SINGLE_GMAIL_LABEL_NODE = ApplicationNode(
+    key="gmail.get_lable_data",
+    name="get_gmail_label_data",
+    fn=get_gmail_label_data,
     description="Fetch details of a specific Gmail label by ID.",
-    type="INTEGRATION",
+    type=NodesTypeEnum.ACTION,
     node_input_model=GetSingleLableInput,
     node_output_model=SingleLabelResponse
 )
 
+SEND_EMAIL_NODE = ApplicationNode(
+    key="gmail.send_email",
+    name="send_email",
+    fn=send_email,
+    description="Send emails according to requirement.",
+    type=NodesTypeEnum.ACTION,
+    node_input_model=SendAndDraftEmailInput,
+    node_output_model=SendAndDraftEmailResponse
+)
+
+
+DRAFT_EMAIL_NODE = ApplicationNode(
+    key="gmail.create_email_draft",
+    name="create_email_draft",
+    fn=create_email_draft,
+    description="Send emails according to requirement.",
+    type=NodesTypeEnum.ACTION,
+    node_input_model=SendAndDraftEmailInput,
+    node_output_model=SendAndDraftEmailResponse
+)

@@ -1,10 +1,9 @@
-from beanie import Document, Indexed, Link, before_event, Update, Insert
+from beanie import Document, Indexed, Link, before_event, Update
 from pydantic import EmailStr, Field, ConfigDict
 from typing import Optional, List, Annotated, Literal
-from pydantic import BaseModel
 from datetime import datetime, timezone
 
-from src.workflows.types import Node, Edge
+from src.workflows.types import Node, Edge, NodesTypeEnum
 
 
 class Users(Document):
@@ -94,3 +93,13 @@ class PipelinesStars(Document):
     user: Link[Users]
     pipeline: Link[Pipelines]
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class NodesRegistry(Document):
+    """List of application nodes for data consistency and single source of truth."""
+    name: str
+    description: str
+    type: NodesTypeEnum
+    fn_key: Annotated[str, Indexed(unique=True)]
+    input_model: dict
+    output_model: dict

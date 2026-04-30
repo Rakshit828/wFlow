@@ -7,7 +7,7 @@ from src.core.exceptions import GeneralIntegrationErrors, AppError, AuthErrors
 from src.repositories.app_integrations import AppIntegrationsRepository
 from src.repositories.auth_repository import UserRepository
 from src.integrations.googlecloud import GoogleOAuthInterface, GoogleNewScopeResponse
-from src.integrations.github.oauth2 import GithubOAuthInterface
+from src.integrations.github.oauth2 import GitHubOAuthInterface
 from src.db.redis import Redis
 
 
@@ -16,7 +16,7 @@ class AppIntegrationService:
         self.integration_repo = AppIntegrationsRepository()
         self.user_repo = UserRepository()
         self.google_oauth = GoogleOAuthInterface()
-        self.github_oauth = GithubOAuthInterface()
+        self.github_oauth = GitHubOAuthInterface()
 
     async def create_authz_url_for_new_scope_google(
         self, user_id: str, scopes: list[str], redis: Redis
@@ -61,6 +61,8 @@ class AppIntegrationService:
         )
         logger.debug(f"The url constructed is : {url}")
         return url
+    
+
 
     async def grant_new_scope_callback_google(
         self, user_id: str, code: str, state: str, redis: Redis

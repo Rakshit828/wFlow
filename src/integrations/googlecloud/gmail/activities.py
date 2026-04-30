@@ -12,7 +12,10 @@ from src.integrations.googlecloud.gmail import (
     GetUserProfileResponse,
     ListAllLabelsInput,
     GetSingleLableInput,
+    SendAndDraftEmailInput,
+    SendAndDraftEmailResponse,
 )
+from src.integrations.googlecloud.gmail.helpers import EmailMIMEBuilder
 
 
 @timer
@@ -20,10 +23,6 @@ def decode_base64(text: str) -> str:
     decoded_bytes = base64.urlsafe_b64decode(text)
     clean_text = decoded_bytes.decode("utf-8")
     return clean_text
-
-
-def build_read_email_query():
-    pass
 
 
 async def get_gmail_user_profile(
@@ -69,7 +68,7 @@ async def get_gmail_label_data(
     Returns:
         SingleLabelsResponse: Parsed response containing label metadata.
     """
-    api_client: GoogleAPIClient = node_input.gmail_api_client
+    api_client: GoogleAPIClient = node_input.config._gmail_api_client
 
     _, response_json = await api_client.request(
         "GET",
@@ -122,6 +121,67 @@ async def list_gmail_labels(
         raise ValueError("Empty response received from Gmail API while listing labels.")
     print(response_json)
     return ListLabelsResponse(**response_json)
+
+
+@timer
+async def send_email(
+    node_input: SendAndDraftEmailInput,
+):
+    email_builder = EmailMIMEBuilder()
+    api_client: GoogleAPIClient = node_input.config._gmail_api_client
+
+    email_builder.add_to(node_input.to)
+    email_builder.add_cc(node_input.cc)
+    email_builder.add_bcc(node_input.bcc)
+    email_builder.set_subject(node_input.subject)
+
+    if node_input.body.startswith("<!DOCTYPE html>") or "<html>" in node_input.body:
+        email_builder.set_html_body(node_input.body)
+    else:
+        email_builder.set_text_body(node_input.body)
+
+    email_builder.build()
+
+    payload = email_builder.to_gmail_payload(node_input.thread_id)
+    _, response_json = await api_client.request(
+        "POST",
+        GmailApis.SEND_MESSAGE,
+        requires_bearer_token=True,
+        json=payload,
+    )
+    print(response_json)
+
+    return SendAndDraftEmailResponse(success=True)
+
+@timer
+async def create_email_draft(node_input: SendAndDraftEmailInput):
+    email_builder = EmailMIMEBuilder()
+    api_client: GoogleAPIClient = node_input.config._gmail_api_client
+
+    email_builder.add_to(node_input.to)
+    email_builder.add_cc(node_input.cc)
+    email_builder.add_bcc(node_input.bcc)
+    email_builder.set_subject(node_input.subject)
+
+    if node_input.body.startswith("<!DOCTYPE html>") or "<html>" in node_input.body:
+        email_builder.set_html_body(node_input.body)
+    else:
+        email_builder.set_text_body(node_input.body)
+
+    email_builder.build()
+
+    raw = email_builder.to_gmail_payload(node_input.thread_id)
+    payload = {"message": raw}
+
+    _, response_json = await api_client.request(
+        "POST",
+        GmailApis.DRAFT_EMAIL,
+        requires_bearer_token=True,
+        json=payload,
+    )
+    print(response_json)
+
+    return SendAndDraftEmailResponse(success=True)
 
 
 async def get_email(

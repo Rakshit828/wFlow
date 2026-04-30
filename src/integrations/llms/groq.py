@@ -15,6 +15,7 @@ class GroqModelEnum(str, Enum):
     KIMI_K2_INSTRUCT_0905 = "moonshotai/kimi-k2-instruct-0905"
     QWEN3_32B = "qwen/qwen3-32b"
 
+
 class GroqCallParams(BaseModel):
     model: GroqModelEnum
     system_prompt: str
@@ -28,9 +29,10 @@ class GroqClient(LLMClient):
         self._client: AsyncGroq = AsyncGroq(
             api_key=api_key if api_key else CONFIG.GROQ_API_KEY,
         )
-        
+
     async def inference(
-        self, params: GroqCallParams | dict[str, Any],
+        self,
+        params: GroqCallParams | dict[str, Any],
     ):
         if not isinstance(params, GroqCallParams):
             params = GroqCallParams(**params)
@@ -43,13 +45,13 @@ class GroqClient(LLMClient):
             ],
             reasoning_effort=params.reasoning_effort,
             max_completion_tokens=params.max_tokens,
-            stream=False
+            stream=False,
         )
         return response.choices[0].message
-    
 
     async def stream(
-        self, params: GroqCallParams | dict[str, Any],
+        self,
+        params: GroqCallParams | dict[str, Any],
     ) -> AsyncGenerator[str, None]:
         if not isinstance(params, GroqCallParams):
             params = GroqCallParams(**params)
@@ -57,10 +59,10 @@ class GroqClient(LLMClient):
         stream = await self._client.chat.completions.create(
             messages=[
                 {"role": "system", "content": params.system_prompt},
-                {"role": "user", "content": params.prompt}
+                {"role": "user", "content": params.prompt},
             ],
             model=params.model.value,
-            stream=True
+            stream=True,
         )
 
         async for chunk in stream:
@@ -69,15 +71,16 @@ class GroqClient(LLMClient):
                 yield content
 
 
-
 async def main():
     groq = GroqClient()
-    async for chunk in groq.stream({
-        "model": GroqModelEnum.GPT_OSS_120B,
-        "max_tokens": 1000,
-        "system_prompt": "You are helpful AI assistant",
-        "prompt": "What is life."
-    }):
+    async for chunk in groq.stream(
+        {
+            "model": GroqModelEnum.GPT_OSS_120B,
+            "max_tokens": 1000,
+            "system_prompt": "You are helpful AI assistant",
+            "prompt": "What is life.",
+        }
+    ):
         print(chunk, end=" ", flush=True)
 
 

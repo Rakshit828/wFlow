@@ -18,6 +18,13 @@ class Config(BaseSettings):
     GOOGLE_TOKEN_URL: str
     GOOGLE_PUBLIC_KEY_URL: str
 
+    GITHUB_AUTH_URL: str
+    GITHUB_TOKEN_URL: str 
+    GITHUB_CLIENT_ID: str
+    GITHUB_CLIENT_SECRET: str
+    GITHUB_LOGIN_REDIRECT_URL: str
+    GITHUB_GET_PROFILE_URL: str 
+
     ENCRYPTION_KEY: str
 
     JWT_SECRET_KEY: str

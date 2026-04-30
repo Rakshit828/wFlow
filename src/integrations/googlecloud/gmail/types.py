@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, HttpUrl, Field, ConfigDict, computed_field
+from pydantic import BaseModel, Field, ConfigDict, computed_field, PrivateAttr
 from typing import Optional, List
 from src.config import CONFIG
 from datetime import datetime
@@ -12,8 +12,7 @@ from src.integrations.googlecloud import GoogleAPIClient
 
 class CommonBaseModel(BaseModel):
     model_config = ConfigDict(
-        populate_by_name=True,
-        extra="ignore",
+        populate_by_name=True, extra="ignore", arbitrary_types_allowed=True
     )
 
 
@@ -96,42 +95,6 @@ class GmailRawResponse(CommonBaseModel):
         return body
 
 
-class SingleLabelResponse(CommonBaseModel):
-    id: str
-    name: str
-    type: Literal["system", "user"]
-
-    message_list_visibility: Optional[str] = Field(
-        default=None,
-        alias="messageListVisibility",
-    )
-    label_list_visibility: Optional[str] = Field(
-        default=None,
-        alias="labelListVisibility",
-    )
-
-    messages_total: Optional[int] = Field(
-        default=None,
-        alias="messagesTotal",
-    )
-    messages_unread: Optional[int] = Field(
-        default=None,
-        alias="messagesUnread",
-    )
-    threads_total: Optional[int] = Field(
-        default=None,
-        alias="threadsTotal",
-    )
-    threads_unread: Optional[int] = Field(
-        default=None,
-        alias="threadsUnread",
-    )
-
-
-class ListLabelsResponse(CommonBaseModel):
-    labels: List[SingleLabelResponse] = Field(default_factory=list)
-
-
 class GetUserProfileResponse(CommonBaseModel):
     email_address: str = Field(alias="emailAddress")
     messages_total: int = Field(alias="messagesTotal")
@@ -177,6 +140,10 @@ class GmailApis(str, Enum):
     GET_PROFILE = "gmail/v1/users/me/profile"
     """Gets the current user's Gmail profile (email address, total messages, etc.)."""
 
+    SEND_EMAIL = "gmail/v1/users/me/messages/send"
+    DRAFT_EMAIL = "/gmail/v1/users/me/drafts"
+    GET_LIST_VALID_FROM_IDENTITIES = "/gmail/v1/users/me/settings/sendAs"
+
 
 class EmailIdsAndThreads(BaseModel):
     id: str
@@ -191,20 +158,76 @@ class ReadEmailsIdModel(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
-# All the input models taken by the nodes.
-class ListAllLabelsInput(CommonBaseModel):
-    gmail_api_client: Optional[GoogleAPIClient] = Field(
-        default=None, alias="gmailApiClient"
+class CommonGmailConfigModel(CommonBaseModel):
+    _gmail_api_client: GoogleAPIClient = PrivateAttr()
+
+    @classmethod
+    def set_client(cls, client: GoogleAPIClient) -> "CommonGmailConfigModel":
+        obj = cls()
+        obj._gmail_api_client = client
+        return obj
+
+
+# All the input/ouput models taken by the nodes.
+class GetSingleLableInput(CommonBaseModel):
+    label_id: str
+    config: CommonGmailConfigModel
+
+
+class SingleLabelResponse(CommonBaseModel):
+    id: str
+    name: str
+    type: Literal["system", "user"]
+
+    message_list_visibility: Optional[str] = Field(
+        default=None,
+        alias="messageListVisibility",
     )
+    label_list_visibility: Optional[str] = Field(
+        default=None,
+        alias="labelListVisibility",
+    )
+
+    messages_total: Optional[int] = Field(
+        default=None,
+        alias="messagesTotal",
+    )
+    messages_unread: Optional[int] = Field(
+        default=None,
+        alias="messagesUnread",
+    )
+    threads_total: Optional[int] = Field(
+        default=None,
+        alias="threadsTotal",
+    )
+    threads_unread: Optional[int] = Field(
+        default=None,
+        alias="threadsUnread",
+    )
+
+
+class ListAllLabelsInput(CommonBaseModel):
     include_label_ids: Optional[List[str]] = Field(
         default=None, alias="includeLabelIds"
     )
     max_results: Optional[int] = Field(default=None, alias="maxResults")
     page_token: Optional[str] = Field(default=None, alias="pageToken")
+    config: CommonGmailConfigModel
 
 
-class GetSingleLableInput(CommonBaseModel):
-    gmail_api_client: Optional[GoogleAPIClient] = Field(
-        default=None, alias="gmailApiClient"
-    )
-    label_id: str
+class ListLabelsResponse(CommonBaseModel):
+    labels: List[SingleLabelResponse] = Field(default_factory=list)
+
+
+class SendAndDraftEmailInput(BaseModel):
+    to: list[str]
+    cc: list[str] | None = None
+    bcc: list[str] | None = None
+    subject: str
+    body: str
+    thread_id: str | None = Field(default=None, alias="threadId")
+    config: CommonGmailConfigModel
+
+
+class SendAndDraftEmailResponse(BaseModel):
+    success: bool

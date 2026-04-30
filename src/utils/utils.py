@@ -7,9 +7,9 @@ import functools
 
 def timer(func):
     @functools.wraps(func)
-    def wrapper(*args, **kwargs):
+    async def wrapper(*args, **kwargs):
         start = time.perf_counter()
-        result = func(*args, **kwargs)
+        result = await func(*args, **kwargs)
         end = time.perf_counter()
         print(f"{func.__name__} executed in {end - start:.6f} seconds")
         return result

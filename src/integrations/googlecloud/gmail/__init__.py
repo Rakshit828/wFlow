@@ -9,14 +9,20 @@ from src.integrations.googlecloud.gmail.types import (
     GetUserProfileResponse,
     ListAllLabelsInput,
     GetSingleLableInput,
+    SendAndDraftEmailInput,
+    SendAndDraftEmailResponse,
+    CommonGmailConfigModel,
 )
 from src.integrations.googlecloud.gmail.activities import (
     list_emails,
     get_email,
     list_gmail_labels,
     get_gmail_label_data,
-    get_gmail_user_profile
+    get_gmail_user_profile,
+    send_email,
+    create_email_draft,
 )
+from src.integrations.googlecloud.gmail.helpers import EmailMIMEBuilder
 
 __all__ = [
     # Activities
@@ -25,17 +31,26 @@ __all__ = [
     "list_gmail_labels",
     "get_gmail_label_data",
     "get_gmail_user_profile",
-
+    "send_email",
+    "create_email_draft",
+    # Helpers
+    "EmailMIMEBuilder",
+    # Models
+    "CommonGmailConfigModel",
     # Types
     "EmailIdsAndThreads",
     "ReadEmailsIdModel",
     "GmailApis",
     "GmailFullMessage",
     "GmailRawResponse",
-    "ListLabelsResponse",
-    "SingleLabelResponse",
     "GetUserProfileResponse",
-    # Inputs
+
+
+    # Inputs/Outputs
     "ListAllLabelsInput",
+    "ListLabelsResponse",
     "GetSingleLableInput",
+    "SingleLabelResponse",
+    "SendAndDraftEmailInput",
+    "SendAndDraftEmailResponse",
 ]
