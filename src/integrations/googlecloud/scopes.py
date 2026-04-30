@@ -1,6 +1,6 @@
 GOOGLE_OPENID_SCOPE = "openid email profile"
 GOOGLE_EMAIL_ONLY_OPENID_SCOPE = "openid email"
-GOOGLE_SERVICES = {"gmail", "drive"}
+GOOGLE_SERVICES = {"gmail", "drive", "sheets", "forms"}
 
 GOOGLE_SCOPES = {
     # Gmail service.
@@ -35,7 +35,17 @@ GOOGLE_SCOPES = {
     "drive.appdata": "https://www.googleapis.com/auth/drive.appdata",
     
     # RESTRICTED: View/modify activity records (who edited what)
-    "drive.activity": "https://www.googleapis.com/auth/drive.activity"
+    "drive.activity": "https://www.googleapis.com/auth/drive.activity",
+
+
+
+    # Google Sheets Service
+    
+    # RESTRICTED: Read, edit, create, and delete all your Google Sheets.
+    "sheets.fullaccess": "https://www.googleapis.com/auth/spreadsheets",
+    
+    # SENSITIVE: Read-only access to your Google Sheets and their properties.
+    "sheets.readonly": "https://www.googleapis.com/auth/spreadsheets.readonly",
 }
 
 

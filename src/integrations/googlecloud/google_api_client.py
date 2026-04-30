@@ -13,6 +13,7 @@ class GoogleAPIClient:
     def __init__(
         self,
         credentials: CredentialsModel,
+        service: str,
         integration_repo: AppIntegrationsRepository,
         req_timeout: float = 30.0,
         base_url: str = "https://www.googleapis.com",
@@ -21,7 +22,8 @@ class GoogleAPIClient:
         self.__client = httpx.AsyncClient(timeout=req_timeout, **kwargs)
         self.__integration_repo: AppIntegrationsRepository = integration_repo
         self.__credentials: CredentialsModel = credentials
-        self.base_url = base_url
+        self.base_url = base_url.replace("www", service)
+
 
     def _set_authorization_header(self, headers: dict) -> None:
         headers["Authorization"] = f"Bearer {self.__credentials.access_token}"
@@ -120,6 +122,21 @@ class GoogleAPIClient:
                 raise Exception(
                     "Your refresh token has been expired too. Please retry."
                 )
+            elif (
+                response.status_code == 403
+                and json_error_body["status"] == GoogleErrorStatus.PERMISSION_DENIED
+            ):
+                logger.error(
+                    "Current access token has not enough permissions for this action."
+                )
+                raise Exception(json_error_body["message"])
+
+            elif response.status_code == 404 and json_error_body is None:
+                logger.error(f"Url: {url} not found.")
+                raise Exception("Resource/URL not found.")
+
+            else:
+                raise Exception(json_error_body["message"])
 
         return response, json_response
 

@@ -30,7 +30,6 @@ class AppIntegrationsRepository:
         logger.info(f"Integration founded is : {integration}")
         return integration
 
-
     async def update_credentials(
         self,
         integration_id: str,
@@ -51,7 +50,6 @@ class AppIntegrationsRepository:
         )
         return update_response
 
-
     async def find_app_integration(
         self,
         user_id: str,
@@ -71,8 +69,40 @@ class AppIntegrationsRepository:
             AppIntegrations.service == service,
             **kwargs,
         ).to_list()
-        logger.info(f"Integration founded is : {integration}")
+        logger.info(f"Integrations found are :  {integration}. Count: {len(integration)}")
         return integration
+
+    async def update_google_app_integration(
+        self,
+        user_id: str,
+        provider: str,
+        service: str,
+        email: str,
+        scopes: list[str],
+        access_token: str,
+        refresh_token: str,
+        access_token_expiry: datetime,
+        refresh_token_expiry: datetime,
+    ):
+        update_result = await AppIntegrations.find(
+            AppIntegrations.user.id == PydanticObjectId(user_id),
+            AppIntegrations.provider == provider,
+            AppIntegrations.service == service,
+            AppIntegrations.metadata.email == email,
+        ).update(
+            Set(
+                {
+                    AppIntegrations.access_token_enc: encrypt_token(access_token),
+                    AppIntegrations.refresh_token_enc: encrypt_token(refresh_token),
+                    AppIntegrations.access_token_expiry: access_token_expiry,
+                    AppIntegrations.refresh_token_expiry: refresh_token_expiry,
+                }
+            ),
+            AddToSet({AppIntegrations.scopes: {"$each": scopes}}),
+        )
+        if update_result.matched_count == 0:
+            return False
+        return True
 
     async def update_app_integration(
         self,

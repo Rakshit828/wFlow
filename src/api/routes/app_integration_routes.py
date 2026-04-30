@@ -16,13 +16,14 @@ integration_router = APIRouter()
 @integration_router.get("/google/new-scope")
 async def google_new_scope_redirect(
     scopes: list[str] = Query(...),
+    email: str = Query(...),
     redis: Redis = Depends(get_redis),
     integration_service: AppIntegrationService = Depends(get_app_integration_service),
     decoded_token: str = Depends(AccessTokenBearer()),
 ):
     user_id: str = decoded_token["sub"]
     url = await integration_service.create_authz_url_for_new_scope_google(
-        user_id=user_id, scopes=scopes, redis=redis
+        user_id=user_id, email=email, scopes=scopes, redis=redis
     )
     return RedirectResponse(url)
 

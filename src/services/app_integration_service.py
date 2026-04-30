@@ -9,6 +9,10 @@ from src.repositories.auth_repository import UserRepository
 from src.integrations.googlecloud import GoogleOAuthInterface, GoogleNewScopeResponse
 from src.integrations.github.oauth2 import GitHubOAuthInterface
 from src.db.redis import Redis
+from src.integrations.googlecloud.scopes import (
+    GOOGLE_EMAIL_ONLY_OPENID_SCOPE,
+    get_scopes,
+)
 
 
 class AppIntegrationService:
@@ -19,57 +23,84 @@ class AppIntegrationService:
         self.github_oauth = GitHubOAuthInterface()
 
     async def create_authz_url_for_new_scope_google(
-        self, user_id: str, scopes: list[str], redis: Redis
+        self, user_id: str, email: str, scopes: list[str], redis: Redis
     ) -> str:
-        logger.info(f"User id is : {user_id}")
+        logger.info(
+            f"Scope is being requested for account: {email} of user id: {user_id}"
+        )
 
         if scopes:
             service_requested = set()
             for scope in scopes:
                 service_requested.add(scope.split(".")[0])
             service: set[str] = service_requested.intersection(GOOGLE_SERVICES)
+            if not service:
+                raise AppError(
+                    data=None,
+                    detail=GeneralIntegrationErrors.INVALID_SERVICE_REQUESTED_ERROR.value,
+                )
             if len(service) > 1:
                 raise AppError(
                     data=None,
                     detail=GeneralIntegrationErrors.REQUESTED_MULTIPLE_SERVICE_SCOPE_ERROR.value,
                 )
+
+            # This means one service is surely requested.
             service = list(service)[0].lower()
             logger.info(f"Service requested is : {service}")
-            if service not in GOOGLE_SERVICES:
-                raise AppError(
-                    data=None,
-                    detail=GeneralIntegrationErrors.INVALID_SERVICE_REQUESTED_ERROR.value,
-                )
 
-        integration: AppIntegrations | None = (
+        integrations: list[AppIntegrations] | None = (
             await self.integration_repo.find_app_integration(
                 user_id=user_id, provider="google", service=service
             )
         )
-        if integration is not None:
-            existing_scopes: list[str] = integration.scopes
+        # Google integration will have email in metadata.
+        required_integration = [
+            integration
+            for integration in integrations
+            if integration.metadata["email"] == email
+        ]
+
+        if len(required_integration) > 1:
+            raise AppError(
+                data=None
+            )  # This is impossible event considering data is not redundant.
+
+
+        if required_integration:
+            logger.info(f"Required integration is : {required_integration}")
+            existing_scopes: list[str] = required_integration[0].scopes
             for scope in scopes:
                 if GOOGLE_SCOPES[scope] not in existing_scopes:
                     existing_scopes.append(GOOGLE_SCOPES[scope])
 
             scopes = existing_scopes
+            
+        else:
+            logger.info(f"Same user is requesting the same service with different email.")
+            new_scopes: list[str] = GOOGLE_EMAIL_ONLY_OPENID_SCOPE.split(" ")
+            for scope in scopes:
+                new_scopes.append(GOOGLE_SCOPES[scope])
+            
+            scopes = new_scopes
+
+
 
         url: str = await self.google_oauth.create_authorization_url(
-            db=redis,
-            scopes_requested=scopes,
-            login_redirect=False,
+            db=redis, scopes_requested=scopes, login_redirect=False
         )
         logger.debug(f"The url constructed is : {url}")
         return url
-    
-
 
     async def grant_new_scope_callback_google(
         self, user_id: str, code: str, state: str, redis: Redis
     ):
         user: Users | None = await self.user_repo.get_user_by_id(user_id=user_id)
+
         if not user:
-            raise AppError(detail=AuthErrors.USER_NOT_FOUND_ERROR.value, data=None)
+            raise AppError(
+                AuthErrors.USER_NOT_FOUND_WHEN_UPDATING_SCOPE.value, data=None
+            )
 
         tokens: dict[str, str] = (
             await self.google_oauth.exchange_for_code_new_authorization(
@@ -80,16 +111,12 @@ class AppIntegrationService:
             await self.google_oauth.get_openid_payload_new_authorization(tokens)
         )
 
-        if not user:
-            raise AppError(
-                AuthErrors.USER_NOT_FOUND_WHEN_UPDATING_SCOPE.value, data=None
-            )
-
         now = datetime.now(timezone.utc)
-        is_updated: bool = await self.integration_repo.update_app_integration(
+        is_updated: bool = await self.integration_repo.update_google_app_integration(
             user_id=user.id,
             provider="google",
             service=new_scope_response.service,
+            email=new_scope_response.decoded_id_token.email,
             scopes=new_scope_response.scopes,
             access_token=new_scope_response.access_token,
             refresh_token=new_scope_response.refresh_token,
@@ -97,8 +124,9 @@ class AppIntegrationService:
             refresh_token_expiry=now
             + timedelta(seconds=new_scope_response.refresh_token_expires_in),
         )
-        logger.info(f"Update : {is_updated}")
+        logger.info(f"Update status is: {is_updated}")
         if not is_updated:
+            logger.info("Creating new integration. ")
             await self.integration_repo.add_new_integration(
                 user_ref=user,
                 provider="google",

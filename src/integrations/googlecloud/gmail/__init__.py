@@ -11,7 +11,7 @@ from src.integrations.googlecloud.gmail.types import (
     GetSingleLableInput,
     SendAndDraftEmailInput,
     SendAndDraftEmailResponse,
-    CommonGmailConfigModel,
+
 )
 from src.integrations.googlecloud.gmail.activities import (
     list_emails,
@@ -35,8 +35,8 @@ __all__ = [
     "create_email_draft",
     # Helpers
     "EmailMIMEBuilder",
-    # Models
-    "CommonGmailConfigModel",
+
+
     # Types
     "EmailIdsAndThreads",
     "ReadEmailsIdModel",

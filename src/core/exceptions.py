@@ -21,6 +21,7 @@ class GeneralIntegrationErrors(Enum):
         message="Cannot find the service you requested for.",
         error="invalid_service_requested_error"
     )
+    
 
 class AuthErrors(Enum):
     ACCESS_TOKEN_EXPIRED_ERROR = ErrorDetail(

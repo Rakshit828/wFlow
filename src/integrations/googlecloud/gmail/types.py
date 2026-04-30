@@ -7,13 +7,10 @@ from enum import Enum
 import base64
 from email import message_from_bytes
 from email.policy import default
-from src.integrations.googlecloud import GoogleAPIClient
+
+from src.integrations.googlecloud.shared import CommonBaseModel, CommonGoogleConfigModel
 
 
-class CommonBaseModel(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True, extra="ignore", arbitrary_types_allowed=True
-    )
 
 
 class MessageHeader(BaseModel):
@@ -158,20 +155,10 @@ class ReadEmailsIdModel(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
-class CommonGmailConfigModel(CommonBaseModel):
-    _gmail_api_client: GoogleAPIClient = PrivateAttr()
-
-    @classmethod
-    def set_client(cls, client: GoogleAPIClient) -> "CommonGmailConfigModel":
-        obj = cls()
-        obj._gmail_api_client = client
-        return obj
-
-
 # All the input/ouput models taken by the nodes.
 class GetSingleLableInput(CommonBaseModel):
     label_id: str
-    config: CommonGmailConfigModel
+    config: CommonGoogleConfigModel
 
 
 class SingleLabelResponse(CommonBaseModel):
@@ -212,7 +199,7 @@ class ListAllLabelsInput(CommonBaseModel):
     )
     max_results: Optional[int] = Field(default=None, alias="maxResults")
     page_token: Optional[str] = Field(default=None, alias="pageToken")
-    config: CommonGmailConfigModel
+    config: CommonGoogleConfigModel
 
 
 class ListLabelsResponse(CommonBaseModel):
@@ -226,7 +213,7 @@ class SendAndDraftEmailInput(BaseModel):
     subject: str
     body: str
     thread_id: str | None = Field(default=None, alias="threadId")
-    config: CommonGmailConfigModel
+    config: CommonGoogleConfigModel
 
 
 class SendAndDraftEmailResponse(BaseModel):

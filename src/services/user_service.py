@@ -10,7 +10,7 @@ from fastapi import Response
 from fastapi.responses import RedirectResponse
 from src.core.security import encrypt_token
 from datetime import timedelta, datetime, timezone
-
+from loguru import logger
 
 class UserService:
     def __init__(self):
@@ -68,7 +68,7 @@ class UserService:
             await self.oauth_repo.create_oauth_account(oauth_account=oauth_acc)
 
         tokens = await create_jwt_tokens(user.id, is_login=True)
-
+        logger.info(f"Tokens are : {tokens}")
         set_cookies(
             response=response,
             tokens={
@@ -77,10 +77,10 @@ class UserService:
             },
         )
 
-        # return LoginResponse(
-        #     user_id=user.id,
-        #     email=user.email,
-        #     created_at=user.created_at,
-        # )
+        return LoginResponse(
+            user_id=user.id,
+            email=user.email,
+            created_at=user.created_at,
+        )
 
-        return RedirectResponse("http://localhost:8000/docs")
+        # return RedirectResponse("http://localhost:8000/docs")
