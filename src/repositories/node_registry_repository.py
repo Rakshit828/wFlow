@@ -23,6 +23,8 @@ class NodeRegistryRepository:
                 name=node.name,
                 description=node.description,
                 type=node.type,
+                service=node.service,
+                valid_permissions=node.valid_permissions,
                 fn_key=node.key,
                 input_model=node.node_input_model.model_json_schema(),
                 output_model=node.node_output_model.model_json_schema(),
@@ -37,10 +39,16 @@ class NodeRegistryRepository:
         return nodes
 
 
-async def main():
+async def test_initialize_nodes():
     from src.integrations.googlecloud.nodes import (
         LIST_USER_GMAIL_LABELS_NODE,
         GET_SINGLE_GMAIL_LABEL_NODE,
+        SEND_EMAIL_NODE,
+        DRAFT_EMAIL_NODE,
+        CREATE_GOOGLE_SHEET_NODE,
+        READ_CELL_VALUES_NODE,
+        APPEND_CELL_VALUES_NODE,
+        UPDATE_CELL_VALUES_NODE,
     )
     from src.db.mongo_db import MongoClient
 
@@ -50,7 +58,16 @@ async def main():
 
     node_repo = NodeRegistryRepository()
     nodes = await node_repo.create_nodes(
-        nodes=[LIST_USER_GMAIL_LABELS_NODE, GET_SINGLE_GMAIL_LABEL_NODE]
+        nodes=[
+            LIST_USER_GMAIL_LABELS_NODE,
+            GET_SINGLE_GMAIL_LABEL_NODE,
+            SEND_EMAIL_NODE,
+            DRAFT_EMAIL_NODE,
+            CREATE_GOOGLE_SHEET_NODE,
+            READ_CELL_VALUES_NODE,
+            APPEND_CELL_VALUES_NODE,
+            UPDATE_CELL_VALUES_NODE,
+        ]
     )
     print("Saved nodes are : ", nodes)
 
@@ -58,4 +75,4 @@ async def main():
 if __name__ == "__main__":
     import asyncio as aio
 
-    aio.run(main())
+    aio.run(test_initialize_nodes())

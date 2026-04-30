@@ -11,6 +11,18 @@ from src.integrations.googlecloud.gsheets import (
     ReadSheetMetadataInput,
     GoogleSheetsApis,
     get_sheets_metadata,
+    create_google_sheet,
+    CreateGoogleSheetInput,
+    CreateGoogleSheetResponse,
+    read_cell_values,
+    ReadCellValuesInput,
+    ReadCellValuesResponse,
+    append_cell_values,
+    AppendCellValuesInput,
+    AppendCellValuesResponse,
+    update_cell_values,
+    UpdateCellValuesInput,
+    UpdateCellValuesResponse,
 )
 
 from src.db.mongo_db import MongoClient
@@ -54,6 +66,40 @@ async def main():
         ),
     )
 
+
+    response: AppendCellValuesResponse = await update_cell_values(
+        UpdateCellValuesInput(
+            spreadsheet_id="1OlQ_w-x1y53FR7uM1R-SO4PN3Bda_VhM6zu95nb-Evs",
+            range="Sheet1!A8:C9",
+            values=[[1, "Radha", 35], [2, "Hari", 40]],
+            config=CommonGoogleConfigModel.set_client(api_client),
+        )
+    )
+    print(response)
+    # response: AppendCellValuesResponse = await append_cell_values(
+    #     AppendCellValuesInput(
+    #         spreadsheed_id="1OlQ_w-x1y53FR7uM1R-SO4PN3Bda_VhM6zu95nb-Evs",
+    #         range="Sheet1",
+    #         values=[[1, "Radha", 35], [2, "Hari", 40]],
+    #         config=CommonGoogleConfigModel.set_client(api_client),
+    #     )
+    # )
+
+    # response: ReadCellValuesResponse = await read_cell_values(
+    #     ReadCellValuesInput(
+    #         spreadsheet_id="1OlQ_w-x1y53FR7uM1R-SO4PN3Bda_VhM6zu95nb-Evs",
+    #         range="Sheet1!A1:B2",
+    #         config=CommonGoogleConfigModel.set_client(api_client),
+    #     )
+    # )
+
+    # response: CreateGoogleSheetResponse = await create_google_sheet(
+    #     CreateGoogleSheetInput(
+    #         title="Test Sheet - wFlow",
+    #         timezone="Asia/Kathmandu",
+    #         config=CommonGoogleConfigModel.set_client(api_client),
+    #     )
+    # )
     # response: SendAndDraftEmailResponse = await create_email_draft(
     #     SendAndDraftEmailInput(
     #         to=["bhattarianita2014@gmail.com"],
@@ -99,26 +145,12 @@ async def main():
     #     )
     # )
 
-    res = await get_sheets_metadata(
-        ReadSheetMetadataInput(
-            sheet_url="https://docs.google.com/spreadsheets/d/1OlQ_w-x1y53FR7uM1R-SO4PN3Bda_VhM6zu95nb-Evs/edit?gid=0#gid=0",
-            config=CommonGoogleConfigModel.set_client(api_client),
-        )
-    )
-    print(res)
-
-    # labels = await get_label_data(api_client, label_id="CATEGORY_PROMOTIONS")
-    # print(labels)
-
-    # response: ReadEmailsIdModel = await list_emails(api_client, query="is:unread", label_ids=["CATEGORY_PROMOTIONS"])
-    # total_response = len(response.messages)
-    # print(total_response)
-
-    # for i in range(total_response):
-    #     emal: GmailFullMessage = await get_email(
-    #         api_client, message_id=response.messages[i].id, format="full"
+    # res = await get_sheets_metadata(
+    #     ReadSheetMetadataInput(
+    #         sheet_url="https://docs.google.com/spreadsheets/d/1OlQ_w-x1y53FR7uM1R-SO4PN3Bda_VhM6zu95nb-Evs/edit?gid=0#gid=0",
+    #         config=CommonGoogleConfigModel.set_client(api_client),
     #     )
-    #     print(emal.labelIds)
+    # )
 
     await api_client.close()
 

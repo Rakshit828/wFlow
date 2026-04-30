@@ -8,10 +8,81 @@ from src.integrations.googlecloud.gmail import (
     SendAndDraftEmailInput,
     SendAndDraftEmailResponse,
     GetSingleLableInput,
-    ListAllLabelsInput
+    ListAllLabelsInput,
 )
 from src.workflows.types import ApplicationNode, NodesTypeEnum
-from bson import ObjectId
+from src.integrations.googlecloud.gsheets import (
+    create_google_sheet,
+    CreateGoogleSheetInput,
+    CreateGoogleSheetResponse,
+    read_cell_values,
+    ReadCellValuesInput,
+    ReadCellValuesResponse,
+    append_cell_values,
+    AppendCellValuesInput,
+    AppendCellValuesResponse,
+    update_cell_values,
+    UpdateCellValuesInput,
+    UpdateCellValuesResponse,
+)
+
+CREATE_GOOGLE_SHEET_NODE = ApplicationNode(
+    key="sheets.create_google_sheet",
+    name="create_google_sheet",
+    fn=create_google_sheet,
+    service="google.sheets",
+    valid_permissions=["sheets.fullaccess", "drive.file", "drive.fullaccess"],
+    type=NodesTypeEnum.ACTION,
+    node_input_model=CreateGoogleSheetInput,
+    node_output_model=CreateGoogleSheetResponse,
+)
+
+READ_CELL_VALUES_NODE = ApplicationNode(
+    key="sheets.read_cell_values",
+    name="read_cell_values",
+    fn=read_cell_values,
+    service="google.sheets",
+    valid_permissions=[
+        "sheets.fullaccess",
+        "drive.file",
+        "drive.fullaccess",
+        "sheets.readonly",
+        "drive.readonly",
+    ],
+    type=NodesTypeEnum.ACTION,
+    node_input_model=ReadCellValuesInput,
+    node_output_model=ReadCellValuesResponse,
+)
+
+APPEND_CELL_VALUES_NODE = ApplicationNode(
+    key="sheets.append_cell_values",
+    name="append_cell_values",
+    fn=append_cell_values,
+    service="google.sheets",
+    valid_permissions=[
+        "sheets.fullaccess",
+        "drive.file",
+        "drive.fullaccess",
+    ],
+    type=NodesTypeEnum.ACTION,
+    node_input_model=AppendCellValuesInput,
+    node_output_model=AppendCellValuesResponse,
+)
+
+UPDATE_CELL_VALUES_NODE = ApplicationNode(
+    key="sheets.update_cell_values",
+    name="update_cell_values",
+    fn=update_cell_values,
+    service="google.sheets",
+    valid_permissions=[
+        "sheets.fullaccess",
+        "drive.file",
+        "drive.fullaccess",
+    ],
+    type=NodesTypeEnum.ACTION,
+    node_input_model=UpdateCellValuesInput,
+    node_output_model=UpdateCellValuesResponse,
+)
 
 
 LIST_USER_GMAIL_LABELS_NODE = ApplicationNode(
@@ -19,11 +90,17 @@ LIST_USER_GMAIL_LABELS_NODE = ApplicationNode(
     name="list_gmail_labels",
     fn=list_gmail_labels,
     service="google.gmail",
-    permission="gmail.readonly",
+    valid_permissions=[
+        "gmail.readonly",
+        "gmail.fullaccess",
+        "gmail.metadata",
+        "gmail.labels",
+        "gmail.modify",
+    ],
     description="Lists all built-in and user-defined Gmail labels.",
     type=NodesTypeEnum.ACTION,
     node_input_model=ListAllLabelsInput,
-    node_output_model=ListLabelsResponse
+    node_output_model=ListLabelsResponse,
 )
 
 GET_SINGLE_GMAIL_LABEL_NODE = ApplicationNode(
@@ -31,11 +108,17 @@ GET_SINGLE_GMAIL_LABEL_NODE = ApplicationNode(
     name="get_gmail_label_data",
     fn=get_gmail_label_data,
     service="google.gmail",
-    permission="gmail.readonly",
+    valid_permissions=[
+        "gmail.readonly",
+        "gmail.fullaccess",
+        "gmail.metadata",
+        "gmail.labels",
+        "gmail.modify",
+    ],
     description="Fetch details of a specific Gmail label by ID.",
     type=NodesTypeEnum.ACTION,
     node_input_model=GetSingleLableInput,
-    node_output_model=SingleLabelResponse
+    node_output_model=SingleLabelResponse,
 )
 
 SEND_EMAIL_NODE = ApplicationNode(
@@ -43,11 +126,16 @@ SEND_EMAIL_NODE = ApplicationNode(
     name="send_email",
     fn=send_email,
     service="google.gmail",
-    permission="gmail.modify",
+    valid_permissions=[
+        "gmail.fullaccess",
+        "gmail.modify",
+        "gmail.compose",
+        "gmail.send",
+    ],
     description="Send emails according to requirement.",
     type=NodesTypeEnum.ACTION,
     node_input_model=SendAndDraftEmailInput,
-    node_output_model=SendAndDraftEmailResponse
+    node_output_model=SendAndDraftEmailResponse,
 )
 
 
@@ -56,9 +144,9 @@ DRAFT_EMAIL_NODE = ApplicationNode(
     name="create_email_draft",
     fn=create_email_draft,
     service="google.gmail",
-    permission="gmail.modify",
+    valid_permissions=["gmail.fullaccess", "gmail.modify", "gmail.compose"],
     description="Send emails according to requirement.",
     type=NodesTypeEnum.ACTION,
     node_input_model=SendAndDraftEmailInput,
-    node_output_model=SendAndDraftEmailResponse
+    node_output_model=SendAndDraftEmailResponse,
 )

@@ -91,6 +91,8 @@ class GoogleAPIClient:
 
         json_response = self._safe_json(response)
 
+        logger.info(f"Requested url is : {response.url}")
+
         if response.is_error:
             json_error_body: GoogleApiErrorResponse = json_response.get("error")
             logger.error(response)
@@ -127,7 +129,7 @@ class GoogleAPIClient:
                 and json_error_body["status"] == GoogleErrorStatus.PERMISSION_DENIED
             ):
                 logger.error(
-                    "Current access token has not enough permissions for this action."
+                    f"Current access token has not enough permissions for this action.\n {json_error_body}"
                 )
                 raise Exception(json_error_body["message"])
 
@@ -136,6 +138,9 @@ class GoogleAPIClient:
                 raise Exception("Resource/URL not found.")
 
             else:
+                logger.error(
+                    f"Error.\n {json_error_body}"
+                )
                 raise Exception(json_error_body["message"])
 
         return response, json_response
