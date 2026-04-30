@@ -6,7 +6,7 @@ import enum
 
 class NodesTypeEnum(str, enum.Enum):
     ACTION = "ACTION"  # Denotes the action we do on behalf of users.
-    LLM = "LLM" # Denotes external LLM to be called.
+    LLM = "LLM"  # Denotes external LLM to be called.
     TRANSFORM = "TRANSFORM"  # For data transformations
     API = "API"  # For calling external APIs
     DATA_SOURCE = "DATA_SOURCE"  # This like databases, VDB,
@@ -22,26 +22,30 @@ class EdgesTypeEnum(str, enum.Enum):
 
 
 class ApplicationNode(BaseModel):
-    key: str 
-    name: str
-    fn: Callable | None = None
-    description: str
-    service: str 
-    valid_permissions: list[str]
-    type: NodesTypeEnum
-    node_input_model: Type[BaseModel] | None = None
-    node_output_model: Type[BaseModel] | None = None
+    key: str  # The key of the function useful to locate them directly from NODE_MAPS
+    name: str  # The unique name of the node/function. App level Id.
+    fn: Callable | None = None  # The actual node function refrence
+    description: str  # The description of what the node does.
+    service: str  # Which service the node is related to. Eg: google.gmail, discord.bot
+    valid_permissions: list[str]  # Valid permission to execute the node
+    type: NodesTypeEnum  # The type of the node.
+    node_input_model: Type[BaseModel] | None = (
+        None  # The pydantic input model of the node
+    )
+    node_output_model: Type[BaseModel] | None = (
+        None  # The pydantic output model of the node.
+    )
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class Node(BaseModel):
-    key: str 
+    key: str
     name: str
     type: NodesTypeEnum
     inputs: Dict[str, Any] = {}
     config: Dict[str, Any] = {}
-    outputs: Dict[str, Any] = {}  # This will be filled by out application
+    outputs: Dict[str, Any] = {}  # This will be filled by out application in runtime.
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
