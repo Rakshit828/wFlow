@@ -26,6 +26,8 @@ class ApplicationNode(BaseModel):
     name: str
     fn: Callable | None = None
     description: str
+    service: str 
+    permission: str 
     type: NodesTypeEnum
     node_input_model: Type[BaseModel] | None = None
     node_output_model: Type[BaseModel] | None = None

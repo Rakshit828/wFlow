@@ -100,6 +100,8 @@ class NodesRegistry(Document):
     name: str
     description: str
     type: NodesTypeEnum
+    service: str 
+    permission: str
     fn_key: Annotated[str, Indexed(unique=True)]
     input_model: dict
     output_model: dict
