@@ -15,12 +15,11 @@ from src.integrations.googlecloud.scopes import (
 )
 
 
-class AppIntegrationService:
+class GoogleIntegrationService:
     def __init__(self):
         self.integration_repo = AppIntegrationsRepository()
         self.user_repo = UserRepository()
         self.google_oauth = GoogleOAuthInterface()
-        self.github_oauth = GitHubOAuthInterface()
 
     async def create_authz_url_for_new_scope_google(
         self, user_id: str, email: str, scopes: list[str], redis: Redis
@@ -66,7 +65,6 @@ class AppIntegrationService:
                 data=None
             )  # This is impossible event considering data is not redundant.
 
-
         if required_integration:
             logger.info(f"Required integration is : {required_integration}")
             existing_scopes: list[str] = required_integration[0].scopes
@@ -75,16 +73,16 @@ class AppIntegrationService:
                     existing_scopes.append(GOOGLE_SCOPES[scope])
 
             scopes = existing_scopes
-            
+
         else:
-            logger.info(f"Same user is requesting the same service with different email.")
+            logger.info(
+                f"Same user is requesting the same service with different email."
+            )
             new_scopes: list[str] = GOOGLE_EMAIL_ONLY_OPENID_SCOPE.split(" ")
             for scope in scopes:
                 new_scopes.append(GOOGLE_SCOPES[scope])
-            
+
             scopes = new_scopes
-
-
 
         url: str = await self.google_oauth.create_authorization_url(
             db=redis, scopes_requested=scopes, login_redirect=False
@@ -146,3 +144,16 @@ class AppIntegrationService:
             )
 
         return {"message": "Service integrated successfully."}
+
+
+class GitHubIntegrationService:
+    def __init__(self):
+        self.integration_repo = AppIntegrationsRepository()
+        self.user_repo = UserRepository()
+        self.github_oauth = GitHubOAuthInterface()
+
+
+class DiscordIntegrationService:
+    def __init__(self):
+        pass 
+    

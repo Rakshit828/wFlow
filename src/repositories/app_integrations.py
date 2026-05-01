@@ -69,7 +69,9 @@ class AppIntegrationsRepository:
             AppIntegrations.service == service,
             **kwargs,
         ).to_list()
-        logger.info(f"Integrations found are :  {integration}. Count: {len(integration)}")
+        logger.info(
+            f"Integrations found are :  {integration}. Count: {len(integration)}"
+        )
         return integration
 
     async def update_google_app_integration(
