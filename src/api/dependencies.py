@@ -5,10 +5,22 @@ from src.core.security import decode_jwt_tokens
 from src.core.exceptions import AppError, AuthErrors
 from src.repositories.auth_repository import UserRepository, Users
 from src.services.user_service import UserService
-from src.services.app_integration_service import AppIntegrationService
+from src.services.app_integration_service import (
+    GoogleIntegrationService,
+    GitHubIntegrationService,
+    DiscordIntegrationService,
+)
 
-def get_app_integration_service() -> AppIntegrationService:
-    return AppIntegrationService()
+
+def get_google_integration_service() -> GoogleIntegrationService:
+    return GoogleIntegrationService()
+
+def get_github_integration_service() -> GitHubIntegrationService:
+    return GitHubIntegrationService()
+
+def get_discord_integration_service() -> DiscordIntegrationService:
+    return DiscordIntegrationService()
+
 
 def get_user_service() -> UserService:
     return UserService()
@@ -36,7 +48,6 @@ class AccessTokenBearer(APIKeyCookie):
             raise AppError(data=None, detail=AuthErrors.INVALID_JWT_TOKEN_ERROR.value)
         decoded_token = decode_jwt_tokens(jwt_token=access_token)
         return decoded_token
-
 
 
 async def get_current_user(

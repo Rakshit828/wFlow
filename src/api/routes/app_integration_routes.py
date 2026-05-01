@@ -1,16 +1,40 @@
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import RedirectResponse
+from typing import Literal
+from loguru import logger
 
 from src.db.redis import Redis, get_redis
 from src.api.dependencies import (
     AccessTokenBearer,
-    get_app_integration_service,
-    get_user_service,
+    get_google_integration_service,
 )
-from src.services.app_integration_service import AppIntegrationService
-
+from src.services.app_integration_service import GoogleIntegrationService
+from src.integrations.Discord.oauth2 import DiscordOAuthInterface
 
 integration_router = APIRouter()
+discord_oauth = DiscordOAuthInterface()
+
+
+@integration_router.get("/discord/url")
+async def discord_login_redirect(
+    tier: Literal["basic", "pro"] = Query(...),
+    # decoded_token: str = Depends(AccessTokenBearer()),
+):
+    # user_id: str = decoded_token["sub"]
+    url = await discord_oauth.create_authorization_url(tier=tier)
+    logger.info(f"The url is : {url}")
+    return RedirectResponse(url)
+
+
+@integration_router.get("/discord/scope/callback")
+async def discord_scope_callback(
+    code: str,
+    decoded_token: str = Depends(AccessTokenBearer()),
+    redis: Redis = Depends(get_redis),
+):
+    response: dict[str, str] = await discord_oauth.exchange_for_code(code=code)
+    print(response)
+    return response
 
 
 @integration_router.get("/google/new-scope")
@@ -18,7 +42,9 @@ async def google_new_scope_redirect(
     scopes: list[str] = Query(...),
     email: str = Query(...),
     redis: Redis = Depends(get_redis),
-    integration_service: AppIntegrationService = Depends(get_app_integration_service),
+    integration_service: GoogleIntegrationService = Depends(
+        get_google_integration_service
+    ),
     decoded_token: str = Depends(AccessTokenBearer()),
 ):
     user_id: str = decoded_token["sub"]
@@ -34,7 +60,9 @@ async def grant_new_scope(
     state: str,
     decoded_token: str = Depends(AccessTokenBearer()),
     redis: Redis = Depends(get_redis),
-    integration_repo: AppIntegrationService = Depends(get_app_integration_service),
+    integration_repo: GoogleIntegrationService = Depends(
+        get_google_integration_service
+    ),
 ):
     user_id: str = decoded_token["sub"]
     response = await integration_repo.grant_new_scope_callback_google(

@@ -24,7 +24,6 @@ class GoogleAPIClient:
         self.__credentials: CredentialsModel = credentials
         self.base_url = base_url.replace("www", service)
 
-
     def _set_authorization_header(self, headers: dict) -> None:
         headers["Authorization"] = f"Bearer {self.__credentials.access_token}"
         return headers
@@ -138,9 +137,7 @@ class GoogleAPIClient:
                 raise Exception("Resource/URL not found.")
 
             else:
-                logger.error(
-                    f"Error.\n {json_error_body}"
-                )
+                logger.error(f"Error.\n {json_error_body}")
                 raise Exception(json_error_body["message"])
 
         return response, json_response
