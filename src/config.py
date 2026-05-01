@@ -25,11 +25,6 @@ class Config(BaseSettings):
     GITHUB_TOKEN_URL: str
     GITHUB_GET_PROFILE_URL: str
 
-    DISCORD_CLIENT_ID: str
-    DISCORD_CLIENT_SECRET: str
-    DISCORD_AUTH_URL: str
-    DISCORD_BOT_TOKEN: str
-
     ENCRYPTION_KEY: str
 
     JWT_SECRET_KEY: str
@@ -49,9 +44,6 @@ class Config(BaseSettings):
     def GITHUB_LOGIN_REDIRECT_URL(self) -> str:
         return self.BASE_LOGIN_REDIRECT_URL.format(provider="github")
 
-    @property
-    def DISCORD_LOGIN_REDIRECT_URL(self) -> str:
-        return self.BASE_LOGIN_REDIRECT_URL.format(provider="discord")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

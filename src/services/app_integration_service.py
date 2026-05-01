@@ -152,8 +152,3 @@ class GitHubIntegrationService:
         self.user_repo = UserRepository()
         self.github_oauth = GitHubOAuthInterface()
 
-
-class DiscordIntegrationService:
-    def __init__(self):
-        pass 
-    
