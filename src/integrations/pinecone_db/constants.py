@@ -1,0 +1,1 @@
+PINECONE_INDEX_NAME = "wflow-pinecone-index"
