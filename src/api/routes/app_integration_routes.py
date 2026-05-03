@@ -9,32 +9,31 @@ from src.api.dependencies import (
     get_google_integration_service,
 )
 from src.services.app_integration_service import GoogleIntegrationService
-from src.integrations.Discord.oauth2 import DiscordOAuthInterface
 
 integration_router = APIRouter()
-discord_oauth = DiscordOAuthInterface()
 
 
-@integration_router.get("/discord/url")
-async def discord_login_redirect(
-    tier: Literal["basic", "pro"] = Query(...),
-    # decoded_token: str = Depends(AccessTokenBearer()),
-):
-    # user_id: str = decoded_token["sub"]
-    url = await discord_oauth.create_authorization_url(tier=tier)
-    logger.info(f"The url is : {url}")
-    return RedirectResponse(url)
+
+# @integration_router.get("/discord/url")
+# async def discord_login_redirect(
+#     tier: Literal["basic", "pro"] = Query(...),
+#     # decoded_token: str = Depends(AccessTokenBearer()),
+# ):
+#     # user_id: str = decoded_token["sub"]
+#     url = await discord_oauth.create_authorization_url(tier=tier)
+#     logger.info(f"The url is : {url}")
+#     return RedirectResponse(url)
 
 
-@integration_router.get("/discord/scope/callback")
-async def discord_scope_callback(
-    code: str,
-    decoded_token: str = Depends(AccessTokenBearer()),
-    redis: Redis = Depends(get_redis),
-):
-    response: dict[str, str] = await discord_oauth.exchange_for_code(code=code)
-    print(response)
-    return response
+# @integration_router.get("/discord/scope/callback")
+# async def discord_scope_callback(
+#     code: str,
+#     decoded_token: str = Depends(AccessTokenBearer()),
+#     redis: Redis = Depends(get_redis),
+# ):
+#     response: dict[str, str] = await discord_oauth.exchange_for_code(code=code)
+#     print(response)
+#     return response
 
 
 @integration_router.get("/google/new-scope")

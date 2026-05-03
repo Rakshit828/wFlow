@@ -1,28 +1,12 @@
 from groq import AsyncGroq
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Literal, Any, AsyncGenerator
 import asyncio as aio
 
 from src.integrations.llms.base import LLMClient
 from src.config import CONFIG
-
-
-class GroqModelEnum(str, Enum):
-    GPT_OSS_120B = "openai/gpt-oss-120b"
-    GPT_OSS_20B = "openai/gpt-oss-20b"
-    LLAMA_3_3_70B_VERSATILE = "llama-3.3-70b-versatile"
-    KIMI_K2_INSTRUCT_0905 = "moonshotai/kimi-k2-instruct-0905"
-    QWEN3_32B = "qwen/qwen3-32b"
-
-
-class GroqCallParams(BaseModel):
-    model: GroqModelEnum
-    system_prompt: str
-    prompt: str
-    max_tokens: int
-    reasoning_effort: Literal["low", "medium", "high", "none", "default"] = "default"
-
+from src.integrations.llms.types import GroqCallParams, GroqModelEnum
 
 class GroqClient(LLMClient):
     def __init__(self, api_key: str | None = None):
@@ -38,13 +22,13 @@ class GroqClient(LLMClient):
             params = GroqCallParams(**params)
 
         response = await self._client.chat.completions.create(
-            model=params.model.value,
+            model=params.config.model.value,
             messages=[
-                {"role": "system", "content": params.system_prompt},
+                {"role": "system", "content": params.config.system_prompt},
                 {"role": "user", "content": params.prompt},
             ],
-            reasoning_effort=params.reasoning_effort,
-            max_completion_tokens=params.max_tokens,
+            reasoning_effort=params.config.reasoning_effort,
+            max_completion_tokens=params.config.max_tokens,
             stream=False,
         )
         return response.choices[0].message

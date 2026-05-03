@@ -108,7 +108,7 @@ LIST_USER_GMAIL_LABELS_NODE = ApplicationNode(
 )
 
 GET_SINGLE_GMAIL_LABEL_NODE = ApplicationNode(
-    key="gmail.get_lable_data",
+    key="gmail.get_label_data",
     name="get_gmail_label_data",
     fn=get_gmail_label_data,
     service="google.gmail",

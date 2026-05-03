@@ -8,7 +8,6 @@ from src.services.user_service import UserService
 from src.services.app_integration_service import (
     GoogleIntegrationService,
     GitHubIntegrationService,
-    DiscordIntegrationService,
 )
 
 
@@ -18,8 +17,6 @@ def get_google_integration_service() -> GoogleIntegrationService:
 def get_github_integration_service() -> GitHubIntegrationService:
     return GitHubIntegrationService()
 
-def get_discord_integration_service() -> DiscordIntegrationService:
-    return DiscordIntegrationService()
 
 
 def get_user_service() -> UserService:

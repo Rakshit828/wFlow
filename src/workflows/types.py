@@ -19,6 +19,7 @@ class EdgesTypeEnum(str, enum.Enum):
     IF = "if"
     SWITCH = "switch"
     PARALLEL = "parallel"
+    MERGE = "merge"
 
 
 class ApplicationNode(BaseModel):
@@ -27,7 +28,7 @@ class ApplicationNode(BaseModel):
     fn: Callable | None = None  # The actual node function refrence
     description: str  # The description of what the node does.
     service: str  # Which service the node is related to. Eg: google.gmail, discord.bot
-    valid_permissions: list[str]  # Valid permission to execute the node
+    valid_permissions: list[str] | None  # Valid permission to execute the node
     type: NodesTypeEnum  # The type of the node.
     node_input_model: Type[BaseModel] | None = (
         None  # The pydantic input model of the node
@@ -57,12 +58,13 @@ class Edge(BaseModel):
     decision: Union[bool, None] = None
     case: Union[str, None] = None
 
-    @model_validator(mode="before")
+    @model_validator(mode="after")
     def validate_if_edge(self):
-        if self.type == "if":
+        node_type = self.type
+        if node_type == "if":
             if self.decision is None:
                 raise ValueError("Decision must be provided for if edge.")
-        elif self.type == "switch":
+        elif node_type == "switch":
             if self.case is None:
                 raise ValueError("Case must be provided for switch edge.")
         return self
@@ -75,3 +77,120 @@ class Pipeline(BaseModel):
     edges: list[Edge]
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+class NodeDependency(BaseModel):
+    data: Dict[str, list[str]]
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+
+PIPENINE_EXAMPLE = Pipeline(
+    **{
+        "nodes": [
+            {
+                "key": "llm.groq",
+                "name": "groq_llm_node1",
+                "type": "LLM",
+                "inputs": {"prompt": "Generate me a outline for essay on Nepal"},
+                "config": {"response_model": {"output": {"outlines": "list.str"}}},
+                "outputs": {},
+            },
+            {
+                "key": "llm.groq",
+                "name": "groq_llm_node2",
+                "type": "LLM",
+                "inputs": {
+                    "prompt": "Generate me a description on topics {topics}",
+                    "topics": "groq_llm_node1.outputs.output.outlines",
+                },
+                "config": {"response_model": {"output": {"article": "str"}}},
+                "outputs": {},
+            },
+            {
+                "key": "llm.groq",
+                "name": "groq_llm_node3",
+                "type": "LLM",
+                "inputs": {
+                    "prompt": "Generate me a description on topics {topics}",
+                    "topics": "groq_llm_node1.outputs.output.outlines",
+                },
+                "config": {"response_model": {"output": {"article": "str"}}},
+                "outputs": {},
+            },
+            {
+                "key": "llm.groq",
+                "name": "groq_llm_node4",
+                "type": "LLM",
+                "inputs": {
+                    "prompt": "Generate me a description on topics {topics}",
+                    "topics": "groq_llm_node1.outputs.output.outlines",
+                },
+                "config": {"response_model": {"output": {"article": "str"}}},
+                "outputs": {},
+            },
+            {
+                "key": "processor",
+                "name": "process1",
+                "type": "ACTION",
+                "inputs": {"article": "groq_llm_node2.outputs.output.article"},
+                "config": {"operation": "clean_or_format"},
+                "outputs": {},
+            },
+            {
+                "key": "processor",
+                "name": "process2",
+                "type": "ACTION",
+                "inputs": {"article": "groq_llm_node2.outputs.output.article"},
+                "config": {"operation": "summarize_or_refine"},
+                "outputs": {},
+            },
+            {
+                "key": "processor",
+                "name": "merger",
+                "type": "CONTROL_FLOW",
+                "inputs": {"articles": "process1.outputs process2.outputs"},
+                "config": {"operation": "combine"},
+                "outputs": {},
+            },
+            {
+                "key": "llm.groq",
+                "name": "groq_llm_node5",
+                "type": "LLM",
+                "inputs": {
+                    "prompt": "Merge these different articles to produce a single best article. Articles are : {articles}",
+                    "articles": "groq_llm_node2.outputs.output.article groq_llm_node3.outputs.output.article groq_llm_node4.outputs.output.article",
+                },
+                "config": {"response_model": {"output": {"final_article": "str"}}},
+                "outputs": {},
+            },
+        ],
+        "edges": [
+            {"source": "start", "target": "groq_llm_node1", "type": "linear"},
+            {
+                "source": "groq_llm_node1",
+                "target": "groq_llm_node2",
+                "type": "parallel",
+            },
+            {
+                "source": "groq_llm_node1",
+                "target": "groq_llm_node3",
+                "type": "parallel",
+            },
+            {
+                "source": "groq_llm_node1",
+                "target": "groq_llm_node4",
+                "type": "parallel",
+            },
+            {"source": "groq_llm_node2", "target": "process1", "type": "parallel"},
+            {"source": "groq_llm_node2", "target": "process2", "type": "parallel"},
+            {"source": "process1", "target": "merger", "type": "linear"},
+            {"source": "process2", "target": "merger", "type": "linear"},
+            {"source": "merger", "target": "end", "type": "linear"},
+            {"source": "groq_llm_node3", "target": "groq_llm_node5", "type": "linear"},
+            {"source": "groq_llm_node4", "target": "groq_llm_node5", "type": "linear"},
+            {"source": "groq_llm_node5", "target": "end", "type": "linear"},
+            # {"source": "groq_llm_node2", "target": "groq_llm_node5", "type": "linear"},
+        ],
+    }
+)

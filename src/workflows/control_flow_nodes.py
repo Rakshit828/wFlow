@@ -1,4 +1,4 @@
-from .types import Node, ObjectId
+from .types import ApplicationNode
 from pydantic import BaseModel
 
 
@@ -27,20 +27,24 @@ async def switch_node(node_input: SwitchNodeInput) -> SwitchNodeOutput:
     pass
 
 
-IF_NODE = Node(
-    node_id=ObjectId("69f195e325fc262f1898b86c"),
+IF_NODE = ApplicationNode(
+    key="if_node",
     name="if_node",
     fn=if_node,
+    service=None,
+    valid_permissions=None,
     description="This node is for conditional branching, either true, or false.",
     type="CONTROL_FLOW",
     node_input_model=IfNodeInput,
     node_output_model=IfNodeOutput,
 )
 
-SWITCH_NODE = Node(
-    node_id=ObjectId("69f195e4d5cafd6124189bbf"),
+SWITCH_NODE = ApplicationNode(
+    key="switch_node",
     name="switch_node",
     fn=switch_node,
+    service=None,
+    valid_permissions=None,
     description="This node is for branching based on a value. Used when multiple conditions are there.",
     type="CONTROL_FLOW",
     node_input_model=SwitchNodeInput,
