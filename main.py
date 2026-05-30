@@ -6,7 +6,7 @@ from src.workflows.types import WorkflowInput
 
 
 async def main(pipeline_str: str):
-    
+
     client = await Client.connect("localhost:7233")
     result = await client.execute_workflow(
         "DynamicWorkflow",
@@ -38,7 +38,7 @@ if __name__ == "__main__":
                 "name": "send_gmail_node1",
                 "type": "ACTION",
                 "inputs": {
-                    "to": "bhattarianita2014@gmail.com",
+                    "to": ["bhattarianita2014@gmail.com"],
                     "subject": "Nepal Current Politics",
                     "body": "groq_llm_node1.outputs.output.essay",
                 },
@@ -46,8 +46,12 @@ if __name__ == "__main__":
         ],
         "edges": [
             {"source": "start", "target": "groq_llm_node1", "type": "linear"},
-            {"source": "groq_llm_node1", "target": "send_gmail_node1", "type": "linear"},
+            {
+                "source": "groq_llm_node1",
+                "target": "send_gmail_node1",
+                "type": "linear",
+            },
             {"source": "send_gmail_node1", "target": "end", "type": "linear"},
-        ]
+        ],
     }
     asyncio.run(main(pipeline_str=json.dumps(pipeline)))

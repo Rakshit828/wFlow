@@ -5,9 +5,7 @@ from loguru import logger
 from src.workflows.workflow import DynamicWorkflow
 from src.workflows.nodes import NODES_MAP
 from src.db.mongo_db import MongoClient
-
-
-
+from src.workflows.workflow import resolve_configs_activity
 
 
 async def run_worker():
@@ -25,7 +23,6 @@ async def run_worker():
     await mongo.get_database("wflow_db")
     await mongo.init_beanie_odm()
 
-
     client = await Client.connect(
         "localhost:7233",  # Default Temporal server address
         namespace="default",  # Change to your namespace if needed
@@ -38,7 +35,8 @@ async def run_worker():
         client,
         task_queue="default",  # Change to your task queue name if needed
         workflows=[DynamicWorkflow],
-        activities=[node.fn for node in NODES_MAP.values()],
+        activities=[node.fn for node in NODES_MAP.values()]
+        + [resolve_configs_activity],
     )
 
     logger.info("Worker registered with workflows and activities")

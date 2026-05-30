@@ -68,7 +68,7 @@ async def get_gmail_label_data(
     Returns:
         SingleLabelsResponse: Parsed response containing label metadata.
     """
-    api_client: GoogleAPIClient = node_input.config.get_client()
+    api_client: GoogleAPIClient = node_input.config.get_google_api_client()
 
     _, response_json = await api_client.request(
         "GET",
@@ -128,7 +128,7 @@ async def send_email(
     node_input: SendAndDraftEmailInput,
 ):
     email_builder = EmailMIMEBuilder()
-    api_client: GoogleAPIClient = node_input.config.get_client()
+    api_client: GoogleAPIClient = node_input.config.get_google_api_client()
 
     email_builder.add_to(node_input.to)
     email_builder.add_cc(node_input.cc)
@@ -156,7 +156,7 @@ async def send_email(
 @activity.defn
 async def create_email_draft(node_input: SendAndDraftEmailInput):
     email_builder = EmailMIMEBuilder()
-    api_client: GoogleAPIClient = node_input.config.get_client()
+    api_client: GoogleAPIClient = node_input.config.get_google_api_client()
 
     email_builder.add_to(node_input.to)
     email_builder.add_cc(node_input.cc)

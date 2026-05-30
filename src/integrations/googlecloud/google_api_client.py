@@ -24,6 +24,8 @@ class GoogleAPIClient:
         self.__credentials: CredentialsModel = credentials
         self.base_url = base_url.replace("www", service)
 
+        print(f"\nCredentials are : {self.__credentials}\n (from GoogleAPIClient)")
+
     def _set_authorization_header(self, headers: dict) -> None:
         headers["Authorization"] = f"Bearer {self.__credentials.access_token}"
         return headers
@@ -101,7 +103,7 @@ class GoogleAPIClient:
                 and json_error_body["status"] == GoogleErrorStatus.UNAUTHENTICATED
             ):
                 if is_retried_call:
-                    raise Exception("Impossible event.")
+                    raise Exception("Refresh token has also been expired.")
 
                 logger.info(f"Performing refresh.")
                 await self.do_refresh_actions()
@@ -138,7 +140,6 @@ class GoogleAPIClient:
 
             else:
                 logger.error(f"Error.\n {json_error_body}")
-                raise Exception(json_error_body["message"])
 
         return response, json_response
 

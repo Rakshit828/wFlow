@@ -9,7 +9,7 @@ class ErrorDetail:
     status_code: int
     message: int
     error: str
-    data: dict | None = None
+    # data: dict | None = None
 
     def set_message(self, message: str) -> "ErrorDetail":
         return ErrorDetail(
@@ -18,13 +18,13 @@ class ErrorDetail:
             error=self.error,
         )
     
-    def set_data(self, data: dict[str, Any]) -> "ErrorDetail":
-        return ErrorDetail(
-            status_code=self.status,
-            message=self.message,
-            error=self.error,
-            data=data,
-        )
+    # def set_data(self, data: dict[str, Any]) -> "ErrorDetail":
+    #     return ErrorDetail(
+    #         status_code=self.status,
+    #         message=self.message,
+    #         error=self.error,
+    #         data=data,
+    #     )
 
 
 class RuntimePipelineExecutionErrors(Enum):
@@ -85,5 +85,6 @@ class AuthErrors(Enum):
 
 
 class AppError(Exception):
-    def __init__(self, detail: ErrorDetail):
+    def __init__(self, detail: ErrorDetail, data: dict | None = None):
         self.detail = detail
+        self.data = data

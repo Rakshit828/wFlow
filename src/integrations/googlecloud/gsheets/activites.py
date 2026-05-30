@@ -17,7 +17,7 @@ from temporalio import activity
 
 
 async def get_sheets_metadata(node_input: ReadSheetMetadataInput) -> dict:
-    api_client: GoogleAPIClient = node_input.config.get_client()
+    api_client: GoogleAPIClient = node_input.config.get_google_api_client()
     _, resposne_json = await api_client.request(
         "GET",
         GoogleSheetsApis.GET_SHEETS_METADATA.format(
@@ -31,7 +31,7 @@ async def get_sheets_metadata(node_input: ReadSheetMetadataInput) -> dict:
 async def create_google_sheet(
     node_input: CreateGoogleSheetInput,
 ) -> CreateGoogleSheetResponse:
-    api_client: GoogleAPIClient = node_input.config.get_client()
+    api_client: GoogleAPIClient = node_input.config.get_google_api_client()
     _, resposne_json = await api_client.request(
         "POST",
         endpoint=GoogleSheetsApis.CREATE_NEW_SPREADSHEET,
@@ -42,7 +42,7 @@ async def create_google_sheet(
 
 @activity.defn
 async def read_cell_values(node_input: ReadCellValuesInput) -> ReadCellValuesResponse:
-    api_client: GoogleAPIClient = node_input.config.get_client()
+    api_client: GoogleAPIClient = node_input.config.get_google_api_client()
     _, resposne_json = await api_client.request(
         "GET",
         GoogleSheetsApis.READ_CELL_VALUES.format(
@@ -56,7 +56,7 @@ async def read_cell_values(node_input: ReadCellValuesInput) -> ReadCellValuesRes
 async def append_cell_values(
     node_input: AppendCellValuesInput,
 ) -> AppendCellValuesResponse:
-    api_client: GoogleAPIClient = node_input.config.get_client()
+    api_client: GoogleAPIClient = node_input.config.get_google_api_client()
     json = {
         "range": node_input.range,
         "values": node_input.values,
@@ -86,7 +86,7 @@ async def append_cell_values(
 async def update_cell_values(
     node_input: UpdateCellValuesInput,
 ) -> UpdateCellValuesResponse:
-    api_client: GoogleAPIClient = node_input.config.get_client()
+    api_client: GoogleAPIClient = node_input.config.get_google_api_client()
     json = {
         "range": node_input.range,
         "values": node_input.values,

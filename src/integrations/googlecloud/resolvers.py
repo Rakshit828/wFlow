@@ -5,20 +5,21 @@ from src.workflows.nodes import NODES_MAP
 from typing import Type
 from pydantic import BaseModel
 from src.workflows.types import ApplicationNode
+from src.integrations.googlecloud.shared import CommonGoogleConfigModel
 
 
 class GoogleNodeConfigResolver:
     def __init__(self):
         pass
 
-    async def resolve(self, node_key: str, user_id: str) -> dict:
+    async def resolve(self, node_key: str, user_id: str) -> CommonGoogleConfigModel:
         node: ApplicationNode = NODES_MAP.get(node_key)
         service: str = node.service
 
         config_model: Type[BaseModel] = node.node_input_model.model_fields[
             "config"
         ].annotation
-        print(f"The config model is : {config_model}")
+
         if not node:
             raise Exception(f"Node with key {node_key} not found.")
 
@@ -36,14 +37,9 @@ class GoogleNodeConfigResolver:
             raise Exception("No credentials found")
         credentials = credentials[0]
 
-        print("Credentials are : ", credentials)
-
-        api_client = GoogleAPIClient(
-            integration_repo=integration_repo,
-            service=credentials.service,
-            req_timeout=30.0,
-            base_url="https://www.googleapis.com",
-            credentials=CredentialsModel(
+        config_dict = {
+            "service": credentials.service,
+            "credentials": CredentialsModel(
                 user_id=credentials.user_id,
                 integration_id=credentials.integration_id,
                 service=credentials.service,
@@ -53,10 +49,6 @@ class GoogleNodeConfigResolver:
                 access_token_expiry=credentials.access_token_expiry,
                 refresh_token_expiry=credentials.refresh_token_expiry,
             ),
-        )
+        }
 
-        model = config_model.set_client(api_client).model_dump()
-
-        print(f"This is the model : {model}")
-
-        return model
+        return config_model.model_validate(config_dict)

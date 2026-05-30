@@ -1,5 +1,7 @@
 from pydantic import BaseModel, ConfigDict, PrivateAttr
 from src.integrations.googlecloud.google_api_client import GoogleAPIClient
+from src.integrations.googlecloud.g_types import CredentialsModel
+from src.repositories.app_integrations import AppIntegrationsRepository
 
 
 class CommonBaseModel(BaseModel):
@@ -9,19 +11,14 @@ class CommonBaseModel(BaseModel):
 
 
 class CommonGoogleConfigModel(CommonBaseModel):
-    _google_api_client: GoogleAPIClient = PrivateAttr()
+    credentials: CredentialsModel
+    service: str
 
-    @classmethod
-    def set_client(cls, client: GoogleAPIClient) -> "CommonGoogleConfigModel":
-        obj = cls()
-        print(f"\n Setting the client. \n")
-        obj._google_api_client = client
-        print(f"Type is : {type(obj)}")
-        print(f"Client is : {obj._google_api_client}")
-        return obj
-    
-    
-    def get_client(self) -> GoogleAPIClient:
-        return self._google_api_client
-    
-    
+    def get_google_api_client(self) -> GoogleAPIClient:
+        return GoogleAPIClient(
+            credentials=self.credentials,
+            integration_repo=AppIntegrationsRepository(),
+            service=self.service,
+            req_timeout=30.0,
+            base_url="https://www.googleapis.com",
+        )

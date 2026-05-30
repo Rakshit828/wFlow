@@ -1,13 +1,11 @@
 from groq import AsyncGroq
-from enum import Enum
-from pydantic import BaseModel, ConfigDict
-from typing import Literal, Any, AsyncGenerator
+from typing import Any, AsyncGenerator
 import asyncio as aio
-from temporalio import activity
 
 from src.integrations.llms.base import LLMClient
 from src.config import CONFIG
 from src.integrations.llms.types import GroqCallParams, GroqModelEnum
+
 
 class GroqClient(LLMClient):
     def __init__(self, api_key: str | None = None):
@@ -15,25 +13,28 @@ class GroqClient(LLMClient):
             api_key=api_key if api_key else CONFIG.GROQ_API_KEY,
         )
 
-    @activity.defn
     async def inference(
         self,
         params: GroqCallParams | dict[str, Any],
     ):
         if not isinstance(params, GroqCallParams):
             params = GroqCallParams(**params)
-
+        response_instruction = f"""\n
+            The response should be in JSON format. No extra text. Just json. Not markdown fomatted json. Only json.
+            The format of json is : \n {params.config.response_model}
+        """
         response = await self._client.chat.completions.create(
             model=params.config.model.value,
             messages=[
                 {"role": "system", "content": params.config.system_prompt},
-                {"role": "user", "content": params.prompt},
+                {"role": "user", "content": params.prompt + response_instruction},
             ],
             reasoning_effort=params.config.reasoning_effort,
             max_completion_tokens=params.config.max_tokens,
+            response_format={"type": "json_object"},
             stream=False,
         )
-        return response.choices[0].message
+        return response.choices[0].message.content
 
     async def stream(
         self,

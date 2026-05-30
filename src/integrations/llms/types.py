@@ -2,6 +2,7 @@ from enum import Enum
 from pydantic import BaseModel, ConfigDict
 from typing import Literal, Any
 
+
 class GroqModelEnum(str, Enum):
     GPT_OSS_120B = "openai/gpt-oss-120b"
     GPT_OSS_20B = "openai/gpt-oss-20b"
@@ -11,10 +12,10 @@ class GroqModelEnum(str, Enum):
 
 
 class GroqModelConfig(BaseModel):
-    response_model: dict 
+    response_model: dict
     model: GroqModelEnum = GroqModelEnum.GPT_OSS_120B
     max_tokens: int | None = None
-    reasoning_effort: Literal["low", "medium", "high", "none", "default"] = "default"
+    reasoning_effort: Literal["low", "medium", "high", "none", "default"] = "medium"
     system_prompt: str = "Your are a helpful AI Assistant."
 
 
