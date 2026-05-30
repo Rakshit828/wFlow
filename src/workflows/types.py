@@ -25,10 +25,12 @@ class EdgesTypeEnum(str, enum.Enum):
 class ApplicationNode(BaseModel):
     key: str  # The key of the function useful to locate them directly from NODE_MAPS
     name: str  # The unique name of the node/function. App level Id.
-    fn: Callable | None = None  # The actual node function refrence
+    fn: Callable[[Type[BaseModel]], Type[BaseModel]] | None = (
+        None  # The actual node function refrence
+    )
     description: str  # The description of what the node does.
-    service: str  # Which service the node is related to. Eg: google.gmail, discord.bot
-    valid_permissions: list[str] | None  # Valid permission to execute the node
+    service: str | None = None  # Which service the node is related to. Eg: google.gmail, discord.bot
+    valid_permissions: list[str] | None = None  # Valid permission to execute the node
     type: NodesTypeEnum  # The type of the node.
     node_input_model: Type[BaseModel] | None = (
         None  # The pydantic input model of the node
@@ -59,7 +61,7 @@ class Edge(BaseModel):
     case: Union[str, None] = None
 
     @model_validator(mode="after")
-    def validate_if_edge(self):
+    def validate_edge(self):
         node_type = self.type
         if node_type == "if":
             if self.decision is None:
@@ -83,6 +85,10 @@ class NodeDependency(BaseModel):
     data: Dict[str, list[str]]
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
+
+class WorkflowInput(BaseModel):
+    pipeline_str: str 
+    configs: Dict[str, Any] | None = None
 
 
 PIPENINE_EXAMPLE = Pipeline(

@@ -12,10 +12,12 @@ from src.integrations.googlecloud.gsheets.types import (
 )
 from src.integrations.googlecloud import GoogleAPIClient
 from loguru import logger
+from temporalio import activity
+
 
 
 async def get_sheets_metadata(node_input: ReadSheetMetadataInput) -> dict:
-    api_client: GoogleAPIClient = node_input.config._google_api_client
+    api_client: GoogleAPIClient = node_input.config.get_client()
     _, resposne_json = await api_client.request(
         "GET",
         GoogleSheetsApis.GET_SHEETS_METADATA.format(
@@ -25,11 +27,11 @@ async def get_sheets_metadata(node_input: ReadSheetMetadataInput) -> dict:
     )
     return resposne_json
 
-
+@activity.defn
 async def create_google_sheet(
     node_input: CreateGoogleSheetInput,
 ) -> CreateGoogleSheetResponse:
-    api_client: GoogleAPIClient = node_input.config._google_api_client
+    api_client: GoogleAPIClient = node_input.config.get_client()
     _, resposne_json = await api_client.request(
         "POST",
         endpoint=GoogleSheetsApis.CREATE_NEW_SPREADSHEET,
@@ -38,9 +40,9 @@ async def create_google_sheet(
     )
     return CreateGoogleSheetResponse(**resposne_json)
 
-
+@activity.defn
 async def read_cell_values(node_input: ReadCellValuesInput) -> ReadCellValuesResponse:
-    api_client: GoogleAPIClient = node_input.config._google_api_client
+    api_client: GoogleAPIClient = node_input.config.get_client()
     _, resposne_json = await api_client.request(
         "GET",
         GoogleSheetsApis.READ_CELL_VALUES.format(
@@ -50,11 +52,11 @@ async def read_cell_values(node_input: ReadCellValuesInput) -> ReadCellValuesRes
     )
     return ReadCellValuesResponse(**resposne_json)
 
-
+@activity.defn
 async def append_cell_values(
     node_input: AppendCellValuesInput,
 ) -> AppendCellValuesResponse:
-    api_client: GoogleAPIClient = node_input.config._google_api_client
+    api_client: GoogleAPIClient = node_input.config.get_client()
     json = {
         "range": node_input.range,
         "values": node_input.values,
@@ -80,11 +82,11 @@ async def append_cell_values(
     print("Response : ", resposne_json)
     return AppendCellValuesResponse(**resposne_json)
 
-
+@activity.defn
 async def update_cell_values(
     node_input: UpdateCellValuesInput,
 ) -> UpdateCellValuesResponse:
-    api_client: GoogleAPIClient = node_input.config._google_api_client
+    api_client: GoogleAPIClient = node_input.config.get_client()
     json = {
         "range": node_input.range,
         "values": node_input.values,

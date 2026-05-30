@@ -3,6 +3,7 @@ from enum import Enum
 from pydantic import BaseModel, ConfigDict
 from typing import Literal, Any, AsyncGenerator
 import asyncio as aio
+from temporalio import activity
 
 from src.integrations.llms.base import LLMClient
 from src.config import CONFIG
@@ -14,6 +15,7 @@ class GroqClient(LLMClient):
             api_key=api_key if api_key else CONFIG.GROQ_API_KEY,
         )
 
+    @activity.defn
     async def inference(
         self,
         params: GroqCallParams | dict[str, Any],

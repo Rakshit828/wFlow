@@ -1,5 +1,7 @@
 from .types import ApplicationNode
 from pydantic import BaseModel
+from temporalio import activity
+
 
 
 class IfNodeInput(BaseModel):
@@ -18,11 +20,11 @@ class SwitchNodeInput(BaseModel):
 class SwitchNodeOutput(BaseModel):
     case: str
 
-
+@activity.defn
 async def if_node(node_input: IfNodeInput) -> IfNodeOutput:
     pass
 
-
+@activity.defn
 async def switch_node(node_input: SwitchNodeInput) -> SwitchNodeOutput:
     pass
 

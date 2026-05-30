@@ -1,161 +1,53 @@
-from src.integrations.googlecloud import GoogleAPIClient, CredentialsModel
-from src.repositories.app_integrations import AppIntegrationsRepository
-from src.schemas.mongo_projections import CredentialsAndDataForApiClient
-from src.integrations.googlecloud.gmail import (
-    SendAndDraftEmailInput,
-    SendAndDraftEmailResponse,
-    create_email_draft,
-)
-from src.integrations.googlecloud.shared import CommonGoogleConfigModel
-from src.integrations.googlecloud.gsheets import (
-    ReadSheetMetadataInput,
-    GoogleSheetsApis,
-    get_sheets_metadata,
-    create_google_sheet,
-    CreateGoogleSheetInput,
-    CreateGoogleSheetResponse,
-    read_cell_values,
-    ReadCellValuesInput,
-    ReadCellValuesResponse,
-    append_cell_values,
-    AppendCellValuesInput,
-    AppendCellValuesResponse,
-    update_cell_values,
-    UpdateCellValuesInput,
-    UpdateCellValuesResponse,
-)
-
-from src.db.mongo_db import MongoClient
+import asyncio
+import json
+import uuid
+from temporalio.client import Client
+from src.workflows.types import WorkflowInput
 
 
-async def main():
-
-    mongo = MongoClient(db_uri="mongodb://localhost:27017")
-    await mongo.get_database("wflow_db")
-    await mongo.init_beanie_odm()
-    integration_repo: AppIntegrationsRepository = AppIntegrationsRepository()
-
-    credentials: CredentialsAndDataForApiClient | None = (
-        await integration_repo.find_app_integration(
-            user_id="69ea34d032f5e9adcfbabe33",
-            provider="google",
-            service="sheets",
-            projection_model=CredentialsAndDataForApiClient,
-        )
-    )
-    if not credentials:
-        raise Exception("No credentials found")
-    credentials = credentials[0]
-
-    print("Credentials are : ", credentials)
-
-    api_client = GoogleAPIClient(
-        integration_repo=integration_repo,
-        service=credentials.service,
-        req_timeout=30.0,
-        base_url="https://www.googleapis.com",
-        credentials=CredentialsModel(
-            user_id=credentials.user_id,
-            integration_id=credentials.integration_id,
-            service=credentials.service,
-            access_token=credentials.access_token,
-            refresh_token=credentials.refresh_token,
-            scopes=credentials.scopes,
-            access_token_expiry=credentials.access_token_expiry,
-            refresh_token_expiry=credentials.refresh_token_expiry,
+async def main(pipeline_str: str):
+    
+    client = await Client.connect("localhost:7233")
+    result = await client.execute_workflow(
+        "DynamicWorkflow",
+        WorkflowInput(
+            pipeline_str=pipeline_str, configs={"user_id": "69ea34d032f5e9adcfbabe33"}
         ),
+        id=f"dynamic-workflow-{uuid.uuid4()}",
+        task_queue="default",
     )
 
-
-    response: AppendCellValuesResponse = await update_cell_values(
-        UpdateCellValuesInput(
-            spreadsheet_id="1OlQ_w-x1y53FR7uM1R-SO4PN3Bda_VhM6zu95nb-Evs",
-            range="Sheet1!A8:C9",
-            values=[[1, "Radha", 35], [2, "Hari", 40]],
-            config=CommonGoogleConfigModel.set_client(api_client),
-        )
-    )
-    print(response)
-    # response: AppendCellValuesResponse = await append_cell_values(
-    #     AppendCellValuesInput(
-    #         spreadsheed_id="1OlQ_w-x1y53FR7uM1R-SO4PN3Bda_VhM6zu95nb-Evs",
-    #         range="Sheet1",
-    #         values=[[1, "Radha", 35], [2, "Hari", 40]],
-    #         config=CommonGoogleConfigModel.set_client(api_client),
-    #     )
-    # )
-
-    # response: ReadCellValuesResponse = await read_cell_values(
-    #     ReadCellValuesInput(
-    #         spreadsheet_id="1OlQ_w-x1y53FR7uM1R-SO4PN3Bda_VhM6zu95nb-Evs",
-    #         range="Sheet1!A1:B2",
-    #         config=CommonGoogleConfigModel.set_client(api_client),
-    #     )
-    # )
-
-    # response: CreateGoogleSheetResponse = await create_google_sheet(
-    #     CreateGoogleSheetInput(
-    #         title="Test Sheet - wFlow",
-    #         timezone="Asia/Kathmandu",
-    #         config=CommonGoogleConfigModel.set_client(api_client),
-    #     )
-    # )
-    # response: SendAndDraftEmailResponse = await create_email_draft(
-    #     SendAndDraftEmailInput(
-    #         to=["bhattarianita2014@gmail.com"],
-    #         subject="Test Email - wFlow",
-    #         body="""<!DOCTYPE html>
-    #                 <html>
-    #                 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #000;">
-
-    #                     <p><strong>Subject:</strong> Job Application for [Position Name]</p>
-
-    #                     <p>Dear Hiring Manager,</p>
-
-    #                     <p>
-    #                     I am writing to apply for the position of <strong>[Position Name]</strong> at
-    #                     <strong>[Company Name]</strong>. I am highly interested in contributing to your team and believe my skills and experience align well with the requirements of this role.
-    #                     </p>
-
-    #                     <p>
-    #                     I have experience in <strong>[your key skills or field]</strong>, with a strong focus on
-    #                     <strong>[specific strengths or achievements]</strong>. In my previous role at
-    #                     <strong>[Previous Company]</strong>, I successfully <strong>[mention a relevant achievement]</strong>,
-    #                     which helped improve <strong>[result or impact]</strong>.
-    #                     </p>
-
-    #                     <p>
-    #                     I am particularly drawn to this opportunity because <strong>[brief reason related to company or role]</strong>.
-    #                     I am confident that my background and dedication would allow me to make a meaningful contribution to your organization.
-    #                     </p>
-
-    #                     <p>
-    #                     Please find my resume attached for your review. I would appreciate the opportunity to discuss how my qualifications align with your needs.
-    #                     Thank you for your time and consideration.
-    #                     </p>
-
-    #                     <p>Sincerely,<br>
-    #                     <strong>[Your Name]</strong><br>
-    #                     [Your Contact Information]
-    #                     </p>
-
-    #                 </body>
-    #                 </html>""",
-    #         config=CommonGoogleConfigModel.set_client(api_client),
-    #     )
-    # )
-
-    # res = await get_sheets_metadata(
-    #     ReadSheetMetadataInput(
-    #         sheet_url="https://docs.google.com/spreadsheets/d/1OlQ_w-x1y53FR7uM1R-SO4PN3Bda_VhM6zu95nb-Evs/edit?gid=0#gid=0",
-    #         config=CommonGoogleConfigModel.set_client(api_client),
-    #     )
-    # )
-
-    await api_client.close()
+    print("Workflow result:", result)
 
 
 if __name__ == "__main__":
-    import asyncio as aio
-
-    aio.run(main())
+    pipeline = {
+        "nodes": [
+            {
+                "key": "llm.groq",
+                "name": "groq_llm_node1",
+                "type": "LLM",
+                "inputs": {
+                    "prompt": "Generate me a essay on political situation of Nepal."
+                },
+                "config": {"response_model": {"output": {"essay": "str"}}},
+                "outputs": {},
+            },
+            {
+                "key": "gmail.send",
+                "name": "send_gmail_node1",
+                "type": "ACTION",
+                "inputs": {
+                    "to": "bhattarianita2014@gmail.com",
+                    "subject": "Nepal Current Politics",
+                    "body": "groq_llm_node1.outputs.output.essay",
+                },
+            },
+        ],
+        "edges": [
+            {"source": "start", "target": "groq_llm_node1", "type": "linear"},
+            {"source": "groq_llm_node1", "target": "send_gmail_node1", "type": "linear"},
+            {"source": "send_gmail_node1", "target": "end", "type": "linear"},
+        ]
+    }
+    asyncio.run(main(pipeline_str=json.dumps(pipeline)))

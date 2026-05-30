@@ -16,7 +16,7 @@ from src.integrations.googlecloud.gmail.types import (
     SendAndDraftEmailResponse,
 )
 from src.integrations.googlecloud.gmail.helpers import EmailMIMEBuilder
-
+from temporalio import activity
 
 @timer
 def decode_base64(text: str) -> str:
@@ -24,7 +24,7 @@ def decode_base64(text: str) -> str:
     clean_text = decoded_bytes.decode("utf-8")
     return clean_text
 
-
+@activity.defn
 async def get_gmail_user_profile(
     api_client: GoogleAPIClient,
 ) -> GetUserProfileResponse:
@@ -55,7 +55,7 @@ async def get_gmail_user_profile(
 
     return GetUserProfileResponse(**response_json)
 
-
+@activity.defn
 async def get_gmail_label_data(
     node_input: GetSingleLableInput,
 ) -> SingleLabelResponse:
@@ -68,7 +68,7 @@ async def get_gmail_label_data(
     Returns:
         SingleLabelsResponse: Parsed response containing label metadata.
     """
-    api_client: GoogleAPIClient = node_input.config._google_api_client
+    api_client: GoogleAPIClient = node_input.config.get_client()
 
     _, response_json = await api_client.request(
         "GET",
@@ -82,7 +82,7 @@ async def get_gmail_label_data(
     print(response_json)
     return SingleLabelResponse(**response_json)
 
-
+@activity.defn
 async def list_gmail_labels(
     node_input: ListAllLabelsInput | None = None,
 ) -> ListLabelsResponse:
@@ -123,12 +123,12 @@ async def list_gmail_labels(
     return ListLabelsResponse(**response_json)
 
 
-@timer
+@activity.defn
 async def send_email(
     node_input: SendAndDraftEmailInput,
 ):
     email_builder = EmailMIMEBuilder()
-    api_client: GoogleAPIClient = node_input.config._google_api_client
+    api_client: GoogleAPIClient = node_input.config.get_client()
 
     email_builder.add_to(node_input.to)
     email_builder.add_cc(node_input.cc)
@@ -153,10 +153,10 @@ async def send_email(
 
     return SendAndDraftEmailResponse(success=True)
 
-@timer
+@activity.defn
 async def create_email_draft(node_input: SendAndDraftEmailInput):
     email_builder = EmailMIMEBuilder()
-    api_client: GoogleAPIClient = node_input.config._google_api_client
+    api_client: GoogleAPIClient = node_input.config.get_client()
 
     email_builder.add_to(node_input.to)
     email_builder.add_cc(node_input.cc)
