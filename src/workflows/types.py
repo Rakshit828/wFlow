@@ -29,7 +29,9 @@ class ApplicationNode(BaseModel):
         None  # The actual node function refrence
     )
     description: str  # The description of what the node does.
-    service: str | None = None  # Which service the node is related to. Eg: google.gmail, discord.bot
+    service: str | None = (
+        None  # Which service the node is related to. Eg: google.gmail, discord.bot
+    )
     valid_permissions: list[str] | None = None  # Valid permission to execute the node
     type: NodesTypeEnum  # The type of the node.
     node_input_model: Type[BaseModel] | None = (
@@ -86,8 +88,9 @@ class NodeDependency(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+
 class WorkflowInput(BaseModel):
-    pipeline_str: str 
+    pipeline_str: str
     configs: Dict[str, Any] | None = None
 
 
@@ -98,7 +101,7 @@ PIPENINE_EXAMPLE = Pipeline(
                 "key": "llm.groq",
                 "name": "groq_llm_node1",
                 "type": "LLM",
-                "inputs": {"prompt": "Generate me a outline for essay on Nepal"},
+                "inputs": {"prompt": "Generate me 9 outlines for essay on Nepal"},
                 "config": {"response_model": {"output": {"outlines": "list.str"}}},
                 "outputs": {},
             },
@@ -108,7 +111,7 @@ PIPENINE_EXAMPLE = Pipeline(
                 "type": "LLM",
                 "inputs": {
                     "prompt": "Generate me a description on topics {topics}",
-                    "topics": "groq_llm_node1.outputs.output.outlines",
+                    "topics": "groq_llm_node1.outputs.output.outlines[0] groq_llm_node1.outputs.output.outlines[1] groq_llm_node1.outputs.output.outlines[2]",
                 },
                 "config": {"response_model": {"output": {"article": "str"}}},
                 "outputs": {},
@@ -119,7 +122,7 @@ PIPENINE_EXAMPLE = Pipeline(
                 "type": "LLM",
                 "inputs": {
                     "prompt": "Generate me a description on topics {topics}",
-                    "topics": "groq_llm_node1.outputs.output.outlines",
+                    "topics": "groq_llm_node1.outputs.output.outlines[3] groq_llm_node1.outputs.output.outlines[4] groq_llm_node1.outputs.output.outlines[5]",
                 },
                 "config": {"response_model": {"output": {"article": "str"}}},
                 "outputs": {},
@@ -130,33 +133,9 @@ PIPENINE_EXAMPLE = Pipeline(
                 "type": "LLM",
                 "inputs": {
                     "prompt": "Generate me a description on topics {topics}",
-                    "topics": "groq_llm_node1.outputs.output.outlines",
+                    "topics": "groq_llm_node1.outputs.output.outlines[6] groq_llm_node1.outputs.output.outlines[7] groq_llm_node1.outputs.output.outlines[8]",
                 },
                 "config": {"response_model": {"output": {"article": "str"}}},
-                "outputs": {},
-            },
-            {
-                "key": "processor",
-                "name": "process1",
-                "type": "ACTION",
-                "inputs": {"article": "groq_llm_node2.outputs.output.article"},
-                "config": {"operation": "clean_or_format"},
-                "outputs": {},
-            },
-            {
-                "key": "processor",
-                "name": "process2",
-                "type": "ACTION",
-                "inputs": {"article": "groq_llm_node2.outputs.output.article"},
-                "config": {"operation": "summarize_or_refine"},
-                "outputs": {},
-            },
-            {
-                "key": "processor",
-                "name": "merger",
-                "type": "CONTROL_FLOW",
-                "inputs": {"articles": "process1.outputs process2.outputs"},
-                "config": {"operation": "combine"},
                 "outputs": {},
             },
             {
@@ -188,15 +167,11 @@ PIPENINE_EXAMPLE = Pipeline(
                 "target": "groq_llm_node4",
                 "type": "parallel",
             },
-            {"source": "groq_llm_node2", "target": "process1", "type": "parallel"},
-            {"source": "groq_llm_node2", "target": "process2", "type": "parallel"},
-            {"source": "process1", "target": "merger", "type": "linear"},
-            {"source": "process2", "target": "merger", "type": "linear"},
-            {"source": "merger", "target": "end", "type": "linear"},
+            {"source": "groq_llm_node2", "target": "groq_llm_node5", "type": "linear"},
             {"source": "groq_llm_node3", "target": "groq_llm_node5", "type": "linear"},
             {"source": "groq_llm_node4", "target": "groq_llm_node5", "type": "linear"},
             {"source": "groq_llm_node5", "target": "end", "type": "linear"},
-            # {"source": "groq_llm_node2", "target": "groq_llm_node5", "type": "linear"},
+
         ],
     }
 )

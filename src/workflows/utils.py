@@ -435,21 +435,19 @@ def _resolve_single_reference(
 
 
 # ─── Public API ───────────────────────────────────────────────────────────────
-
-
 def resolve_inputs(
-    inputs: dict[str, Any],
-    outputs: dict[str, Any],
-    type_hints: Optional[dict[str, type]] = None,
+    inputs:       dict[str, Any],
+    outputs:      dict[str, Any],
+    type_hints:   Optional[dict[str, type]] = None,
     *,
-    strict: bool = False,
-    log_level: int = logging.WARNING,
+    strict:       bool = False,
+    log_level:    int  = logging.WARNING,
 ) -> ResolutionResult:
     """
     Resolve all input references based on previous node outputs.
-
+ 
     Supports the following reference formats in any string value:
-
+ 
     ┌──────────────────────────────────────────────────────────────────────┐
     │  Format                      │  Example                              │
     ├──────────────────────────────┼───────────────────────────────────────┤
@@ -461,8 +459,9 @@ def resolve_inputs(
     │  Default value               │  node.outputs.val | "fallback"        │
     │  Template interpolation      │  "Hello {node.outputs.name}!"         │
     │  Space-separated multi-ref   │  node1.outputs.x node2.outputs.y      │
+    │  Sibling-key placeholder     │  "Topics: {topics}"  (key in inputs)  │
     └──────────────────────────────┴───────────────────────────────────────┘
-
+ 
     Args:
         inputs:     Dict of input key → value (may contain references).
         outputs:    Dict of node_name → output produced by that node.
@@ -470,68 +469,63 @@ def resolve_inputs(
                     e.g. {"temperature": float, "tags": list[str]}
         strict:     If True, raises RuntimeError when any reference fails.
         log_level:  Python logging level for emitting resolution errors.
-
+ 
     Returns:
         ResolutionResult with `.resolved` dict and `.errors` list.
     """
-    type_hints = type_hints or {}
-    result_dict: dict[str, Any] = {}
+    type_hints  = type_hints or {}
     all_errors: list[ResolutionError] = []
-
+ 
+    # ══════════════════════════════════════════════════════════════════════════
+    # PASS 1 — Resolve all node-output references (node.outputs.path…)
+    # ══════════════════════════════════════════════════════════════════════════
+    pass1: dict[str, Any] = {}
+ 
     for key, value in inputs.items():
         target_type = type_hints.get(key)
-
+ 
         # ── Non-string: pass through (with optional coercion) ─────────────────
         if not isinstance(value, str):
-            result_dict[key] = (
+            pass1[key] = (
                 _coerce(value, target_type, "<static>", key, all_errors)
-                if target_type
-                else value
+                if target_type else value
             )
             continue
-
-        # ── Fast path: no reference pattern present ───────────────────────────
+ 
+        # ── Fast path: no node-reference pattern present ──────────────────────
         if not _HAS_REF.search(value):
-            result_dict[key] = (
-                _coerce(value, target_type, "<static>", key, all_errors)
-                if target_type
-                else value
-            )
+            pass1[key] = value   # may still contain {sibling_key} — handled in pass 2
             continue
-
-        # ── Find all references (with optional default clauses) ───────────────
+ 
+        # ── Find all node references (with optional default clauses) ──────────
         ref_matches = list(REF_PATTERN.finditer(value))
-
+ 
         if not ref_matches:
-            result_dict[key] = value
+            pass1[key] = value
             continue
-
+ 
         # ── Determine resolution mode ─────────────────────────────────────────
-        # Template mode: the raw string has content outside of references
+        # Template mode: there is non-reference text surrounding the refs
         stripped = REF_PATTERN.sub("", value).strip()
         is_template = bool(stripped) or ("{" in value and "}" in value)
-
+ 
         if is_template:
-            # ── Template interpolation ────────────────────────────────────────
+            # ── Template interpolation (node refs only) ───────────────────────
             resolved_str = value
             for m in ref_matches:
                 full_match = m.group(0)
-                ref_core = m.group("ref")
-
                 resolved_val = _resolve_single_reference(
                     full_match, outputs, key, all_errors
                 )
-                # In templates: replace {ref} blocks or bare refs
                 resolved_str = resolved_str.replace(
                     "{" + full_match + "}", str(resolved_val)
                 ).replace(full_match, str(resolved_val))
-
-            result_dict[key] = (
+ 
+            pass1[key] = (
                 _coerce(resolved_str, target_type, value, key, all_errors)
-                if target_type
-                else resolved_str
+                if target_type else resolved_str
             )
-
+ 
         else:
             # ── Pure reference(s): single or space-separated ──────────────────
             resolved_values: list[Any] = []
@@ -540,25 +534,68 @@ def resolve_inputs(
                     m.group(0), outputs, key, all_errors
                 )
                 resolved_values.append(resolved_val)
-
+ 
             if len(resolved_values) == 1:
-                final = resolved_values[0]
+                final: Any = resolved_values[0]
             else:
                 final = resolved_values
-
-            result_dict[key] = (
+ 
+            pass1[key] = (
                 _coerce(final, target_type, value, key, all_errors)
-                if target_type
-                else final
+                if target_type else final
             )
-
+ 
+    # ══════════════════════════════════════════════════════════════════════════
+    # PASS 2 — Substitute {sibling_key} placeholders using pass-1 results
+    #
+    # After node references are resolved, some string values may still contain
+    # {key} placeholders that refer to *other input keys* (e.g. a prompt
+    # template that embeds a `topics` value resolved in pass 1).
+    #
+    # Rules:
+    #   • Only operates on string values that still contain {…} tokens.
+    #   • Only substitutes tokens whose name matches a key in `inputs`
+    #     (avoids stomping on unrelated curly-brace syntax).
+    #   • Converts the sibling value to a human-readable string:
+    #       - list  → comma-separated items
+    #       - other → str()
+    #   • Leaves unknown {tokens} untouched (safe for downstream formatters).
+    # ══════════════════════════════════════════════════════════════════════════
+    _PLACEHOLDER = re.compile(r"\{([^}]+)\}")
+ 
+    result_dict: dict[str, Any] = {}
+ 
+    for key, value in pass1.items():
+        if not isinstance(value, str) or "{" not in value:
+            result_dict[key] = value
+            continue
+ 
+        def _replace_placeholder(m: re.Match) -> str:
+            token = m.group(1).strip()
+            if token not in pass1:
+                return m.group(0)          # unknown token — leave intact
+            sibling = pass1[token]
+            if isinstance(sibling, list):
+                return ", ".join(str(v) for v in sibling)
+            return str(sibling)
+ 
+        substituted = _PLACEHOLDER.sub(_replace_placeholder, value)
+ 
+        # Apply type coercion if a hint exists and the value changed
+        target_type = type_hints.get(key)
+        result_dict[key] = (
+            _coerce(substituted, target_type, value, key, all_errors)
+            if target_type and substituted != value else substituted
+        )
+ 
     result = ResolutionResult(resolved=result_dict, errors=all_errors)
     result.log_errors(log_level)
-
+ 
     if strict:
         result.raise_if_errors()
-
+ 
     return result
+
 
 
 def topological_sort(dependency: NodeDependency, nodes: list[Node]) -> list[str]:

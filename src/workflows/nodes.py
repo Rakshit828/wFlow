@@ -14,9 +14,9 @@ from src.workflows.control_flow_nodes import IF_NODE, SWITCH_NODE
 NODES_MAP = {
     "llm.groq": GROQ_LLM_NODE,
     "gmail.send": SEND_EMAIL_NODE,
+    "gmail.create_draft_email": DRAFT_EMAIL_NODE,
     "gmail.get_label_data": GET_SINGLE_GMAIL_LABEL_NODE,
     "gmail.list_gmail_labels": LIST_USER_GMAIL_LABELS_NODE,
-    "gmail.create_draft_email": DRAFT_EMAIL_NODE,
     "sheets.update_cell_values": UPDATE_CELL_VALUES_NODE,
     "sheets.append_cell_values": APPEND_CELL_VALUES_NODE,
     "sheets.read_cell_values": READ_CELL_VALUES_NODE,
