@@ -85,6 +85,7 @@ if __name__ == "__main__":
 
     pipeline_with_control_flow = {
         "nodes": [
+            # ── Step 1: Generate 9 outlines ───────────────────────────────────────
             {
                 "key": "llm.google",
                 "name": "google_llm_node1",
@@ -110,84 +111,18 @@ if __name__ == "__main__":
                 },
                 "outputs": {},
             },
+            # ── Step 2: Write 3 article sections in parallel ──────────────────────
             {
                 "key": "llm.google",
                 "name": "google_llm_node2",
                 "type": "LLM",
                 "inputs": {
-                    "prompt": "Generate me a detailed essay on the topics: {topics}",
-                    "topics": "google_llm_node1.outputs.output.outlines",
-                },
-                "config": {
-                    "response_model": {
-                        "type": "object",
-                        "properties": {
-                            "output": {
-                                "type": "object",
-                                "properties": {
-                                    "article": {"type": "string"},
-                                    "word_count": {"type": "integer"},
-                                },
-                                "required": ["article", "word_count"],
-                            }
-                        },
-                        "required": ["output"],
-                    },
-                },
-                "outputs": {},
-            },
-            {
-                "key": "if_node",
-                "name": "quality_gate",
-                "type": "CONTROL_FLOW",
-                "inputs": {
-                    "condition": "word_count >= min_words",
-                    "values": {
-                        "word_count": "google_llm_node2.outputs.output.word_count",
-                        "min_words": 500,
-                    },
-                },
-                "config": {},
-                "outputs": {},
-            },
-            {
-                "key": "llm.google",
-                "name": "channel_classifier",
-                "type": "LLM",
-                "inputs": {
-                    "prompt": (
-                        "Read the article below and respond with exactly one word "
-                        "indicating the best publishing channel: 'blog', 'newsletter', or 'social'.\n\n"
-                        "Article: {article}"
+                    "prompt": "Generate me a detailed article section on these topics: {topics}",
+                    "topics": (
+                        "google_llm_node1.outputs.output.outlines[0] "
+                        "google_llm_node1.outputs.output.outlines[1] "
+                        "google_llm_node1.outputs.output.outlines[2]"
                     ),
-                    "article": "google_llm_node2.outputs.output.article",
-                },
-                "config": {
-                    "response_model": {
-                        "type": "object",
-                        "properties": {
-                            "output": {
-                                "type": "object",
-                                "properties": {"channel": {"type": "string"}},
-                                "required": ["channel"],
-                            }
-                        },
-                        "required": ["output"],
-                    }
-                },
-                "outputs": {},
-            },
-            {
-                "key": "llm.google",
-                "name": "rewrite_node",
-                "type": "LLM",
-                "inputs": {
-                    "prompt": (
-                        "The following article is too short. "
-                        "Expand it to at least 500 words while preserving the original meaning.\n\n"
-                        "Article: {article}"
-                    ),
-                    "article": "google_llm_node2.outputs.output.article",
                 },
                 "config": {
                     "response_model": {
@@ -205,6 +140,166 @@ if __name__ == "__main__":
                 "outputs": {},
             },
             {
+                "key": "llm.google",
+                "name": "google_llm_node3",
+                "type": "LLM",
+                "inputs": {
+                    "prompt": "Generate me a detailed article section on these topics: {topics}",
+                    "topics": (
+                        "google_llm_node1.outputs.output.outlines[3] "
+                        "google_llm_node1.outputs.output.outlines[4] "
+                        "google_llm_node1.outputs.output.outlines[5]"
+                    ),
+                },
+                "config": {
+                    "response_model": {
+                        "type": "object",
+                        "properties": {
+                            "output": {
+                                "type": "object",
+                                "properties": {"article": {"type": "string"}},
+                                "required": ["article"],
+                            }
+                        },
+                        "required": ["output"],
+                    }
+                },
+                "outputs": {},
+            },
+            {
+                "key": "llm.google",
+                "name": "google_llm_node4",
+                "type": "LLM",
+                "inputs": {
+                    "prompt": "Generate me a detailed article section on these topics: {topics}",
+                    "topics": (
+                        "google_llm_node1.outputs.output.outlines[6] "
+                        "google_llm_node1.outputs.output.outlines[7] "
+                        "google_llm_node1.outputs.output.outlines[8]"
+                    ),
+                },
+                "config": {
+                    "response_model": {
+                        "type": "object",
+                        "properties": {
+                            "output": {
+                                "type": "object",
+                                "properties": {"article": {"type": "string"}},
+                                "required": ["article"],
+                            }
+                        },
+                        "required": ["output"],
+                    }
+                },
+                "outputs": {},
+            },
+            # ── Step 3: Merge all sections into one final article ─────────────────
+            {
+                "key": "llm.google",
+                "name": "google_llm_node5",
+                "type": "LLM",
+                "inputs": {
+                    "prompt": (
+                        "Merge these article sections into one cohesive final article: {articles}"
+                    ),
+                    "articles": (
+                        "google_llm_node2.outputs.output.article "
+                        "google_llm_node3.outputs.output.article "
+                        "google_llm_node4.outputs.output.article"
+                    ),
+                },
+                "config": {
+                    "response_model": {
+                        "type": "object",
+                        "properties": {
+                            "output": {
+                                "type": "object",
+                                "properties": {
+                                    "final_article": {"type": "string"},
+                                    "word_count": {"type": "integer"},
+                                },
+                                "required": ["final_article", "word_count"],
+                            }
+                        },
+                        "required": ["output"],
+                    }
+                },
+                "outputs": {},
+            },
+            # ── Step 4: Quality gate — is the article long enough? ────────────────
+            {
+                "key": "if_node",
+                "name": "quality_gate",
+                "type": "CONTROL_FLOW",
+                "inputs": {
+                    "condition": "word_count >= min_words",
+                    "values": {
+                        "word_count": "google_llm_node5.outputs.output.word_count",
+                        "min_words": 500,
+                    },
+                },
+                "config": {},
+                "outputs": {},
+            },
+            # ── Step 5a (True branch): Classify publishing channel ────────────────
+            {
+                "key": "llm.google",
+                "name": "channel_classifier",
+                "type": "LLM",
+                "inputs": {
+                    "prompt": (
+                        "Read the article below and respond with exactly one word "
+                        "indicating the best publishing channel: "
+                        "'blog', 'newsletter', or 'social'.\n\nArticle: {article}"
+                    ),
+                    "article": "google_llm_node5.outputs.output.final_article",
+                },
+                "config": {
+                    "response_model": {
+                        "type": "object",
+                        "properties": {
+                            "output": {
+                                "type": "object",
+                                "properties": {"channel": {"type": "string"}},
+                                "required": ["channel"],
+                            }
+                        },
+                        "required": ["output"],
+                    }
+                },
+                "outputs": {},
+            },
+            # ── Step 5b (False branch): Rewrite the article ───────────────────────
+            {
+                "key": "llm.google",
+                "name": "rewrite_node",
+                "type": "LLM",
+                "inputs": {
+                    "prompt": (
+                        "The following article is too short. "
+                        "Expand it to at least 500 words while preserving its meaning.\n\n"
+                        "Article: {article}"
+                    ),
+                    "article": "google_llm_node5.outputs.output.final_article",
+                },
+                "config": {
+                    "response_model": {
+                        "type": "object",
+                        "properties": {
+                            "output": {
+                                "type": "object",
+                                "properties": {"final_article": {"type": "string"}},
+                                "required": ["final_article"],
+                            },
+                            "continue_loop": {"type": "boolean"},
+                        },
+                        "required": ["output", "continue_loop"],
+                    }
+                },
+                "outputs": {},
+            },
+            # ── Step 6: Route to publishing channel ───────────────────────────────
+            {
                 "key": "switch_node",
                 "name": "channel_router",
                 "type": "CONTROL_FLOW",
@@ -216,13 +311,17 @@ if __name__ == "__main__":
                 "config": {},
                 "outputs": {},
             },
+            # ── Step 7: Publishers ────────────────────────────────────────────────
             {
                 "key": "llm.google",
                 "name": "blog_publisher",
                 "type": "LLM",
                 "inputs": {
-                    "prompt": "Format the following article for a blog post with proper headings and SEO meta description:\n\n{article}",
-                    "article": "google_llm_node2.outputs.output.article",
+                    "prompt": (
+                        "Format the following article for a blog post "
+                        "with proper headings and an SEO meta description:\n\n{article}"
+                    ),
+                    "article": "google_llm_node5.outputs.output.final_article",
                 },
                 "config": {
                     "response_model": {
@@ -244,8 +343,11 @@ if __name__ == "__main__":
                 "name": "newsletter_publisher",
                 "type": "LLM",
                 "inputs": {
-                    "prompt": "Format the following article as an email newsletter with a subject line and preview text:\n\n{article}",
-                    "article": "google_llm_node2.outputs.output.article",
+                    "prompt": (
+                        "Format the following article as an email newsletter "
+                        "with a subject line and preview text:\n\n{article}"
+                    ),
+                    "article": "google_llm_node5.outputs.output.final_article",
                 },
                 "config": {
                     "response_model": {
@@ -267,8 +369,11 @@ if __name__ == "__main__":
                 "name": "social_publisher",
                 "type": "LLM",
                 "inputs": {
-                    "prompt": "Summarise the following article into 3 punchy social media posts (Twitter/LinkedIn):\n\n{article}",
-                    "article": "google_llm_node2.outputs.output.article",
+                    "prompt": (
+                        "Summarise the following article into 3 punchy social media "
+                        "posts (Twitter/LinkedIn):\n\n{article}"
+                    ),
+                    "article": "google_llm_node5.outputs.output.final_article",
                 },
                 "config": {
                     "response_model": {
@@ -287,37 +392,56 @@ if __name__ == "__main__":
             },
         ],
         "edges": [
-            # Linear start
+            # ── Entry ──────────────────────────────────────────────────────────────
             {"source": "start", "target": "google_llm_node1", "type": "linear"},
+            # ── Parallel fan-out ───────────────────────────────────────────────────
             {
                 "source": "google_llm_node1",
                 "target": "google_llm_node2",
-                "type": "linear",
+                "type": "parallel",
             },
-            # Quality gate (if)
-            {"source": "google_llm_node2", "target": "quality_gate", "type": "linear"},
-            # if True → classify channel
+            {
+                "source": "google_llm_node1",
+                "target": "google_llm_node3",
+                "type": "parallel",
+            },
+            {
+                "source": "google_llm_node1",
+                "target": "google_llm_node4",
+                "type": "parallel",
+            },
+            # ── Fan-in (wait for all three sections) ──────────────────────────────
+            {"source": "google_llm_node2", "target": "google_llm_node5", "type": "merge"},
+            {"source": "google_llm_node3", "target": "google_llm_node5", "type": "merge"},
+            {"source": "google_llm_node4", "target": "google_llm_node5", "type": "merge"},
+            # ── Quality gate ───────────────────────────────────────────────────────
+            {"source": "google_llm_node5", "target": "quality_gate", "type": "linear"},
+            # ── If branches ────────────────────────────────────────────────────────
             {
                 "source": "quality_gate",
                 "target": "channel_classifier",
                 "type": "if",
                 "decision": True,
             },
-            # if False → rewrite
             {
                 "source": "quality_gate",
                 "target": "rewrite_node",
                 "type": "if",
                 "decision": False,
             },
-            # Both branches converge into the switch
-            # (rewrite loops back; classifier feeds the router)
+            # ── Alternate routing after rewrite ─────────────────────────────────────
+            {
+                "source": "rewrite_node",
+                "target": "channel_classifier",
+                "type": "linear",
+            },
+            # ── Channel routing ────────────────────────────────────────────────────
             {
                 "source": "channel_classifier",
                 "target": "channel_router",
                 "type": "linear",
             },
-            # switch cases
+            # ── Switch cases ───────────────────────────────────────────────────────
             {
                 "source": "channel_router",
                 "target": "blog_publisher",
@@ -336,11 +460,10 @@ if __name__ == "__main__":
                 "type": "switch",
                 "case": "social",
             },
-            # All publishers end
+            # ── Terminal edges ─────────────────────────────────────────────────────
             {"source": "blog_publisher", "target": "end", "type": "linear"},
             {"source": "newsletter_publisher", "target": "end", "type": "linear"},
             {"source": "social_publisher", "target": "end", "type": "linear"},
-            # Rewrite dead-ends here — you'd reconnect it to quality_gate or end
             {"source": "rewrite_node", "target": "end", "type": "linear"},
         ],
     }

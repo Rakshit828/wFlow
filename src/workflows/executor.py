@@ -7,8 +7,6 @@ Walks an ExecutionPlan step by step, handling every edge type:
   MERGE    → already handled by plan ordering; just confirm all sources done
   IF       → run if_node, evaluate decision, execute true or false sub-plan
   SWITCH   → run switch_node, evaluate case, execute matching sub-plan
-  LOOP     → run loop body repeatedly; the loop_back_node decides each iteration
-             whether to continue (by having a loop edge in the plan) or exit
 
 The executor is intentionally decoupled from Temporal. It works as a
 standalone async engine. You can wrap each `_run_node` call in
@@ -63,8 +61,6 @@ class WorkflowExecutor:
         executor = WorkflowExecutor(pipeline, node_registry)
         outputs  = await executor.run(plan)
     """
-
-    MAX_LOOP_ITERATIONS = 5  # Safety cap to prevent infinite loops
 
     def __init__(
         self,
@@ -163,78 +159,6 @@ class WorkflowExecutor:
                     switch_node_name,
                     case_value,
                 )
-
-        # ── LOOP ──────────────────────────────────────────────────────────────
-        elif step.kind == ExecutionStepKind.LOOP:
-            await self._execute_loop(step, outputs)
-
-    # ─── Loop execution ───────────────────────────────────────────────────────
-
-    async def _execute_loop(
-        self,
-        step: ExecutionStep,
-        outputs: Dict[str, Any],
-    ) -> None:
-        """
-        Execute the loop body repeatedly.
-
-        The loop body's last node is the loop_back_node (is_loop_back_node=True).
-        After each iteration, we check whether the loop_back_node produced a
-        result that signals "loop again" (conventionally: output["loop"] == True,
-        or a special sentinel). If not, we exit.
-
-        Convention: a loop_back_node outputs {"continue_loop": bool}.
-        If continue_loop is True, the loop body runs again from the entry point.
-        If False (or key absent), the loop exits.
-        """
-        if step.loop_body is None:
-            return
-
-        for iteration in range(self.MAX_LOOP_ITERATIONS):
-            logger.info(
-                "LOOP iteration %d (entry='%s')", iteration + 1, step.loop_entry
-            )
-
-            await self._execute_plan(step.loop_body, outputs)
-
-            # Find the loop-back node to check whether to continue
-            loop_back_node = self._find_loop_back_node(step.loop_entry)
-            if loop_back_node is None:
-                logger.debug(
-                    "LOOP: no loop-back node found, exiting after 1 iteration."
-                )
-                break
-
-            loop_output = outputs.get(loop_back_node, {})
-            continue_loop = loop_output.get("continue_loop", False)
-
-            if not continue_loop:
-                logger.info(
-                    "LOOP: '%s' signalled stop after iteration %d.",
-                    loop_back_node,
-                    iteration + 1,
-                )
-                break
-
-            logger.info(
-                "LOOP: '%s' signalled continue — iteration %d.",
-                loop_back_node,
-                iteration + 1,
-            )
-        else:
-            logger.warning(
-                "LOOP hit MAX_LOOP_ITERATIONS (%d). Forcing exit.",
-                self.MAX_LOOP_ITERATIONS,
-            )
-
-    def _find_loop_back_node(self, entry_node: Optional[str]) -> Optional[str]:
-        """Find the node that has a LOOP edge pointing back to entry_node."""
-        if entry_node is None:
-            return None
-        for edge in self.pipeline.edges:
-            if edge.type.value == "loop" and edge.target == entry_node:
-                return edge.source
-        return None
 
     # ─── Single node execution ────────────────────────────────────────────────
     async def _run_node(

@@ -232,8 +232,8 @@ async def main():
                 "decision": False,
             },
             # Both branches converge into the switch
-            # (rewrite loops back; classifier feeds the router)
-            {"source": "rewrite_node", "target": "channel_classifier", "type": "loop"},
+            # rewrite_node routes onward to the classifier
+            {"source": "rewrite_node", "target": "channel_classifier", "type": "linear"},
             {
                 "source": "channel_classifier",
                 "target": "channel_router",

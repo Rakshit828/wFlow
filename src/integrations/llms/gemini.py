@@ -43,9 +43,7 @@ class GoogleClient(LLMClient):
                 contents=params.prompt,
                 config=config,
             )
-            logger.info(f"The response is {response}")
 
-            # 3. Cleanly pull text using the built-in .text property
             return response.text
 
         except APIError as err:

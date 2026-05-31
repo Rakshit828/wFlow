@@ -18,7 +18,6 @@ class EdgesTypeEnum(str, enum.Enum):
     IF = "if"
     SWITCH = "switch"
     PARALLEL = "parallel"
-    LOOP = "loop"
     MERGE = "merge"
 
 
@@ -59,21 +58,16 @@ class Edge(BaseModel):
     source: str
     target: str
     type: EdgesTypeEnum
-    decision: Union[bool, None] = None
-    case: Union[str, None] = None
+    decision: Optional[bool] = None
+    case: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_edge(self):
-        node_type = self.type
-        if node_type == "if":
-            if self.decision is None:
-                raise ValueError("Decision must be provided for if edge.")
-        elif node_type == "switch":
-            if self.case is None:
-                raise ValueError("Case must be provided for switch edge.")
+        if self.type == EdgesTypeEnum.IF and self.decision is None:
+            raise ValueError("IF edge requires 'decision'.")
+        if self.type == EdgesTypeEnum.SWITCH and self.case is None:
+            raise ValueError("SWITCH edge requires 'case'.")
         return self
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class Pipeline(BaseModel):
@@ -85,6 +79,7 @@ class Pipeline(BaseModel):
 
 # ─── Parsed node metadata (produced by parse_pipeline) ────────────────────────
 
+
 class ParsedNodeData(BaseModel):
     """
     Metadata about a single node derived from the pipeline graph.
@@ -94,8 +89,6 @@ class ParsedNodeData(BaseModel):
       is_control_node      — This node IS an if/switch decision node.
       is_if_branch         — This node is one of the two targets of an IF edge.
       is_switch_branch     — This node is one of the N targets of a SWITCH edge.
-      is_loop_back_node    — This node is the SOURCE of a LOOP edge (jumps back).
-      is_loop_entry_node   — This node is the TARGET of a LOOP edge (re-entered).
       is_parallel_source   — This node fans out to parallel targets.
       is_merge_target      — This node waits for all its MERGE-edge sources.
     """
@@ -107,8 +100,6 @@ class ParsedNodeData(BaseModel):
     is_control_node: bool = False  # Owns the if/switch decision
     is_if_branch: bool = False  # Is a branch TARGET of an if edge
     is_switch_branch: bool = False  # Is a branch TARGET of a switch edge
-    is_loop_back_node: bool = False  # SOURCE of a loop back-edge
-    is_loop_entry_node: bool = False  # TARGET of a loop back-edge (re-entry point)
     is_parallel_source: bool = False  # Fans out to parallel targets
     is_merge_target: bool = False  # Waits for multiple merge-edge sources
 
@@ -118,8 +109,6 @@ class ParsedNodeData(BaseModel):
 
     @model_validator(mode="after")
     def validate_node_data(self) -> "ParsedNodeData":
-        if self.is_loop_back_node and self.is_loop_entry_node:
-            raise TypeError("A node cannot be both loop_back and loop_entry.")
         if self.is_if_branch and self.is_switch_branch:
             raise TypeError("A node cannot be both an if-branch and a switch-branch.")
         if self.is_control_node and (self.is_if_branch or self.is_switch_branch):
@@ -131,11 +120,11 @@ class ParsedNodeData(BaseModel):
 
 # ─── Execution plan produced by the planner ───────────────────────────────────
 
+
 class ExecutionStepKind(str, enum.Enum):
     RUN = "run"  # Execute these nodes (possibly in parallel)
     IF = "if"  # Evaluate if_node, then choose a sub-plan
     SWITCH = "switch"  # Evaluate switch_node, then choose a sub-plan
-    LOOP = "loop"  # Execute body repeatedly until loop-back stops
     MERGE = "merge"  # Wait for all parallel branches to complete
 
 
@@ -152,10 +141,6 @@ class ExecutionStep(BaseModel):
     # For SWITCH steps
     case_plans: Optional[Dict[str, "ExecutionPlan"]] = None
     default_case: Optional[str] = None
-
-    # For LOOP steps
-    loop_body: Optional["ExecutionPlan"] = None
-    loop_entry: Optional[str] = None  # node name that is the loop re-entry point
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

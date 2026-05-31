@@ -5,7 +5,6 @@ Fixes over original:
   1. Dependencies derived from EDGES (not input string scanning) — correct and fast.
      Input scanning was unreliable (substring collisions, missed nested dicts).
   2. All flags computed correctly from edge types.
-  3. Loop back-edges excluded from dependency graph (they create cycles).
 """
 
 from __future__ import annotations
@@ -29,7 +28,6 @@ def parse_pipeline(pipeline: Pipeline) -> List[ParsedNodeData]:
       - The edges ARE the authoritative execution graph.
       - Input references (node.outputs.x) are resolved at runtime by
         resolve_inputs(); the parser doesn't need to replicate that.
-      - Loop back-edges are excluded so the dependency graph stays acyclic.
     """
 
     node_names: Set[str] = {n.name for n in pipeline.nodes}
@@ -55,13 +53,12 @@ def parse_pipeline(pipeline: Pipeline) -> List[ParsedNodeData]:
         out_edges     = edges_by_source[name]   # edges leaving this node
 
         # ── Dependencies ──────────────────────────────────────────────────────
-        # A node depends on its source nodes via all edge types EXCEPT loop
-        # (loop back-edges would create a cycle in the dependency graph).
+        # A node depends on its source nodes via all edge types other than the
+        # virtual start node.
         dependencies: List[str] = [
             e.source
             for e in in_edges
-            if e.type != EdgesTypeEnum.LOOP
-            and e.source != "start"       # "start" is a virtual node, not real
+            if e.source != "start"
         ]
 
         # ── Control node ──────────────────────────────────────────────────────
@@ -84,16 +81,6 @@ def parse_pipeline(pipeline: Pipeline) -> List[ParsedNodeData]:
         is_switch_branch = len(switch_in_edges) > 0
         switch_case      = switch_in_edges[0].case if switch_in_edges else None
 
-        # ── Loop flags ────────────────────────────────────────────────────────
-        # is_loop_back_node  — this node is the SOURCE of a LOOP back-edge
-        #                      (it's the one that decided to loop again)
-        # is_loop_entry_node — this node is the TARGET of a LOOP back-edge
-        #                      (execution re-enters here after looping)
-        loop_out = [e for e in out_edges if e.type == EdgesTypeEnum.LOOP]
-        loop_in  = [e for e in in_edges  if e.type == EdgesTypeEnum.LOOP]
-        is_loop_back_node  = len(loop_out) > 0
-        is_loop_entry_node = len(loop_in)  > 0
-
         # ── Parallel source ───────────────────────────────────────────────────
         is_parallel_source = EdgesTypeEnum.PARALLEL in outgoing_types
 
@@ -107,8 +94,6 @@ def parse_pipeline(pipeline: Pipeline) -> List[ParsedNodeData]:
             is_control_node    = is_control_node,
             is_if_branch       = is_if_branch,
             is_switch_branch   = is_switch_branch,
-            is_loop_back_node  = is_loop_back_node,
-            is_loop_entry_node = is_loop_entry_node,
             is_parallel_source = is_parallel_source,
             is_merge_target    = is_merge_target,
             if_decision        = if_decision,

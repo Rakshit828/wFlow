@@ -1,14 +1,9 @@
 """
 planner.py — Converts ParsedNodeData list into a hierarchical ExecutionPlan.
 
-Core insight: LOOP is a property of the PATH taken to reach a node, not a
-property of the node itself. channel_classifier is a loop entry only when
-reached via the False branch (through rewrite_node's back-edge). When reached
-via the True branch (direct IF edge), it's a normal sequential node.
-
-We track this by passing `via_loop_edge: bool` into each recursive sub-plan,
-and only emitting a LOOP step when the entry into that sub-plan came via a
-loop back-edge.
+Planner converts ParsedNodeData into a hierarchical ExecutionPlan.
+It handles linear execution, branching via IF and SWITCH, parallel fan-out,
+and merge synchronization.
 """
 
 from __future__ import annotations
@@ -51,14 +46,6 @@ def _switch_branches(node_name: str, pipeline: Pipeline) -> Dict[str, str]:
     }
 
 
-def _loop_back_source(entry_node: str, pipeline: Pipeline) -> Optional[str]:
-    """Returns the node that has a LOOP edge pointing back to entry_node."""
-    for e in pipeline.edges:
-        if e.type == EdgesTypeEnum.LOOP and e.target == entry_node:
-            return e.source
-    return None
-
-
 def _linear_successor(node_name: str, pipeline: Pipeline) -> Optional[str]:
     """Returns the single LINEAR successor of a node, or None."""
     for e in pipeline.edges:
@@ -78,7 +65,7 @@ def _collect_subgraph(
     stop_before: Optional[Set[str]] = None,
 ) -> List[str]:
     """
-    BFS from start, following all edges except LOOP back-edges.
+    BFS from start, following all edges.
     Stops before (excludes) any node in stop_before.
     Returns nodes in BFS order.
     """
@@ -95,11 +82,7 @@ def _collect_subgraph(
         order.append(n)
 
         for e in pipeline.edges:
-            if (
-                e.source == n
-                and e.type != EdgesTypeEnum.LOOP
-                and e.target not in visited
-            ):
+            if e.source == n and e.target not in visited:
                 queue.append(e.target)
 
     return order
@@ -157,15 +140,9 @@ def build_execution_plan(
     parsed: List[ParsedNodeData],
     start_nodes: Optional[List[str]] = None,
     visited: Optional[Set[str]] = None,
-    *,
-    via_loop_edge: bool = False,  # True when this sub-plan is entered via a loop back-edge
 ) -> ExecutionPlan:
     """
     Recursively build an ExecutionPlan from the pipeline.
-
-    The `via_loop_edge` parameter is the key fix: it tells the planner
-    whether the start_nodes were reached via a LOOP back-edge. Only in
-    that case should the first loop-entry node be wrapped in a LOOP step.
     """
     if visited is None:
         visited = set()
@@ -208,39 +185,6 @@ def build_execution_plan(
         if p is None:
             i += 1
             continue
-
-        # ── LOOP ENTRY — only when we arrived here via a loop back-edge ───────
-        #
-        # If via_loop_edge=True and this is the first node in the sub-plan,
-        # it's the re-entry point. Wrap the rest of this sub-plan in a LOOP.
-        if via_loop_edge and i == 0 and p.is_loop_entry_node:
-            loop_back = _loop_back_source(node_name, pipeline)
-
-            # Build the loop body normally (via_loop_edge=False so we don't
-            # wrap it again — the body is just sequential from here)
-            loop_body = build_execution_plan(
-                pipeline,
-                parsed,
-                start_nodes=[node_name],
-                visited=set(local_visited),
-                via_loop_edge=False,  # ← normal plan inside the loop body
-            )
-
-            plan.steps.append(
-                ExecutionStep(
-                    kind=ExecutionStepKind.LOOP,
-                    nodes=[node_name],
-                    loop_body=loop_body,
-                    loop_entry=node_name,
-                )
-            )
-
-            # Mark everything in the loop body as visited
-            body_nodes = _collect_subgraph(node_name, pipeline, all_node_names)
-            local_visited.update(body_nodes)
-            if loop_back:
-                local_visited.add(loop_back)
-            break  # LOOP step covers the rest of this sub-plan
 
         # ── PARALLEL SOURCE ───────────────────────────────────────────────────
         if p.is_parallel_source:
@@ -299,30 +243,24 @@ def build_execution_plan(
             if EdgesTypeEnum.IF in out_types:
                 true_t, false_t = _if_branches(node_name, pipeline)
 
-                # True branch: reached directly (no loop edge) → via_loop_edge=False
+                # True branch: build normal sub-plan for the true path.
                 true_plan = (
                     build_execution_plan(
                         pipeline,
                         parsed,
                         start_nodes=[true_t] if true_t else [],
                         visited=set(local_visited),
-                        via_loop_edge=False,
                     )
                     if true_t
                     else ExecutionPlan()
                 )
 
-                # False branch: check if it eventually loops back somewhere
-                # The False branch itself starts normally; the LOOP is detected
-                # inside the False branch when the loop-back node's successor
-                # is re-entered via a loop edge.
                 false_plan = (
                     build_execution_plan(
                         pipeline,
                         parsed,
                         start_nodes=[false_t] if false_t else [],
                         visited=set(local_visited),
-                        via_loop_edge=False,
                     )
                     if false_t
                     else ExecutionPlan()
@@ -354,7 +292,6 @@ def build_execution_plan(
                         parsed,
                         start_nodes=[target],
                         visited=set(local_visited),
-                        via_loop_edge=False,
                     )
                     local_visited.update(
                         _collect_subgraph(target, pipeline, all_node_names)
@@ -366,49 +303,6 @@ def build_execution_plan(
                         nodes=[node_name],
                         case_plans=case_plans,
                     )
-                )
-
-            i += 1
-            continue
-
-        # ── LOOP-BACK NODE (e.g. rewrite_node) ───────────────────────────────
-        #
-        # This node's output determines whether the loop continues.
-        # After running it, the loop back-edge points to the loop entry.
-        # We run it normally here; the LOOP wrapper (which handles retrying)
-        # is created in the parent False-branch sub-plan.
-        if p.is_loop_back_node:
-            plan.steps.append(
-                ExecutionStep(
-                    kind=ExecutionStepKind.RUN,
-                    nodes=[node_name],
-                )
-            )
-            local_visited.add(node_name)
-
-            # After the loop-back node, follow the LOOP edge to the entry node
-            loop_target = next(
-                (
-                    e.target
-                    for e in pipeline.edges
-                    if e.source == node_name and e.type == EdgesTypeEnum.LOOP
-                ),
-                None,
-            )
-
-            if loop_target and loop_target not in local_visited:
-                # Recurse into the loop entry — this time WITH via_loop_edge=True
-                # so it gets wrapped in a LOOP step
-                loop_continuation = build_execution_plan(
-                    pipeline,
-                    parsed,
-                    start_nodes=[loop_target],
-                    visited=set(local_visited),
-                    via_loop_edge=True,
-                )
-                plan.steps.extend(loop_continuation.steps)
-                local_visited.update(
-                    _collect_subgraph(loop_target, pipeline, all_node_names)
                 )
 
             i += 1
