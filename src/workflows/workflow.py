@@ -7,7 +7,12 @@ with workflow.unsafe.imports_passed_through():
     from src.workflows.types import WorkflowInput, NodeDependency, Pipeline, Node
     from src.workflows.nodes import NODES_MAP
     from src.workflows.pipeline_parser import parse_pipeline
-    from src.workflows.utils import resolve_configs, resolve_inputs, topological_sort
+    from src.workflows.utils import (
+        resolve_configs,
+        resolve_inputs,
+        topological_sort,
+        ResolutionResult,
+    )
 
 
 @activity.defn
@@ -40,38 +45,40 @@ class DynamicWorkflow:
             inputs,
             start_to_close_timeout=timedelta(seconds=300),
         )
-        workflow.logger.info(f"Configurations resolved for {len(resolved_configs)} nodes")
+        workflow.logger.info(
+            f"Configurations resolved for {len(resolved_configs)} nodes"
+        )
 
         # Step 2: Execute nodes in topological order
         outputs = {}
         for node_name in nodes_order:
             # Find the node in the pipeline by name
-            node: Node = next(
-                (n for n in pipeline.nodes if n.name == node_name),
-                None
-            )
+            node: Node = next((n for n in pipeline.nodes if n.name == node_name), None)
             node_def = NODES_MAP.get(node.key)
-            
+
             if not node:
                 workflow.logger.error(f"Node {node_name} not found in pipeline")
                 continue
 
             if not node_def:
                 raise ValueError(f"Node {node.key} not found in NODES_MAP")
-            
 
-            resolved_node_inputs = resolve_inputs(node.inputs, outputs)
+            resolved_node_inputs: ResolutionResult = resolve_inputs(
+                node.inputs, outputs
+            )
+            resolved_node_inputs.raise_if_errors()
+            resolved_inputs_dict = resolved_node_inputs.resolved
 
-            if not "config" in resolved_node_inputs:
-                resolved_node_inputs.update({"config": {}})
+            if not "config" in resolved_inputs_dict:
+                resolved_inputs_dict.update({"config": {}})
 
             if resolved_configs.get(node.key):
-                resolved_node_inputs["config"].update(resolved_configs.get(node.key))
+                resolved_inputs_dict["config"].update(resolved_configs.get(node.key))
             if node.config:
-                resolved_node_inputs["config"].update(node.config)
-            
-            full_input_model = node_def.node_input_model(**resolved_node_inputs)
-            
+                resolved_inputs_dict["config"].update(node.config)
+
+            full_input_model = node_def.node_input_model(**resolved_inputs_dict)
+
             # Execute the node activity
             node_output = await workflow.execute_activity(
                 node_def.fn,
