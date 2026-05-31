@@ -8,11 +8,12 @@ from src.integrations.googlecloud.nodes import (
     CREATE_GOOGLE_SHEET_NODE,
     LIST_USER_GMAIL_LABELS_NODE,
 )
-from src.integrations.llms.nodes import GROQ_LLM_NODE
+from src.integrations.llms.nodes import GROQ_LLM_NODE, GOOGLE_LLM_NODE
 from src.workflows.control_flow_nodes import IF_NODE, SWITCH_NODE
 
 NODES_MAP = {
     "llm.groq": GROQ_LLM_NODE,
+    "llm.google": GOOGLE_LLM_NODE,
     "gmail.send": SEND_EMAIL_NODE,
     "gmail.create_draft_email": DRAFT_EMAIL_NODE,
     "gmail.get_label_data": GET_SINGLE_GMAIL_LABEL_NODE,

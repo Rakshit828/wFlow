@@ -656,6 +656,32 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/73/76/d241a5c927433420507215df6cac1b1fa4ac0ba7a794df42a84326c68da8/google_auth-2.49.2-py3-none-any.whl", hash = "sha256:c2720924dfc82dedb962c9f52cabb2ab16714fd0a6a707e40561d217574ed6d5", size = 240638, upload-time = "2026-04-10T00:41:14.501Z" },
 ]
 
+[package.optional-dependencies]
+requests = [
+    { name = "requests" },
+]
+
+[[package]]
+name = "google-genai"
+version = "2.7.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "distro" },
+    { name = "google-auth", extra = ["requests"] },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "requests" },
+    { name = "sniffio" },
+    { name = "tenacity" },
+    { name = "typing-extensions" },
+    { name = "websockets" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a7/7b/6eb3b3d545b6bb4c374acba1ccf91b0f33b605e551536a6243cfcef2f07f/google_genai-2.7.0.tar.gz", hash = "sha256:3c6f32f5ced9877ededd1b384b5e5b7f09c20046ec3390b662b16d8cd1882ac5", size = 555853, upload-time = "2026-05-28T15:39:24.58Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3c/dd/7a8be39e9d698e80e9db796514efbc6083dbd787bdb9a101e8ba47248e5e/google_genai-2.7.0-py3-none-any.whl", hash = "sha256:21cac381e09a869151706aba797b6a4f96cfe92c484e13204d092caee7ff11cb", size = 822545, upload-time = "2026-05-28T15:39:22.907Z" },
+]
+
 [[package]]
 name = "groq"
 version = "1.2.0"
@@ -1669,6 +1695,15 @@ wheels = [
 ]
 
 [[package]]
+name = "tenacity"
+version = "9.1.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/47/c6/ee486fd809e357697ee8a44d3d69222b344920433d3b6666ccd9b374630c/tenacity-9.1.4.tar.gz", hash = "sha256:adb31d4c263f2bd041081ab33b498309a57c77f9acf2db65aadf0898179cf93a", size = 49413, upload-time = "2026-02-07T10:45:33.841Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d7/c1/eb8f9debc45d3b7918a32ab756658a0904732f75e555402972246b0b8e71/tenacity-9.1.4-py3-none-any.whl", hash = "sha256:6095a360c919085f28c6527de529e76a06ad89b23659fa881ae0649b867a9d55", size = 28926, upload-time = "2026-02-07T10:45:32.24Z" },
+]
+
+[[package]]
 name = "typer"
 version = "0.24.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1902,6 +1937,7 @@ dependencies = [
     { name = "beanie" },
     { name = "fastapi", extra = ["standard"] },
     { name = "google-auth" },
+    { name = "google-genai" },
     { name = "groq" },
     { name = "httpx" },
     { name = "loguru" },
@@ -1922,6 +1958,7 @@ requires-dist = [
     { name = "beanie", specifier = ">=2.1.0" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.136.0" },
     { name = "google-auth", specifier = ">=2.16.0" },
+    { name = "google-genai", specifier = ">=2.7.0" },
     { name = "groq", specifier = ">=1.2.0" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "loguru", specifier = ">=0.7.3" },
