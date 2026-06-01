@@ -70,7 +70,7 @@ class Edge(BaseModel):
         return self
 
 
-class Pipeline(BaseModel):
+class Workflow(BaseModel):
     nodes: List[Node]
     edges: List[Edge]
 
@@ -79,12 +79,10 @@ class Pipeline(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-# ─── Parsed node metadata (produced by parse_pipeline) ────────────────────────
-
 
 class ParsedNodeData(BaseModel):
     """
-    Metadata about a single node derived from the pipeline graph.
+    Metadata about a single node derived from the workflow graph.
 
     Flag semantics (all mutually exclusive pairs are validated):
 
@@ -145,7 +143,7 @@ class ExecutionStep(BaseModel):
 
 
 class ExecutionPlan(BaseModel):
-    """Ordered List of steps to execute a (sub-)pipeline."""
+    """Ordered List of steps to execute a (sub-)workflow."""
 
     steps: List[ExecutionStep] = []
 
@@ -156,10 +154,10 @@ class ExecutionPlan(BaseModel):
 
 
 class WorkflowInput(BaseModel):
-    pipeline_str: str
+    workflow_str: str
     configs: Optional[Dict[str, Any]] = None
 
 
 class WorkflowInput(BaseModel):
-    pipeline_str: str
+    workflow_str: str
     configs: Dict[str, Any] | None = None

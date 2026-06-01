@@ -1,4 +1,4 @@
-from beanie import Document, Indexed, Link, before_event, Update
+from beanie import Document, Indexed, before_event, Update, PydanticObjectId
 from pydantic import EmailStr, Field, ConfigDict
 from typing import Optional, List, Annotated, Literal
 from datetime import datetime, timezone
@@ -25,7 +25,7 @@ class Users(Document):
 
 
 class AppIntegrations(Document):
-    user: Annotated[Link[Users], Indexed()]
+    user_id: Annotated[PydanticObjectId, Indexed()]
 
     provider: Annotated[str, Indexed()]
     service: Annotated[str, Indexed()]
@@ -55,7 +55,7 @@ class AppIntegrations(Document):
 
 
 class OAuthAccounts(Document):
-    user: Annotated[Link[Users], Indexed()]
+    user: Annotated[PydanticObjectId, Indexed()]
 
     provider: Annotated[str, Indexed()]
     provider_email: EmailStr
@@ -80,28 +80,30 @@ class OAuthAccounts(Document):
         self.updated_at = datetime.now(tz=timezone.utc)
 
 
-class Pipelines(Document):
-    name: str
-    description: str
-    nodes: List[Node]
-    edges: List[Edge]
-    visiblity: Literal["public", "private"]
-    stars: Optional[int] = None
-    created_by: Link[Users]
-
-class PipelinesStars(Document):
-    user: Link[Users]
-    pipeline: Link[Pipelines]
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-
 class NodesRegistry(Document):
     """List of application nodes for data consistency and single source of truth."""
+
     name: str
     description: str
     type: NodesTypeEnum
-    service: str 
+    service: str
     valid_permissions: list[str]
     fn_key: Annotated[str, Indexed(unique=True)]
     input_model: dict
     output_model: dict
+
+
+class Workflows(Document):
+    name: str
+    description: str
+    nodes: List[Node]
+    edges: List[Edge]
+    visibility: Literal["public", "private"]
+    stars: int = Field(default=0)
+    created_by: Annotated[PydanticObjectId, Indexed()]
+
+
+class WorkflowsStars(Document):
+    user_id: Annotated[PydanticObjectId, Indexed()]
+    workflow_id: Annotated[PydanticObjectId, Indexed()]
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

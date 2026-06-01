@@ -126,7 +126,7 @@ class GoogleIntegrationService:
         if not is_updated:
             logger.info("Creating new integration. ")
             await self.integration_repo.add_new_integration(
-                user_ref=user,
+                user_id=user.id,
                 provider="google",
                 service=new_scope_response.service,
                 scopes=new_scope_response.scopes,
@@ -151,4 +151,3 @@ class GitHubIntegrationService:
         self.integration_repo = AppIntegrationsRepository()
         self.user_repo = UserRepository()
         self.github_oauth = GitHubOAuthInterface()
-

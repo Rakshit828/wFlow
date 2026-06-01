@@ -21,17 +21,17 @@ import logging
 from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
-from temporalio import activity, workflow
+from temporalio import activity, workflow as Tworkflow
 
-with workflow.unsafe.imports_passed_through():
-    from src.workflows.parser import parse_pipeline
+with Tworkflow.unsafe.imports_passed_through():
+    from src.workflows.parser import parse_workflow
     from src.workflows.planner import build_execution_plan
     from src.workflows.types import (
         ExecutionPlan,
         ExecutionStep,
         ExecutionStepKind,
         Node,
-        Pipeline,
+        Workflow,
         WorkflowInput,
     )
     from src.workflows.nodes import NODES_MAP
@@ -51,9 +51,9 @@ _CONFIG_TIMEOUT = timedelta(seconds=60)
 @activity.defn
 async def resolve_configs_activity(inputs: WorkflowInput) -> Dict[str, Any]:
     """Resolve per-node service credentials / configs before execution starts."""
-    pipeline = Pipeline(**json.loads(inputs.pipeline_str))
+    workflow = Workflow(**json.loads(inputs.workflow_str))
     user_id = (inputs.configs or {}).get("user_id")
-    resolved = await resolve_configs(pipeline, user_id)
+    resolved = await resolve_configs(workflow, user_id)
     activity.logger.info("Configs resolved for %d nodes", len(resolved))
     return resolved
 
@@ -62,43 +62,43 @@ async def resolve_configs_activity(inputs: WorkflowInput) -> Dict[str, Any]:
 # Workflow
 # ═══════════════════════════════════════════════════════════════════════════════
 
-@workflow.defn
+@Tworkflow.defn
 class DynamicWorkflow:
     """
-    Executes an arbitrary pipeline defined by WorkflowInput.
+    Executes an arbitrary workflow defined by WorkflowInput.
 
     Execution order is determined by the ExecutionPlan produced by the planner.
     Each node's .fn (already decorated @activity.defn) is dispatched via
     workflow.execute_activity() with a fully-constructed Pydantic input model.
     """
 
-    @workflow.run
+    @Tworkflow.run
     async def run(self, inputs: WorkflowInput) -> Dict[str, Any]:
-        workflow.logger.info("DynamicWorkflow started")
+        Tworkflow.logger.info("DynamicWorkflow started")
 
-        pipeline: Pipeline = Pipeline(**json.loads(inputs.pipeline_str))
+        workflow: Workflow = Workflow(**json.loads(inputs.workflow_str))
 
         # ── 1. Resolve service configs ─────────────────────────────────────────
-        resolved_configs: Dict[str, Any] = await workflow.execute_activity(
+        resolved_configs: Dict[str, Any] = await Tworkflow.execute_activity(
             resolve_configs_activity,
             inputs,
             start_to_close_timeout=_CONFIG_TIMEOUT,
         )
-        workflow.logger.info("Configs resolved for %d nodes", len(resolved_configs))
+        Tworkflow.logger.info("Configs resolved for %d nodes", len(resolved_configs))
 
         # ── 2. Parse & plan ───────────────────────────────────────────────────
-        parsed = parse_pipeline(pipeline)
-        plan = build_execution_plan(pipeline, parsed)
+        parsed = parse_workflow(workflow)
+        plan = build_execution_plan(workflow, parsed)
 
-        workflow.logger.info(
+        Tworkflow.logger.info(
             "Execution plan built: %d top-level steps", len(plan.steps)
         )
 
         # ── 3. Walk the plan ──────────────────────────────────────────────────
         outputs: Dict[str, Any] = {}
-        await self._execute_plan(plan, pipeline, resolved_configs, outputs)
+        await self._execute_plan(plan, workflow, resolved_configs, outputs)
 
-        workflow.logger.info(
+        Tworkflow.logger.info(
             "DynamicWorkflow completed. Nodes run: %s", list(outputs.keys())
         )
         return {
@@ -113,17 +113,17 @@ class DynamicWorkflow:
     async def _execute_plan(
         self,
         plan: ExecutionPlan,
-        pipeline: Pipeline,
+        workflow: Workflow,
         resolved_configs: Dict[str, Any],
         outputs: Dict[str, Any],
     ) -> None:
         for step in plan.steps:
-            await self._execute_step(step, pipeline, resolved_configs, outputs)
+            await self._execute_step(step, workflow, resolved_configs, outputs)
 
     async def _execute_step(
         self,
         step: ExecutionStep,
-        pipeline: Pipeline,
+        workflow: Workflow,
         resolved_configs: Dict[str, Any],
         outputs: Dict[str, Any],
     ) -> None:
@@ -131,7 +131,7 @@ class DynamicWorkflow:
         # ── RUN ───────────────────────────────────────────────────────────────
         if step.kind == ExecutionStepKind.RUN:
             if len(step.nodes) == 1:
-                await self._run_node(step.nodes[0], pipeline, resolved_configs, outputs)
+                await self._run_node(step.nodes[0], workflow, resolved_configs, outputs)
             else:
                 # Parallel fan-out: schedule all activities then await together.
                 # asyncio.gather is correct here — each _run_node internally
@@ -139,7 +139,7 @@ class DynamicWorkflow:
                 # Temporal schedules them all before the first one is awaited.
                 await asyncio.gather(
                     *[
-                        self._run_node(name, pipeline, resolved_configs, outputs)
+                        self._run_node(name, workflow, resolved_configs, outputs)
                         for name in step.nodes
                     ]
                 )
@@ -152,15 +152,15 @@ class DynamicWorkflow:
                 raise RuntimeError(
                     f"MERGE checkpoint failed: nodes not yet completed: {missing}"
                 )
-            workflow.logger.info("MERGE checkpoint passed: %s", step.nodes)
+            Tworkflow.logger.info("MERGE checkpoint passed: %s", step.nodes)
 
         # ── IF ────────────────────────────────────────────────────────────────
         elif step.kind == ExecutionStepKind.IF:
-            await self._execute_if(step, pipeline, resolved_configs, outputs)
+            await self._execute_if(step, workflow, resolved_configs, outputs)
 
         # ── SWITCH ────────────────────────────────────────────────────────────
         elif step.kind == ExecutionStepKind.SWITCH:
-            await self._execute_switch(step, pipeline, resolved_configs, outputs)
+            await self._execute_switch(step, workflow, resolved_configs, outputs)
 
 
     # ─── IF ───────────────────────────────────────────────────────────────────
@@ -168,7 +168,7 @@ class DynamicWorkflow:
     async def _execute_if(
         self,
         step: ExecutionStep,
-        pipeline: Pipeline,
+        workflow: Workflow,
         resolved_configs: Dict[str, Any],
         outputs: Dict[str, Any],
     ) -> None:
@@ -185,18 +185,18 @@ class DynamicWorkflow:
                 f"got {type(decision).__name__}: {decision!r}"
             )
 
-        workflow.logger.info("IF '%s' → decision=%s", if_node_name, decision)
+        Tworkflow.logger.info("IF '%s' → decision=%s", if_node_name, decision)
 
         chosen_plan = step.true_plan if decision else step.false_plan
         if chosen_plan:
-            await self._execute_plan(chosen_plan, pipeline, resolved_configs, outputs)
+            await self._execute_plan(chosen_plan, workflow, resolved_configs, outputs)
 
     # ─── SWITCH ───────────────────────────────────────────────────────────────
 
     async def _execute_switch(
         self,
         step: ExecutionStep,
-        pipeline: Pipeline,
+        workflow: Workflow,
         resolved_configs: Dict[str, Any],
         outputs: Dict[str, Any],
     ) -> None:
@@ -208,13 +208,13 @@ class DynamicWorkflow:
         switch_node_name = step.nodes[0]
         case_value = self._read_output(switch_node_name, outputs, "case")
 
-        workflow.logger.info("SWITCH '%s' → case='%s'", switch_node_name, case_value)
+        Tworkflow.logger.info("SWITCH '%s' → case='%s'", switch_node_name, case_value)
 
         case_plans = step.case_plans or {}
         chosen_plan = case_plans.get(case_value)
 
         if chosen_plan is None and step.default_case:
-            workflow.logger.warning(
+            Tworkflow.logger.warning(
                 "SWITCH '%s': no plan for case '%s', falling back to default '%s'",
                 switch_node_name,
                 case_value,
@@ -223,21 +223,21 @@ class DynamicWorkflow:
             chosen_plan = case_plans.get(step.default_case)
 
         if chosen_plan is None:
-            workflow.logger.warning(
+            Tworkflow.logger.warning(
                 "SWITCH '%s': no plan for case '%s' and no default — skipping.",
                 switch_node_name,
                 case_value,
             )
             return
 
-        await self._execute_plan(chosen_plan, pipeline, resolved_configs, outputs)
+        await self._execute_plan(chosen_plan, workflow, resolved_configs, outputs)
 
     # ─── Single node execution ────────────────────────────────────────────────────────
 
     async def _run_node(
         self,
         node_name: str,
-        pipeline: Pipeline,
+        workflow: Workflow,
         resolved_configs: Dict[str, Any],
         outputs: Dict[str, Any],
     ) -> None:
@@ -251,13 +251,13 @@ class DynamicWorkflow:
         Input merge order (later wins):
             1. Resolved references from previous node outputs (resolve_inputs)
             2. Service config from resolved_configs (keyed by node.key)
-            3. Static config from node.config in the pipeline definition
+            3. Static config from node.config in the workflow definition
         """
         node: Optional[Node] = next(
-            (n for n in pipeline.nodes if n.name == node_name), None
+            (n for n in workflow.nodes if n.name == node_name), None
         )
         if node is None:
-            raise KeyError(f"Node '{node_name}' not found in pipeline definition.")
+            raise KeyError(f"Node '{node_name}' not found in workflow definition.")
 
         node_def = NODES_MAP.get(node.key)
         if node_def is None:
@@ -282,7 +282,7 @@ class DynamicWorkflow:
         if merged_config:
             resolved_node_inputs["config"] = merged_config
 
-        workflow.logger.info(
+        Tworkflow.logger.info(
             "Dispatching '%s' (key=%s) | inputs=%s",
             node_name,
             node.key,
@@ -296,7 +296,7 @@ class DynamicWorkflow:
         input_model = node_def.node_input_model(**resolved_node_inputs)
 
         # ── 4. Dispatch via Temporal ──────────────────────────────────────────
-        node_output = await workflow.execute_activity(
+        node_output = await Tworkflow.execute_activity(
             node_def.fn,
             input_model,
             start_to_close_timeout=_NODE_TIMEOUT,
@@ -309,7 +309,7 @@ class DynamicWorkflow:
             node_output = {"output": node_output}
 
         outputs[node_name] = node_output
-        workflow.logger.info(
+        Tworkflow.logger.info(
             "Completed '%s' | output_keys=%s",
             node_name,
             list(node_output.keys()),

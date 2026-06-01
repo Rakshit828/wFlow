@@ -17,16 +17,15 @@ from .types import (
     ExecutionStep,
     ExecutionStepKind,
     ParsedNodeData,
-    Pipeline,
+    Workflow,
 )
 
 # ─── Graph helpers ────────────────────────────────────────────────────────────
 
-
-def _if_branches(node_name: str, pipeline: Pipeline):
+def _if_branches(node_name: str, workflow: Workflow):
     """Returns (true_target, false_target) for an IF control node."""
     true_t = false_t = None
-    for e in pipeline.edges:
+    for e in workflow.edges:
         if e.source == node_name and e.type == EdgesTypeEnum.IF:
             if e.decision is True:
                 true_t = e.target
@@ -35,20 +34,20 @@ def _if_branches(node_name: str, pipeline: Pipeline):
     return true_t, false_t
 
 
-def _switch_branches(node_name: str, pipeline: Pipeline) -> Dict[str, str]:
+def _switch_branches(node_name: str, workflow: Workflow) -> Dict[str, str]:
     """Returns {case_value: target_node} for a SWITCH control node."""
     return {
         e.case: e.target
-        for e in pipeline.edges
+        for e in workflow.edges
         if e.source == node_name
         and e.type == EdgesTypeEnum.SWITCH
         and e.target not in ("end", "start")
     }
 
 
-def _linear_successor(node_name: str, pipeline: Pipeline) -> Optional[str]:
+def _linear_successor(node_name: str, workflow: Workflow) -> Optional[str]:
     """Returns the single LINEAR successor of a node, or None."""
-    for e in pipeline.edges:
+    for e in workflow.edges:
         if (
             e.source == node_name
             and e.type == EdgesTypeEnum.LINEAR
@@ -60,7 +59,7 @@ def _linear_successor(node_name: str, pipeline: Pipeline) -> Optional[str]:
 
 def _collect_subgraph(
     start: str,
-    pipeline: Pipeline,
+    workflow: Workflow,
     all_node_names: Set[str],
     stop_before: Optional[Set[str]] = None,
 ) -> List[str]:
@@ -81,7 +80,7 @@ def _collect_subgraph(
         visited.add(n)
         order.append(n)
 
-        for e in pipeline.edges:
+        for e in workflow.edges:
             if e.source == n and e.target not in visited:
                 queue.append(e.target)
 
@@ -136,18 +135,18 @@ def _kahn_sort(
 
 
 def build_execution_plan(
-    pipeline: Pipeline,
+    workflow: Workflow,
     parsed: List[ParsedNodeData],
     start_nodes: Optional[List[str]] = None,
     visited: Optional[Set[str]] = None,
 ) -> ExecutionPlan:
     """
-    Recursively build an ExecutionPlan from the pipeline.
+    Recursively build an ExecutionPlan from the workflow.
     """
     if visited is None:
         visited = set()
 
-    all_node_names: Set[str] = {n.name for n in pipeline.nodes}
+    all_node_names: Set[str] = {n.name for n in workflow.nodes}
     parsed_map: Dict[str, ParsedNodeData] = {p.name: p for p in parsed}
 
     if start_nodes is None:
@@ -159,7 +158,7 @@ def build_execution_plan(
     # Collect all nodes in scope for this sub-plan (excluding already-visited)
     scope_nodes: List[str] = []
     for sn in start_nodes:
-        for n in _collect_subgraph(sn, pipeline, all_node_names):
+        for n in _collect_subgraph(sn, workflow, all_node_names):
             if n not in visited and n not in scope_nodes:
                 scope_nodes.append(n)
 
@@ -190,7 +189,7 @@ def build_execution_plan(
         if p.is_parallel_source:
             parallel_targets = [
                 e.target
-                for e in pipeline.edges
+                for e in workflow.edges
                 if e.source == node_name
                 and e.type == EdgesTypeEnum.PARALLEL
                 and e.target not in ("end", "start")
@@ -217,7 +216,7 @@ def build_execution_plan(
         if p.is_merge_target:
             merge_sources = [
                 e.source
-                for e in pipeline.edges
+                for e in workflow.edges
                 if e.target == node_name and e.type == EdgesTypeEnum.MERGE
             ]
             plan.steps.append(
@@ -238,15 +237,15 @@ def build_execution_plan(
             )
             local_visited.add(node_name)
 
-            out_types = {e.type for e in pipeline.edges if e.source == node_name}
+            out_types = {e.type for e in workflow.edges if e.source == node_name}
 
             if EdgesTypeEnum.IF in out_types:
-                true_t, false_t = _if_branches(node_name, pipeline)
+                true_t, false_t = _if_branches(node_name, workflow)
 
                 # True branch: build normal sub-plan for the true path.
                 true_plan = (
                     build_execution_plan(
-                        pipeline,
+                        workflow,
                         parsed,
                         start_nodes=[true_t] if true_t else [],
                         visited=set(local_visited),
@@ -257,7 +256,7 @@ def build_execution_plan(
 
                 false_plan = (
                     build_execution_plan(
-                        pipeline,
+                        workflow,
                         parsed,
                         start_nodes=[false_t] if false_t else [],
                         visited=set(local_visited),
@@ -279,22 +278,22 @@ def build_execution_plan(
                 for t in [true_t, false_t]:
                     if t:
                         local_visited.update(
-                            _collect_subgraph(t, pipeline, all_node_names)
+                            _collect_subgraph(t, workflow, all_node_names)
                         )
 
             elif EdgesTypeEnum.SWITCH in out_types:
-                case_map = _switch_branches(node_name, pipeline)
+                case_map = _switch_branches(node_name, workflow)
                 case_plans: Dict[str, ExecutionPlan] = {}
 
                 for case_val, target in case_map.items():
                     case_plans[case_val] = build_execution_plan(
-                        pipeline,
+                        workflow,
                         parsed,
                         start_nodes=[target],
                         visited=set(local_visited),
                     )
                     local_visited.update(
-                        _collect_subgraph(target, pipeline, all_node_names)
+                        _collect_subgraph(target, workflow, all_node_names)
                     )
 
                 plan.steps.append(

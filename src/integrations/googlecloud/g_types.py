@@ -3,15 +3,15 @@ from typing import Optional, List, Literal
 from src.integrations.googlecloud.scopes import (
     GOOGLE_EMAIL_ONLY_OPENID_SCOPE,
     GOOGLE_SERVICES,
+    SERVICE_MAPPINGS,
 )
 from src.config import CONFIG
 from datetime import datetime
 from typing import TypedDict, List
 from enum import Enum
 
-SERVICE_THAT_SHOULD_BE_REPLACED_BY_IN_BASE_URL: list = [
-    "gmail", "gsheets"
-]
+SERVICE_THAT_SHOULD_BE_REPLACED_BY_IN_BASE_URL: list = ["gmail", "gsheets"]
+
 
 class GoogleApiErrorDetail(TypedDict):
     message: str
@@ -126,7 +126,10 @@ class GoogleNewScopeResponse(BaseModel):
     @computed_field
     @property
     def service(self) -> str:
+        """Identifies the service from the scopes."""
         scope_str = self.scope.replace(GOOGLE_EMAIL_ONLY_OPENID_SCOPE, "")
         for service in GOOGLE_SERVICES:
             if service in scope_str:
+                if service in SERVICE_MAPPINGS:
+                    return SERVICE_MAPPINGS[service]
                 return service

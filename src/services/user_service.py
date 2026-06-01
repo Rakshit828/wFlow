@@ -12,6 +12,7 @@ from src.core.security import encrypt_token
 from datetime import timedelta, datetime, timezone
 from loguru import logger
 
+
 class UserService:
     def __init__(self):
         self.user_repo = UserRepository()
@@ -33,28 +34,26 @@ class UserService:
         )
 
         if not user:
-            # Create rows only if the user doesn't exist.
-            user: Users | None = await self.user_repo.create_user(
+            user: Users = Users(
                 email=auth_response.decoded_id_token.email,
-                name=auth_response.decoded_id_token.name,
+                full_name=auth_response.decoded_id_token.name,
                 username=None,
                 avatar_url=str(auth_response.decoded_id_token.picture),
                 is_verified=auth_response.decoded_id_token.email_verified,
             )
+            new_user: Users | None = await self.user_repo.create_user(user)
 
-            if user is None:
+            if new_user is None:
                 raise AppError()
-            
+
             access_token_enc = encrypt_token(auth_response.access_token)
             refresh_token_enc = encrypt_token(auth_response.refresh_token)
             now = datetime.now(timezone.utc)
-            refresh_token_expiry = now + timedelta(
-                seconds=auth_response.refresh_token_expires_in
-            )
+            refresh_token_expiry = None
             access_token_expiry = now + timedelta(seconds=auth_response.expires_in)
 
             oauth_acc = OAuthAccounts(
-                user=user,
+                user=user.id,
                 provider="google",
                 provider_email=auth_response.decoded_id_token.email,
                 provider_sub_id=auth_response.decoded_id_token.sub,
@@ -65,7 +64,11 @@ class UserService:
                 access_token_expiry=access_token_expiry,
                 refresh_token_expiry=refresh_token_expiry,
             )
-            await self.oauth_repo.create_oauth_account(oauth_account=oauth_acc)
+            oauth_acc = await self.oauth_repo.create_oauth_account(oauth_account=oauth_acc)
+
+            if oauth_acc is None:
+                raise AppError()
+
 
         tokens = await create_jwt_tokens(user.id, is_login=True)
         logger.info(f"Tokens are : {tokens}")

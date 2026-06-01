@@ -24,7 +24,7 @@ from .types import (
     ExecutionStep,
     ExecutionStepKind,
     Node,
-    Pipeline,
+    Workflow,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,18 +58,18 @@ class WorkflowExecutor:
     Executes an ExecutionPlan produced by build_execution_plan().
 
     Usage:
-        executor = WorkflowExecutor(pipeline, node_registry)
+        executor = WorkflowExecutor(workflow, node_registry)
         outputs  = await executor.run(plan)
     """
 
     def __init__(
         self,
-        pipeline: Pipeline,
+        workflow: Workflow,
         node_registry: Dict[str, NodeFn],
     ):
-        self.pipeline = pipeline
+        self.workflow = workflow
         self.node_registry = node_registry
-        self._node_map: Dict[str, Node] = {n.name: n for n in pipeline.nodes}
+        self._node_map: Dict[str, Node] = {n.name: n for n in workflow.nodes}
 
     # ─── Public entry point ───────────────────────────────────────────────────
 
@@ -174,7 +174,7 @@ class WorkflowExecutor:
         """
         node = self._node_map.get(node_name)
         if node is None:
-            raise KeyError(f"Node '{node_name}' not found in pipeline.")
+            raise KeyError(f"Node '{node_name}' not found in workflow.")
 
         # Resolve references in inputs against accumulated outputs
         resolved_inputs = _resolve(node.inputs, outputs)

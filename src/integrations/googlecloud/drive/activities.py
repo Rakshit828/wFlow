@@ -54,7 +54,7 @@ async def upload_file_on_drive(
 
     params = {"uploadType": "multipart"}
 
-    status_code, json_response = await google_api_client.request(
+    _, json_response = await google_api_client.request(
         method="POST",
         endpoint=GDriveApis.UPLOAD_FILE,
         requires_bearer_token=True,
@@ -65,4 +65,8 @@ async def upload_file_on_drive(
 
     logger.info(f"The original response is : {json_response}")
 
-    return UploadFileDriveResponse(**json_response)
+    return UploadFileDriveResponse(
+        file_id=json_response["id"],
+        name=json_response["name"],
+        mime_type=json_response["mimeType"],
+    )

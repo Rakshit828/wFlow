@@ -55,11 +55,8 @@ class UploadFileDriveResponse(BaseModel):
     file_id: str = Field(
         ...,
         description="The google drive's internal ID of the uploaded file.",
-        alias="id",
     )
     name: str = Field(..., description="The name of the uploaded file.")
-    mime_type: str = Field(
-        ..., description="The MIME type of the uploaded file.", alias="mimeType"
-    )
+    mime_type: str = Field(..., description="The MIME type of the uploaded file.")
 
-    config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="allow")

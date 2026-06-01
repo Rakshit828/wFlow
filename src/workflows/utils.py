@@ -7,7 +7,7 @@ from collections import defaultdict, deque
 from typing import Any, Optional, Union, get_args, get_origin
 
 from .nodes import NODES_MAP
-from .types import Pipeline, Node
+from .types import Workflow, Node
 from src.integrations.googlecloud.resolvers import GoogleNodeConfigResolver
 
 logger = logging.getLogger(__name__)
@@ -339,7 +339,7 @@ def _resolve_context_reference(
     default_clause: str,
 ) -> Any:
     """
-    Resolve a `context.path.to.value` reference against the pipeline context dict.
+    Resolve a `context.path.to.value` reference against the workflow context dict.
 
     The `context` prefix is stripped, and the remainder is navigated as a
     dotted path (with optional array indices and wildcards) through the
@@ -599,7 +599,7 @@ def resolve_inputs(
 ) -> ResolutionResult:
     """
     Resolve all input references based on previous node outputs and/or the
-    pipeline context dict.
+    workflow context dict.
 
     Reference formats
     ─────────────────
@@ -625,7 +625,7 @@ def resolve_inputs(
     Args:
         inputs:     Dict of input key → value (references at any depth).
         outputs:    Dict of node_name → output from previous executions.
-        context:    Pipeline.context dict (runtime / user-defined variables).
+        context:    Workflow.context dict (runtime / user-defined variables).
                     Defaults to {} if not provided.
         type_hints: Optional {key: type} for automatic coercion.
         strict:     Raise RuntimeError on any unresolved reference.
@@ -686,12 +686,12 @@ def resolve_inputs(
     return result
 
 
-async def resolve_configs(pipeline: Pipeline, user_id: str) -> dict:
+async def resolve_configs(workflow: Workflow, user_id: str) -> dict:
 
     resolved_configs = {}
     nodes_map = NODES_MAP
 
-    for node in pipeline.nodes:
+    for node in workflow.nodes:
         node_def = nodes_map.get(node.key)
         if not node_def:
             raise ValueError(f"Node {node.key} not found in NODES_MAP")

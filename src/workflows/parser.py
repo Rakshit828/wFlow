@@ -1,5 +1,5 @@
 """
-parser.py — Converts a Pipeline into a list of ParsedNodeData.
+parser.py — Converts a Workflow into a list of ParsedNodeData.
 
 Fixes over original:
   1. Dependencies derived from EDGES (not input string scanning) — correct and fast.
@@ -15,13 +15,13 @@ from .types import (
     Edge,
     EdgesTypeEnum,
     ParsedNodeData,
-    Pipeline,
+    Workflow,
 )
 
 
-def parse_pipeline(pipeline: Pipeline) -> List[ParsedNodeData]:
+def parse_workflow(workflow: Workflow) -> List[ParsedNodeData]:
     """
-    Analyse the pipeline graph and return one ParsedNodeData per node.
+    Analyse the workflow graph and return one ParsedNodeData per node.
 
     Key design choice: dependencies are derived purely from edges, not from
     scanning input strings. This is correct because:
@@ -30,8 +30,8 @@ def parse_pipeline(pipeline: Pipeline) -> List[ParsedNodeData]:
         resolve_inputs(); the parser doesn't need to replicate that.
     """
 
-    node_names: Set[str] = {n.name for n in pipeline.nodes}
-    edges = pipeline.edges
+    node_names: Set[str] = {n.name for n in workflow.nodes}
+    edges = workflow.edges
 
     # Index edges for O(1) lookups
     # edges_by_target[node] = list of edges whose target is node
@@ -47,7 +47,7 @@ def parse_pipeline(pipeline: Pipeline) -> List[ParsedNodeData]:
 
     parsed: List[ParsedNodeData] = []
 
-    for node in pipeline.nodes:
+    for node in workflow.nodes:
         name          = node.name
         in_edges      = edges_by_target[name]   # edges arriving at this node
         out_edges     = edges_by_source[name]   # edges leaving this node

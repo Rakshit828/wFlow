@@ -5,14 +5,14 @@ from temporalio.client import Client
 from src.workflows.types import WorkflowInput
 
 
-async def main(pipeline_str: str):
+async def main(workflow_str: str):
 
     client = await Client.connect("localhost:7233")
 
     result = await client.execute_workflow(
         "DynamicWorkflow",
         WorkflowInput(
-            pipeline_str=pipeline_str, configs={"user_id": "69ea34d032f5e9adcfbabe33"}
+            workflow_str=workflow_str, configs={"user_id": "69ea34d032f5e9adcfbabe33"}
         ),
         id=f"dynamic-workflow-{uuid.uuid4()}",
         task_queue="default",
@@ -510,4 +510,4 @@ if __name__ == "__main__":
             {"source": "rewrite_node", "target": "end", "type": "linear"},
         ],
     }
-    asyncio.run(main(pipeline_str=json.dumps(drive_upload_pipeline)))
+    asyncio.run(main(workflow_str=json.dumps(drive_upload_pipeline)))

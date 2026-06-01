@@ -1,6 +1,7 @@
 from beanie.odm.operators.update.general import Set
 from beanie.odm.operators.update.array import AddToSet
 from beanie import PydanticObjectId
+from bson import ObjectId
 from datetime import datetime
 from loguru import logger
 from typing import TypeVar, Optional, Union, Type
@@ -64,7 +65,7 @@ class AppIntegrationsRepository:
             kwargs["projection_model"] = AppIntegrations
 
         integration = await AppIntegrations.find(
-            AppIntegrations.user.id == PydanticObjectId(user_id),
+            AppIntegrations.user_id == PydanticObjectId(user_id),
             AppIntegrations.provider == provider,
             AppIntegrations.service == service,
             **kwargs,
@@ -76,7 +77,7 @@ class AppIntegrationsRepository:
 
     async def update_google_app_integration(
         self,
-        user_id: str,
+        user_id: str | PydanticObjectId | ObjectId,
         provider: str,
         service: str,
         email: str,
@@ -86,8 +87,11 @@ class AppIntegrationsRepository:
         access_token_expiry: datetime,
         refresh_token_expiry: datetime,
     ):
+        if isinstance(user_id, str):
+            user_id = PydanticObjectId(user_id)
+
         update_result = await AppIntegrations.find(
-            AppIntegrations.user.id == PydanticObjectId(user_id),
+            AppIntegrations.user_id == PydanticObjectId(user_id),
             AppIntegrations.provider == provider,
             AppIntegrations.service == service,
             AppIntegrations.metadata.email == email,
@@ -135,7 +139,7 @@ class AppIntegrationsRepository:
 
     async def add_new_integration(
         self,
-        user_ref: str | Users,
+        user_id: str | PydanticObjectId | ObjectId,
         access_token: str,
         access_token_expiry: datetime,
         provider: str,
@@ -145,14 +149,8 @@ class AppIntegrationsRepository:
         scopes: list[str] | None = None,
         metadata: dict | None = None,
     ):
-        if not isinstance(user_ref, Users):
-            user: Users | None = self.__user_repo.get_user_by_id(user_id=user_ref)
-        else:
-            user = user_ref
-
-        if not user:
-            logger.error(f"User with id {user_ref} doesn't exist.")
-            return None
+        if not isinstance(user_id, str):
+            user_id = PydanticObjectId(user_id)
 
         if scopes is None:
             scopes = []
@@ -164,7 +162,7 @@ class AppIntegrationsRepository:
 
         integration: AppIntegrations | None = await AppIntegrations.insert_one(
             AppIntegrations(
-                user=user,
+                user_id=user_id,
                 provider=provider,
                 service=service,
                 scopes=scopes,

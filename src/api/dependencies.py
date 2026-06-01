@@ -18,7 +18,6 @@ def get_github_integration_service() -> GitHubIntegrationService:
     return GitHubIntegrationService()
 
 
-
 def get_user_service() -> UserService:
     return UserService()
 
