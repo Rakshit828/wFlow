@@ -10,6 +10,7 @@ from src.schemas.workflow import (
     CreateNewWorkflowModel,
     WorkflowResponseModel,
     StarWorkflowResponseModel,
+    PaginatedWorkflowsResponse,
 )
 from src.services.workflow_service import WorkflowService
 
@@ -18,6 +19,46 @@ workflow_router = APIRouter()
 internal_storage_client = AsyncLocalStorageClient(
     base_storage_dir=CONFIG.LOCAL_STORAGE_PATH
 )
+
+
+@workflow_router.get("/", response_model=PaginatedWorkflowsResponse)
+async def get_all_workflows(
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(
+        10, ge=1, le=100, description="Number of items per page"
+    ),
+    workflow_service: WorkflowService = Depends(WorkflowService),
+) -> PaginatedWorkflowsResponse:
+    """
+    Fetch all workflows with pagination.
+    
+    Query Parameters:
+    - page: Page number (default: 1)
+    - page_size: Number of items per page, max 100 (default: 10)
+    """
+    return await workflow_service.get_all_workflows(page=page, page_size=page_size)
+
+
+@workflow_router.get("/search", response_model=PaginatedWorkflowsResponse)
+async def search_workflows(
+    query: str = Query(..., min_length=1, description="Search query for workflow name"),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(
+        10, ge=1, le=100, description="Number of items per page"
+    ),
+    workflow_service: WorkflowService = Depends(WorkflowService),
+) -> PaginatedWorkflowsResponse:
+    """
+    Search workflows by name with pagination (case-insensitive).
+    
+    Query Parameters:
+    - query: Search term for workflow name (required)
+    - page: Page number (default: 1)
+    - page_size: Number of items per page, max 100 (default: 10)
+    """
+    return await workflow_service.search_workflows(
+        query=query, page=page, page_size=page_size
+    )
 
 
 @workflow_router.post("/create", response_model=WorkflowResponseModel)

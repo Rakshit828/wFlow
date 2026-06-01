@@ -25,3 +25,26 @@ class WorkflowResponseModel(BaseModel):
 class StarWorkflowResponseModel(BaseModel):
     workflow_id: str
     stars: int
+
+
+class WorkflowListItemModel(BaseModel):
+    workflow_id: str
+    name: str
+    description: str
+    visibility: Literal["public", "private"]
+    stars: int
+    created_by: str
+
+
+class PaginationMetadata(BaseModel):
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
+    has_next: bool
+    has_previous: bool
+
+
+class PaginatedWorkflowsResponse(BaseModel):
+    data: List[WorkflowListItemModel]
+    pagination: PaginationMetadata

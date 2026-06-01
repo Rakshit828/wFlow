@@ -1,5 +1,5 @@
 from src.repositories.workflows import WorkflowRepository, UserRepository
-from src.schemas.workflow import CreateNewWorkflowModel
+from src.schemas.workflow import CreateNewWorkflowModel, WorkflowListItemModel, PaginationMetadata, PaginatedWorkflowsResponse
 from src.db.models import Users, Workflows, WorkflowsStars
 from beanie.odm.operators.update.general import Set
 from beanie.operators import Inc
@@ -8,6 +8,7 @@ from beanie.odm.queries.update import UpdateResponse
 from pymongo.results import UpdateResult
 from beanie import PydanticObjectId
 from fastapi import HTTPException, status
+from typing import Tuple
 
 
 class WorkflowService:
@@ -70,3 +71,96 @@ class WorkflowService:
         new_workflow = await Workflows.insert_one(doc)
 
         return new_workflow
+
+    def _format_workflow_list_item(self, workflow: Workflows) -> WorkflowListItemModel:
+        """Convert Workflows document to WorkflowListItemModel."""
+        return WorkflowListItemModel(
+            workflow_id=str(workflow.id),
+            name=workflow.name,
+            description=workflow.description,
+            visibility=workflow.visibility,
+            stars=workflow.stars,
+            created_by=str(workflow.created_by),
+        )
+
+    def _create_pagination_metadata(
+        self, total: int, page: int, page_size: int
+    ) -> PaginationMetadata:
+        """Create pagination metadata."""
+        total_pages = (total + page_size - 1) // page_size
+        return PaginationMetadata(
+            total=total,
+            page=page,
+            page_size=page_size,
+            total_pages=total_pages,
+            has_next=page < total_pages,
+            has_previous=page > 1,
+        )
+
+    async def get_all_workflows(
+        self, page: int = 1, page_size: int = 10
+    ) -> PaginatedWorkflowsResponse:
+        """
+        Fetch all workflows with pagination.
+        
+        Args:
+            page: Page number (1-indexed)
+            page_size: Number of items per page
+            
+        Returns:
+            PaginatedWorkflowsResponse with workflows and pagination metadata
+        """
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = 10
+
+        workflows, total = await self._workflow_repo.get_all_workflows(
+            page=page, page_size=page_size
+        )
+        
+        formatted_workflows = [
+            self._format_workflow_list_item(wf) for wf in workflows
+        ]
+        pagination = self._create_pagination_metadata(total, page, page_size)
+        
+        return PaginatedWorkflowsResponse(
+            data=formatted_workflows, pagination=pagination
+        )
+
+    async def search_workflows(
+        self, query: str, page: int = 1, page_size: int = 10
+    ) -> PaginatedWorkflowsResponse:
+        """
+        Search workflows by name with pagination.
+        
+        Args:
+            query: Search query string
+            page: Page number (1-indexed)
+            page_size: Number of items per page
+            
+        Returns:
+            PaginatedWorkflowsResponse with matching workflows and pagination metadata
+        """
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = 10
+        if not query or not query.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Search query cannot be empty",
+            )
+
+        workflows, total = await self._workflow_repo.search_workflows_by_name(
+            query=query.strip(), page=page, page_size=page_size
+        )
+        
+        formatted_workflows = [
+            self._format_workflow_list_item(wf) for wf in workflows
+        ]
+        pagination = self._create_pagination_metadata(total, page, page_size)
+        
+        return PaginatedWorkflowsResponse(
+            data=formatted_workflows, pagination=pagination
+        )
