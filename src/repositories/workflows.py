@@ -1,60 +1,49 @@
-from src.db.models import Workflows, WorkflowsStars, Users
-from src.schemas.workflow import CreateNewWorkflowModel
-from src.repositories.auth_repository import UserRepository
-from beanie import PydanticObjectId
+import re
 from typing import Tuple
-
+from beanie import PydanticObjectId
+from src.db.models import Workflows
 
 class WorkflowRepository:
     def __init__(self):
         pass
 
     async def get_workflow_by_id(self, workflow_id: str) -> Workflows | None:
-        workflow = await Workflows.find_one(Workflows.id == PydanticObjectId(workflow_id))
-        return workflow
+        # Beanie automatically handles string-to-ObjectId conversion if you pass a string to .get()
+        return await Workflows.get(workflow_id)
 
     async def get_all_workflows(
         self, page: int = 1, page_size: int = 10
     ) -> Tuple[list[Workflows], int]:
         """
         Fetch all workflows with pagination.
-        
-        Args:
-            page: Page number (1-indexed)
-            page_size: Number of items per page
-            
-        Returns:
-            Tuple of (workflows list, total count)
         """
         skip = (page - 1) * page_size
-        workflows = await Workflows.find().skip(skip).limit(page_size).to_list()
-        total = await Workflows.find().count()
+        
+        # 1. Initialize the find operation expression once
+        query = Workflows.find()
+        
+        # 2. Extract total count and paginated list efficiently
+        total = await query.count()
+        workflows = await query.skip(skip).limit(page_size).to_list()
+        
         return workflows, total
 
     async def search_workflows_by_name(
         self, query: str, page: int = 1, page_size: int = 10
     ) -> Tuple[list[Workflows], int]:
         """
-        Search workflows by name using text search (case-insensitive).
-        
-        Args:
-            query: Search query string
-            page: Page number (1-indexed)
-            page_size: Number of items per page
-            
-        Returns:
-            Tuple of (workflows list, total count)
+        Search workflows by name using case-insensitive regex search.
         """
         skip = (page - 1) * page_size
-        workflows = (
-            await Workflows.find(
-                Workflows.name.as_regex(query, "i")
-            )
-            .skip(skip)
-            .limit(page_size)
-            .to_list()
-        )
-        total = await Workflows.find(
-            Workflows.name.as_regex(query, "i")
-        ).count()
+        
+        # FIX: Use Python's native re.compile for case-insensitive ('i') regex tracking
+        pattern = re.compile(query, re.IGNORECASE)
+        
+        # 1. Initialize the search query expression
+        search_query = Workflows.find(Workflows.name == pattern)
+        
+        # 2. Resolve both values reusing the same expression object
+        total = await search_query.count()
+        workflows = await search_query.skip(skip).limit(page_size).to_list()
+        
         return workflows, total

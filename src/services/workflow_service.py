@@ -1,5 +1,11 @@
-from src.repositories.workflows import WorkflowRepository, UserRepository
-from src.schemas.workflow import CreateNewWorkflowModel, WorkflowListItemModel, PaginationMetadata, PaginatedWorkflowsResponse
+from src.repositories.workflows import WorkflowRepository
+from src.repositories.auth_repository import UserRepository
+from src.schemas.workflow import (
+    CreateNewWorkflowModel,
+    WorkflowListItemModel,
+    PaginationMetadata,
+    PaginatedWorkflowsResponse,
+)
 from src.db.models import Users, Workflows, WorkflowsStars
 from beanie.odm.operators.update.general import Set
 from beanie.operators import Inc
@@ -102,11 +108,11 @@ class WorkflowService:
     ) -> PaginatedWorkflowsResponse:
         """
         Fetch all workflows with pagination.
-        
+
         Args:
             page: Page number (1-indexed)
             page_size: Number of items per page
-            
+
         Returns:
             PaginatedWorkflowsResponse with workflows and pagination metadata
         """
@@ -118,12 +124,10 @@ class WorkflowService:
         workflows, total = await self._workflow_repo.get_all_workflows(
             page=page, page_size=page_size
         )
-        
-        formatted_workflows = [
-            self._format_workflow_list_item(wf) for wf in workflows
-        ]
+
+        formatted_workflows = [self._format_workflow_list_item(wf) for wf in workflows]
         pagination = self._create_pagination_metadata(total, page, page_size)
-        
+
         return PaginatedWorkflowsResponse(
             data=formatted_workflows, pagination=pagination
         )
@@ -133,12 +137,12 @@ class WorkflowService:
     ) -> PaginatedWorkflowsResponse:
         """
         Search workflows by name with pagination.
-        
+
         Args:
             query: Search query string
             page: Page number (1-indexed)
             page_size: Number of items per page
-            
+
         Returns:
             PaginatedWorkflowsResponse with matching workflows and pagination metadata
         """
@@ -155,12 +159,10 @@ class WorkflowService:
         workflows, total = await self._workflow_repo.search_workflows_by_name(
             query=query.strip(), page=page, page_size=page_size
         )
-        
-        formatted_workflows = [
-            self._format_workflow_list_item(wf) for wf in workflows
-        ]
+
+        formatted_workflows = [self._format_workflow_list_item(wf) for wf in workflows]
         pagination = self._create_pagination_metadata(total, page, page_size)
-        
+
         return PaginatedWorkflowsResponse(
             data=formatted_workflows, pagination=pagination
         )
