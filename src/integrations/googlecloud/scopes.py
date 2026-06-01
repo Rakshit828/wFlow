@@ -38,7 +38,6 @@ GOOGLE_SCOPES = {
     "drive.activity": "https://www.googleapis.com/auth/drive.activity",
 
 
-
     # Google Sheets Service
     
     # RESTRICTED: Read, edit, create, and delete all your Google Sheets.

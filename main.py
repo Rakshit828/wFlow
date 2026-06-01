@@ -25,27 +25,27 @@ if __name__ == "__main__":
     pipeline = {
         "nodes": [
             {
-                "key": "llm.google",
-                "name": "google_llm_node1",
+                "key": "llm.groq",
+                "name": "groq_llm_node1",
                 "type": "LLM",
                 "inputs": {"prompt": "Write the advantages of Social Media"},
                 "config": {"response_model": {"output": {"advantages": "str"}}},
                 "outputs": {},
             },
             {
-                "key": "llm.google",
-                "name": "google_llm_node2",
+                "key": "llm.groq",
+                "name": "groq_llm_node2",
                 "type": "LLM",
                 "inputs": {"prompt": "Write the disadvantages of Social Media"},
                 "config": {"response_model": {"output": {"disadvantages": "str"}}},
                 "outputs": {},
             },
             {
-                "key": "llm.google",
-                "name": "google_llm_node3",
+                "key": "llm.groq",
+                "name": "groq_llm_node3",
                 "type": "LLM",
                 "inputs": {
-                    "prompt": "Merge the advantages and disadvantages to make a essay. Advantages : {google_llm_node1.outputs.output.advantages} \n Disadvantages : {google_llm_node2.outputs.output.disadvantages}"
+                    "prompt": "Merge the advantages and disadvantages to make a essay. Advantages : {groq_llm_node1.outputs.output.advantages} \n Disadvantages : {groq_llm_node2.outputs.output.disadvantages}"
                 },
                 "config": {"response_model": {"output": {"essay": "str"}}},
                 "outputs": {},
@@ -57,25 +57,25 @@ if __name__ == "__main__":
                 "inputs": {
                     "to": ["horizonsjf14@gmail.com"],
                     "subject": "Social Media.",
-                    "body": "google_llm_node3.outputs.output.essay",
+                    "body": "groq_llm_node3.outputs.output.essay",
                 },
             },
         ],
         "edges": [
-            {"source": "start", "target": "google_llm_node1", "type": "linear"},
-            {"source": "start", "target": "google_llm_node2", "type": "linear"},
+            {"source": "start", "target": "groq_llm_node1", "type": "linear"},
+            {"source": "start", "target": "groq_llm_node2", "type": "linear"},
             {
-                "source": "google_llm_node1",
-                "target": "google_llm_node3",
+                "source": "groq_llm_node1",
+                "target": "groq_llm_node3",
                 "type": "linear",
             },
             {
-                "source": "google_llm_node2",
-                "target": "google_llm_node3",
+                "source": "groq_llm_node2",
+                "target": "groq_llm_node3",
                 "type": "linear",
             },
             {
-                "source": "google_llm_node3",
+                "source": "groq_llm_node3",
                 "target": "send_gmail_node1",
                 "type": "linear",
             },
@@ -87,12 +87,13 @@ if __name__ == "__main__":
         "nodes": [
             # ── Step 1: Generate 9 outlines ───────────────────────────────────────
             {
-                "key": "llm.google",
-                "name": "google_llm_node1",
+                "key": "llm.groq",
+                "name": "groq_llm_node1",
                 "type": "LLM",
                 "inputs": {"prompt": "Generate me 9 outlines for an essay on Nepal."},
                 "config": {
                     "response_model": {
+                        "name": "outline_model",
                         "type": "object",
                         "properties": {
                             "output": {
@@ -113,15 +114,15 @@ if __name__ == "__main__":
             },
             # ── Step 2: Write 3 article sections in parallel ──────────────────────
             {
-                "key": "llm.google",
-                "name": "google_llm_node2",
+                "key": "llm.groq",
+                "name": "groq_llm_node2",
                 "type": "LLM",
                 "inputs": {
                     "prompt": "Generate me a detailed article section on these topics: {topics}",
                     "topics": (
-                        "google_llm_node1.outputs.output.outlines[0] "
-                        "google_llm_node1.outputs.output.outlines[1] "
-                        "google_llm_node1.outputs.output.outlines[2]"
+                        "groq_llm_node1.outputs.output.outlines[0] "
+                        "groq_llm_node1.outputs.output.outlines[1] "
+                        "groq_llm_node1.outputs.output.outlines[2]"
                     ),
                 },
                 "config": {
@@ -140,15 +141,15 @@ if __name__ == "__main__":
                 "outputs": {},
             },
             {
-                "key": "llm.google",
-                "name": "google_llm_node3",
+                "key": "llm.groq",
+                "name": "groq_llm_node3",
                 "type": "LLM",
                 "inputs": {
                     "prompt": "Generate me a detailed article section on these topics: {topics}",
                     "topics": (
-                        "google_llm_node1.outputs.output.outlines[3] "
-                        "google_llm_node1.outputs.output.outlines[4] "
-                        "google_llm_node1.outputs.output.outlines[5]"
+                        "groq_llm_node1.outputs.output.outlines[3] "
+                        "groq_llm_node1.outputs.output.outlines[4] "
+                        "groq_llm_node1.outputs.output.outlines[5]"
                     ),
                 },
                 "config": {
@@ -167,15 +168,15 @@ if __name__ == "__main__":
                 "outputs": {},
             },
             {
-                "key": "llm.google",
-                "name": "google_llm_node4",
+                "key": "llm.groq",
+                "name": "groq_llm_node4",
                 "type": "LLM",
                 "inputs": {
                     "prompt": "Generate me a detailed article section on these topics: {topics}",
                     "topics": (
-                        "google_llm_node1.outputs.output.outlines[6] "
-                        "google_llm_node1.outputs.output.outlines[7] "
-                        "google_llm_node1.outputs.output.outlines[8]"
+                        "groq_llm_node1.outputs.output.outlines[6] "
+                        "groq_llm_node1.outputs.output.outlines[7] "
+                        "groq_llm_node1.outputs.output.outlines[8]"
                     ),
                 },
                 "config": {
@@ -195,17 +196,17 @@ if __name__ == "__main__":
             },
             # ── Step 3: Merge all sections into one final article ─────────────────
             {
-                "key": "llm.google",
-                "name": "google_llm_node5",
+                "key": "llm.groq",
+                "name": "groq_llm_node5",
                 "type": "LLM",
                 "inputs": {
                     "prompt": (
                         "Merge these article sections into one cohesive final article: {articles}"
                     ),
                     "articles": (
-                        "google_llm_node2.outputs.output.article "
-                        "google_llm_node3.outputs.output.article "
-                        "google_llm_node4.outputs.output.article"
+                        "groq_llm_node2.outputs.output.article "
+                        "groq_llm_node3.outputs.output.article "
+                        "groq_llm_node4.outputs.output.article"
                     ),
                 },
                 "config": {
@@ -234,7 +235,7 @@ if __name__ == "__main__":
                 "inputs": {
                     "condition": "word_count >= min_words",
                     "values": {
-                        "word_count": "google_llm_node5.outputs.output.word_count",
+                        "word_count": "groq_llm_node5.outputs.output.word_count",
                         "min_words": 500,
                     },
                 },
@@ -243,7 +244,7 @@ if __name__ == "__main__":
             },
             # ── Step 5a (True branch): Classify publishing channel ────────────────
             {
-                "key": "llm.google",
+                "key": "llm.groq",
                 "name": "channel_classifier",
                 "type": "LLM",
                 "inputs": {
@@ -252,7 +253,7 @@ if __name__ == "__main__":
                         "indicating the best publishing channel: "
                         "'blog', 'newsletter', or 'social'.\n\nArticle: {article}"
                     ),
-                    "article": "google_llm_node5.outputs.output.final_article",
+                    "article": "groq_llm_node5.outputs.output.final_article",
                 },
                 "config": {
                     "response_model": {
@@ -271,7 +272,7 @@ if __name__ == "__main__":
             },
             # ── Step 5b (False branch): Rewrite the article ───────────────────────
             {
-                "key": "llm.google",
+                "key": "llm.groq",
                 "name": "rewrite_node",
                 "type": "LLM",
                 "inputs": {
@@ -280,7 +281,7 @@ if __name__ == "__main__":
                         "Expand it to at least 500 words while preserving its meaning.\n\n"
                         "Article: {article}"
                     ),
-                    "article": "google_llm_node5.outputs.output.final_article",
+                    "article": "groq_llm_node5.outputs.output.final_article",
                 },
                 "config": {
                     "response_model": {
@@ -313,7 +314,7 @@ if __name__ == "__main__":
             },
             # ── Step 7: Publishers ────────────────────────────────────────────────
             {
-                "key": "llm.google",
+                "key": "llm.groq",
                 "name": "blog_publisher",
                 "type": "LLM",
                 "inputs": {
@@ -321,7 +322,7 @@ if __name__ == "__main__":
                         "Format the following article for a blog post "
                         "with proper headings and an SEO meta description:\n\n{article}"
                     ),
-                    "article": "google_llm_node5.outputs.output.final_article",
+                    "article": "groq_llm_node5.outputs.output.final_article",
                 },
                 "config": {
                     "response_model": {
@@ -339,7 +340,7 @@ if __name__ == "__main__":
                 "outputs": {},
             },
             {
-                "key": "llm.google",
+                "key": "llm.groq",
                 "name": "newsletter_publisher",
                 "type": "LLM",
                 "inputs": {
@@ -347,7 +348,7 @@ if __name__ == "__main__":
                         "Format the following article as an email newsletter "
                         "with a subject line and preview text:\n\n{article}"
                     ),
-                    "article": "google_llm_node5.outputs.output.final_article",
+                    "article": "groq_llm_node5.outputs.output.final_article",
                 },
                 "config": {
                     "response_model": {
@@ -365,7 +366,7 @@ if __name__ == "__main__":
                 "outputs": {},
             },
             {
-                "key": "llm.google",
+                "key": "llm.groq",
                 "name": "social_publisher",
                 "type": "LLM",
                 "inputs": {
@@ -373,7 +374,7 @@ if __name__ == "__main__":
                         "Summarise the following article into 3 punchy social media "
                         "posts (Twitter/LinkedIn):\n\n{article}"
                     ),
-                    "article": "google_llm_node5.outputs.output.final_article",
+                    "article": "groq_llm_node5.outputs.output.final_article",
                 },
                 "config": {
                     "response_model": {
@@ -393,29 +394,29 @@ if __name__ == "__main__":
         ],
         "edges": [
             # ── Entry ──────────────────────────────────────────────────────────────
-            {"source": "start", "target": "google_llm_node1", "type": "linear"},
+            {"source": "start", "target": "groq_llm_node1", "type": "linear"},
             # ── Parallel fan-out ───────────────────────────────────────────────────
             {
-                "source": "google_llm_node1",
-                "target": "google_llm_node2",
+                "source": "groq_llm_node1",
+                "target": "groq_llm_node2",
                 "type": "parallel",
             },
             {
-                "source": "google_llm_node1",
-                "target": "google_llm_node3",
+                "source": "groq_llm_node1",
+                "target": "groq_llm_node3",
                 "type": "parallel",
             },
             {
-                "source": "google_llm_node1",
-                "target": "google_llm_node4",
+                "source": "groq_llm_node1",
+                "target": "groq_llm_node4",
                 "type": "parallel",
             },
             # ── Fan-in (wait for all three sections) ──────────────────────────────
-            {"source": "google_llm_node2", "target": "google_llm_node5", "type": "merge"},
-            {"source": "google_llm_node3", "target": "google_llm_node5", "type": "merge"},
-            {"source": "google_llm_node4", "target": "google_llm_node5", "type": "merge"},
+            {"source": "groq_llm_node2", "target": "groq_llm_node5", "type": "merge"},
+            {"source": "groq_llm_node3", "target": "groq_llm_node5", "type": "merge"},
+            {"source": "groq_llm_node4", "target": "groq_llm_node5", "type": "merge"},
             # ── Quality gate ───────────────────────────────────────────────────────
-            {"source": "google_llm_node5", "target": "quality_gate", "type": "linear"},
+            {"source": "groq_llm_node5", "target": "quality_gate", "type": "linear"},
             # ── If branches ────────────────────────────────────────────────────────
             {
                 "source": "quality_gate",
@@ -467,4 +468,4 @@ if __name__ == "__main__":
             {"source": "rewrite_node", "target": "end", "type": "linear"},
         ],
     }
-    asyncio.run(main(pipeline_str=json.dumps(pipeline_with_control_flow)))
+    asyncio.run(main(pipeline_str=json.dumps(pipeline)))

@@ -31,7 +31,13 @@ class GroqClient(LLMClient):
                     {"role": "system", "content": params.config.system_prompt},
                     {"role": "user", "content": params.prompt},
                 ],
-                response_format={"json_schema": params.config.response_model},
+                response_format={
+                    "json_schema": {
+                        "name": "output_schema",
+                        "schema": params.config.response_model,
+                    },
+                    "type": "json_schema",
+                },
                 stream=False,
             )
             return response.choices[0].message.content

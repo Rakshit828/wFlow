@@ -62,7 +62,6 @@ async def resolve_configs_activity(inputs: WorkflowInput) -> Dict[str, Any]:
 # Workflow
 # ═══════════════════════════════════════════════════════════════════════════════
 
-
 @workflow.defn
 class DynamicWorkflow:
     """

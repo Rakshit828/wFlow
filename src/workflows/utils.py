@@ -20,12 +20,11 @@ class ResolutionErrorCode(Enum):
     TYPE_NOT_SUBSCRIPTABLE = auto()
     COERCION_FAILED = auto()
     MALFORMED_REFERENCE = auto()
+    CONTEXT_PATH_NOT_FOUND = auto()  # ← new
 
 
 @dataclass
 class ResolutionError:
-    """Structured diagnostic produced when a reference cannot be resolved."""
-
     reference: str
     input_key: str
     error_code: ResolutionErrorCode
@@ -44,8 +43,6 @@ class ResolutionError:
 
 @dataclass
 class ResolutionResult:
-    """Return value of resolve_inputs — resolved dict + any diagnostics."""
-
     resolved: dict[str, Any]
     errors: list[ResolutionError] = field(default_factory=list)
 
@@ -54,7 +51,6 @@ class ResolutionResult:
         return bool(self.errors)
 
     def raise_if_errors(self) -> None:
-        """Raise a RuntimeError aggregating all resolution failures."""
         if self.errors:
             msg = "\n".join(str(e) for e in self.errors)
             raise RuntimeError(f"resolve_inputs encountered errors:\n{msg}")
@@ -64,48 +60,52 @@ class ResolutionResult:
             logger.log(level, str(err))
 
 
-# ─── Reference Grammar ────────────────────────────────────────────────────────
+# ─── Reference grammar ────────────────────────────────────────────────────────
 #
-# Full reference syntax (EBNF-ish):
+# Two reference families, both share the default-value clause syntax:
 #
-#   reference    ::= node_ref default_clause?
-#   node_ref     ::= IDENT ".outputs" path_segment+
-#   path_segment ::= "." IDENT ( "[" INT "]" )* ( ".*" )?
-#   default_clause ::= "|" default_value
-#   default_value  ::= quoted_str | number | "true" | "false" | "null"
-#   quoted_str     ::= '"' [^"]* '"' | "'" [^']* "'"
+#   Node reference:
+#       node_name.outputs.path[idx].*  [| default]
 #
-# Examples:
-#   node1.outputs.items[0].title
-#   node2.outputs.result | "fallback"
-#   node3.outputs.tags.*
-#   node4.outputs.matrix[1][2]
+#   Context reference (NEW):
+#       context.path[idx].*            [| default]
+#
+# The regex below matches BOTH families in a single pass.
+# The distinguishing logic is in _resolve_single_reference.
 
 _IDENT = r"[a-zA-Z_][a-zA-Z0-9_]*"
 _INDEX = r"\[\d+\]"
 _WILDCARD = r"\.\*"
 
-# Matches a full node reference optionally followed by "| default"
+# Matches either:
+#   context.<path>
+#   <node>.outputs.<path>
 _REF_CORE = (
-    rf"(?:{_IDENT})"  # node_name
-    rf"\.outputs"  # literal keyword
-    rf"(?:\.{_IDENT}"  # .field
-    rf"(?:{_INDEX})*"  # optional [idx] repetitions
-    rf"(?:{_WILDCARD})?)+"  # optional .* at end of a segment
+    rf"(?:"
+    rf"context"  # context prefix
+    rf"|"
+    rf"(?:{_IDENT})\.outputs"  # node.outputs
+    rf")"
+    rf"(?:\.{_IDENT}(?:{_INDEX})*(?:{_WILDCARD})?)+"  # .field[idx].*
 )
+
 _DEFAULT_CLAUSE = (
     r"(?:\s*\|\s*" r'(?:"[^"]*"|\'[^\']*\'|true|false|null|-?\d+(?:\.\d+)?))?'
 )
+
 REF_PATTERN = re.compile(
-    rf"(?P<ref>{_REF_CORE})" rf"(?P<default>{_DEFAULT_CLAUSE})",
+    rf"(?P<ref>{_REF_CORE})(?P<default>{_DEFAULT_CLAUSE})",
     re.ASCII,
 )
 
-# Lighter pattern used to detect any reference in a string quickly
-_HAS_REF = re.compile(rf"\b{_IDENT}\.outputs\b", re.ASCII)
+# Fast pre-check: does the string contain ANY reference at all?
+_HAS_REF = re.compile(
+    rf"(?:\bcontext\.|\b{_IDENT}\.outputs\.)",
+    re.ASCII,
+)
 
 
-# ─── Path Parsing ─────────────────────────────────────────────────────────────
+# ─── Path parsing ─────────────────────────────────────────────────────────────
 
 
 @dataclass
@@ -116,10 +116,6 @@ class _PathSegment:
 
 
 def _parse_path(raw_path: str) -> list[_PathSegment]:
-    """
-    Parse "field[0][1].other.*" into a list of _PathSegment objects.
-    raw_path is everything after "node.outputs."
-    """
     segments: list[_PathSegment] = []
     parts = raw_path.split(".")
     i = 0
@@ -130,7 +126,6 @@ def _parse_path(raw_path: str) -> list[_PathSegment]:
                 segments[-1].wildcard = True
             i += 1
             continue
-
         idx_matches = re.findall(r"\[(\d+)\]", part)
         attr_name = re.sub(r"\[\d+\]", "", part)
         if not attr_name:
@@ -148,17 +143,15 @@ def _parse_path(raw_path: str) -> list[_PathSegment]:
     return segments
 
 
-# ─── Path Navigation ──────────────────────────────────────────────────────────
+# ─── Path navigation ──────────────────────────────────────────────────────────
 
 _SENTINEL = object()
 
 
 def _get_attr_or_key(obj: Any, key: str) -> Any:
-    """Access obj[key] (dict) or obj.key (object/Pydantic model)."""
     if isinstance(obj, dict):
         return obj.get(key, _SENTINEL)
-    val = getattr(obj, key, _SENTINEL)
-    return val
+    return getattr(obj, key, _SENTINEL)
 
 
 def _navigate(
@@ -167,13 +160,10 @@ def _navigate(
     reference: str,
     input_key: str,
     errors: list[ResolutionError],
+    *,
+    error_code_not_found: ResolutionErrorCode = ResolutionErrorCode.PATH_NOT_FOUND,
 ) -> Any:
-    """
-    Walk the resolved output tree along `segments`.
-    Returns _SENTINEL on failure (error appended to `errors`).
-    """
     current: Any = root
-
     for seg_idx, seg in enumerate(segments):
         val = _get_attr_or_key(current, seg.attr)
         if val is _SENTINEL:
@@ -181,8 +171,11 @@ def _navigate(
                 ResolutionError(
                     reference=reference,
                     input_key=input_key,
-                    error_code=ResolutionErrorCode.PATH_NOT_FOUND,
-                    detail=f"Key/attribute '{seg.attr}' not found in {type(current).__name__}",
+                    error_code=error_code_not_found,
+                    detail=(
+                        f"Key/attribute '{seg.attr}' not found in "
+                        f"{type(current).__name__}"
+                    ),
                     suggestion=(
                         f"Available keys: {list(current.keys())}"
                         if isinstance(current, dict)
@@ -220,7 +213,7 @@ def _navigate(
                             f"length {len(current)} at segment '{seg.attr}'"
                         ),
                         suggestion=(
-                            f"Valid indices: 0..{len(current) - 1}"
+                            f"Valid indices: 0..{len(current)-1}"
                             if current
                             else "Collection is empty"
                         ),
@@ -236,15 +229,24 @@ def _navigate(
                         reference=reference,
                         input_key=input_key,
                         error_code=ResolutionErrorCode.TYPE_NOT_SUBSCRIPTABLE,
-                        detail=f"Wildcard '.*' applied to non-iterable {type(current).__name__}",
+                        detail=(
+                            f"Wildcard '.*' applied to non-iterable "
+                            f"{type(current).__name__}"
+                        ),
                     )
                 )
                 return _SENTINEL
-
             results: list[Any] = []
             for item in current:
                 if remaining:
-                    mapped = _navigate(item, remaining, reference, input_key, errors)
+                    mapped = _navigate(
+                        item,
+                        remaining,
+                        reference,
+                        input_key,
+                        errors,
+                        error_code_not_found=error_code_not_found,
+                    )
                     if mapped is not _SENTINEL:
                         results.append(mapped)
                 else:
@@ -254,12 +256,11 @@ def _navigate(
     return current
 
 
-# ─── Default Value Parsing ────────────────────────────────────────────────────
+# ─── Default value parsing ────────────────────────────────────────────────────
 
 
-def _parse_default(default_clause: str) -> Any:
-    """Parse '| default_value' string into a Python value."""
-    raw = default_clause.strip().lstrip("|").strip()
+def _parse_default(clause: str) -> Any:
+    raw = clause.strip().lstrip("|").strip()
     if raw in ("null", ""):
         return None
     if raw == "true":
@@ -274,14 +275,9 @@ def _parse_default(default_clause: str) -> Any:
         return raw
 
 
-# ─── Type Coercion ────────────────────────────────────────────────────────────
+# ─── Type coercion ────────────────────────────────────────────────────────────
 
-_COERCE_MAP: dict[type, type] = {
-    int: int,
-    float: float,
-    bool: bool,
-    str: str,
-}
+_COERCE_MAP: dict[type, type] = {int: int, float: float, bool: bool, str: str}
 
 
 def _coerce(
@@ -291,31 +287,24 @@ def _coerce(
     input_key: str,
     errors: list[ResolutionError],
 ) -> Any:
-    """Attempt to cast `value` to `target_type`. Returns value unchanged on failure."""
     if target_type is None or isinstance(value, target_type):
         return value
-
     origin = get_origin(target_type)
-
     if origin is Union:
-        inner_types = [t for t in get_args(target_type) if t is not type(None)]
-        for t in inner_types:
+        for t in [t for t in get_args(target_type) if t is not type(None)]:
             result = _coerce(value, t, reference, input_key, [])
             if result is not _SENTINEL:
                 return result
         return value
-
     if origin in (list, tuple) and isinstance(value, (list, tuple)):
         args = get_args(target_type)
         item_type = args[0] if args else None
         if item_type:
             return [_coerce(v, item_type, reference, input_key, errors) for v in value]
         return list(value)
-
     coerce_fn = _COERCE_MAP.get(target_type)
     if coerce_fn is None:
         return value
-
     try:
         return coerce_fn(value)
     except (ValueError, TypeError) as exc:
@@ -324,49 +313,91 @@ def _coerce(
                 reference=reference,
                 input_key=input_key,
                 error_code=ResolutionErrorCode.COERCION_FAILED,
-                detail=f"Cannot coerce {type(value).__name__} → {target_type.__name__}: {exc}",
-                suggestion=f"Ensure '{reference}' produces a value compatible with {target_type.__name__}",
+                detail=(
+                    f"Cannot coerce {type(value).__name__} → "
+                    f"{target_type.__name__}: {exc}"
+                ),
+                suggestion=(
+                    f"Ensure '{reference}' produces a value compatible "
+                    f"with {target_type.__name__}"
+                ),
             )
         )
         return value
 
 
-# ─── Core Reference Resolver ──────────────────────────────────────────────────
+# ─── Context reference resolver (NEW) ─────────────────────────────────────────
 
 
-def _resolve_single_reference(
-    reference: str,
-    outputs: dict[str, Any],
+def _resolve_context_reference(
+    reference: str,  # full match string e.g. "context.user.name | 'anon'"
+    ref_core: str,  # just the path part e.g. "context.user.name"
+    context: dict[str, Any],
     input_key: str,
     errors: list[ResolutionError],
-    default: Any = _SENTINEL,
+    default: Any,
+    default_clause: str,
 ) -> Any:
     """
-    Resolve a single reference string like "node.outputs.field[0].sub" to its value.
+    Resolve a `context.path.to.value` reference against the pipeline context dict.
+
+    The `context` prefix is stripped, and the remainder is navigated as a
+    dotted path (with optional array indices and wildcards) through the
+    context dict.
     """
-    m = REF_PATTERN.match(reference.strip())
-    if not m:
-        errors.append(
-            ResolutionError(
-                reference=reference,
-                input_key=input_key,
-                error_code=ResolutionErrorCode.MALFORMED_REFERENCE,
-                detail="Reference does not match expected pattern 'node.outputs.path'",
-                suggestion="Format: node_name.outputs.field[idx].nested.*",
-            )
-        )
-        return default if default is not _SENTINEL else reference
-
-    ref_core = m.group("ref")
-    default_clause = m.group("default") or ""
-
+    # Determine effective default
     resolved_default: Any = _SENTINEL
     if default_clause.strip():
         resolved_default = _parse_default(default_clause)
     elif default is not _SENTINEL:
         resolved_default = default
 
-    parts = ref_core.split(".", 2)  # ["node_name", "outputs", "path..."]
+    # Strip the leading "context." prefix to get the path
+    # ref_core looks like "context.some.path[0]"
+    path_after_context = ref_core[len("context.") :]  # "some.path[0]"
+    if not path_after_context:
+        # bare "context" reference — return the whole context dict
+        return context
+
+    segments = _parse_path(path_after_context)
+    value = _navigate(
+        context,
+        segments,
+        reference,
+        input_key,
+        errors,
+        error_code_not_found=ResolutionErrorCode.CONTEXT_PATH_NOT_FOUND,
+    )
+
+    if value is _SENTINEL:
+        return resolved_default if resolved_default is not _SENTINEL else reference
+
+    return value
+
+
+# ─── Node output reference resolver ──────────────────────────────────────────
+
+
+def _resolve_node_reference(
+    reference: str,
+    ref_core: str,
+    outputs: dict[str, Any],
+    input_key: str,
+    errors: list[ResolutionError],
+    default: Any,
+    default_clause: str,
+) -> Any:
+    """
+    Resolve a `node_name.outputs.path` reference against accumulated node outputs.
+    Unchanged from previous version.
+    """
+    resolved_default: Any = _SENTINEL
+    if default_clause.strip():
+        resolved_default = _parse_default(default_clause)
+    elif default is not _SENTINEL:
+        resolved_default = default
+
+    parts = ref_core.split(".", 2)  # ["node", "outputs", "path..."]
     node_name = parts[0]
 
     if len(parts) < 3:
@@ -383,8 +414,6 @@ def _resolve_single_reference(
             return resolved_default if resolved_default is not _SENTINEL else reference
         return outputs[node_name]
 
-    raw_path = parts[2]
-
     if node_name not in outputs:
         if resolved_default is not _SENTINEL:
             return resolved_default
@@ -399,8 +428,14 @@ def _resolve_single_reference(
         )
         return reference
 
-    segments = _parse_path(raw_path)
-    value = _navigate(outputs[node_name], segments, reference, input_key, errors)
+    segments = _parse_path(parts[2])
+    value = _navigate(
+        outputs[node_name],
+        segments,
+        reference,
+        input_key,
+        errors,
+    )
 
     if value is _SENTINEL:
         return resolved_default if resolved_default is not _SENTINEL else reference
@@ -408,66 +443,111 @@ def _resolve_single_reference(
     return value
 
 
-# ─── Single-value resolver (used recursively) ─────────────────────────────────
+# ─── Unified single-reference resolver ───────────────────────────────────────
+
+
+def _resolve_single_reference(
+    reference: str,
+    outputs: dict[str, Any],
+    context: dict[str, Any],
+    input_key: str,
+    errors: list[ResolutionError],
+    default: Any = _SENTINEL,
+) -> Any:
+    """
+    Dispatch to either _resolve_context_reference or _resolve_node_reference
+    based on whether the reference starts with `context.`.
+    """
+    m = REF_PATTERN.match(reference.strip())
+    if not m:
+        errors.append(
+            ResolutionError(
+                reference=reference,
+                input_key=input_key,
+                error_code=ResolutionErrorCode.MALFORMED_REFERENCE,
+                detail="Reference does not match expected pattern",
+                suggestion=(
+                    "Node ref:    node_name.outputs.field[idx]\n"
+                    "Context ref: context.key.nested_key"
+                ),
+            )
+        )
+        return default if default is not _SENTINEL else reference
+
+    ref_core = m.group("ref")
+    default_clause = m.group("default") or ""
+
+    # ── Dispatch on prefix ────────────────────────────────────────────────────
+    if ref_core.startswith("context.") or ref_core == "context":
+        return _resolve_context_reference(
+            reference, ref_core, context, input_key, errors, default, default_clause
+        )
+    else:
+        return _resolve_node_reference(
+            reference, ref_core, outputs, input_key, errors, default, default_clause
+        )
+
+
+# ─── Recursive value resolver ─────────────────────────────────────────────────
 
 
 def _resolve_value(
     value: Any,
     outputs: dict[str, Any],
+    context: dict[str, Any],
     input_key: str,
     all_errors: list[ResolutionError],
     type_hints: dict[str, type],
     *,
-    _top_level_key: str | None = None,  # the root inputs key, for type hint lookup
+    _top_level_key: str | None = None,
 ) -> Any:
     """
-    Resolve a single value which may be:
-      • a string  — scanned for node references and/or sibling placeholders
-      • a dict    — recursively resolved (enables nested inputs like `values: {...}`)
-      • a list    — each element recursively resolved
-      • anything else — passed through as-is
+    Recursively resolve a single value — string, dict, list, or scalar.
 
-    This is the core recursive workhorse called from both PASS 1 (for top-level
-    inputs entries) and from itself when descending into nested dicts/lists.
-
-    `_top_level_key` is the key under `inputs` we're currently resolving;
-    it is used to look up type hints for the outermost value only.
+    Dicts and lists are walked in full so nested references (e.g. inside an
+    if_node's `values` dict) are resolved correctly.
     """
     lookup_key = _top_level_key or input_key
 
     # ── dict: recurse into every value ───────────────────────────────────────
     if isinstance(value, dict):
         return {
-            k: _resolve_value(v, outputs, f"{input_key}.{k}", all_errors, type_hints)
+            k: _resolve_value(
+                v, outputs, context, f"{input_key}.{k}", all_errors, type_hints
+            )
             for k, v in value.items()
         }
 
     # ── list: recurse into every element ─────────────────────────────────────
     if isinstance(value, list):
         return [
-            _resolve_value(item, outputs, f"{input_key}[{i}]", all_errors, type_hints)
+            _resolve_value(
+                item, outputs, context, f"{input_key}[{i}]", all_errors, type_hints
+            )
             for i, item in enumerate(value)
         ]
 
-    # ── non-string scalar: pass through (with optional top-level coercion) ───
+    # ── non-string scalar ─────────────────────────────────────────────────────
     if not isinstance(value, str):
         target_type = type_hints.get(lookup_key)
-        if target_type:
-            return _coerce(value, target_type, "<static>", input_key, all_errors)
-        return value
+        return (
+            _coerce(value, target_type, "<static>", input_key, all_errors)
+            if target_type
+            else value
+        )
 
-    # ── string: fast-path if no reference pattern present ────────────────────
+    # ── fast path: no reference present ──────────────────────────────────────
     if not _HAS_REF.search(value):
-        return value  # sibling placeholder substitution happens in PASS 2
+        return value  # sibling placeholder substitution handled in pass 2
 
-    # ── find all node references ──────────────────────────────────────────────
+    # ── find all references ───────────────────────────────────────────────────
     ref_matches = list(REF_PATTERN.finditer(value))
     if not ref_matches:
         return value
 
     target_type = type_hints.get(lookup_key)
 
-    # Determine whether this is a template or a pure reference
+    # Template vs pure-reference detection
     stripped = REF_PATTERN.sub("", value).strip()
     is_template = bool(stripped) or ("{" in value and "}" in value)
 
@@ -476,7 +556,7 @@ def _resolve_value(
         for m in ref_matches:
             full_match = m.group(0)
             resolved_val = _resolve_single_reference(
-                full_match, outputs, input_key, all_errors
+                full_match, outputs, context, input_key, all_errors
             )
             resolved_str = resolved_str.replace(
                 "{" + full_match + "}", str(resolved_val)
@@ -489,8 +569,10 @@ def _resolve_value(
         )
 
     else:
-        resolved_values: list[Any] = [
-            _resolve_single_reference(m.group(0), outputs, input_key, all_errors)
+        resolved_values = [
+            _resolve_single_reference(
+                m.group(0), outputs, context, input_key, all_errors
+            )
             for m in ref_matches
         ]
         final: Any = (
@@ -509,105 +591,87 @@ def _resolve_value(
 def resolve_inputs(
     inputs: dict[str, Any],
     outputs: dict[str, Any],
-    type_hints: Optional[dict[str, type]] = None,
+    context: dict[str, Any] | None = None,  # ← NEW parameter
+    type_hints: dict[str, type] | None = None,
     *,
     strict: bool = False,
     log_level: int = logging.WARNING,
 ) -> ResolutionResult:
     """
-    Resolve all input references based on previous node outputs.
+    Resolve all input references based on previous node outputs and/or the
+    pipeline context dict.
 
-    Handles arbitrarily nested dicts and lists, so inputs like:
+    Reference formats
+    ─────────────────
+    Node output reference (unchanged):
+        node_name.outputs.field
+        node_name.outputs.items[0].title
+        node_name.outputs.items.*.title
+        node_name.outputs.val | "fallback"
 
-        {
-            "condition": "word_count >= min_words",
-            "values": {
-                "word_count": "groq_llm_node2.outputs.output.word_count",
-                "min_words": 500,
-            }
-        }
+    Context reference (NEW):
+        context.key
+        context.nested.key
+        context.items[0]
+        context.flags | false
 
-    correctly resolve the references inside the nested ``values`` dict.
+    Template interpolation works for both:
+        "Hello {context.user_name}, here is {node.outputs.summary}!"
 
-    Supported reference formats (anywhere in the tree):
-
-    ┌──────────────────────────────────────────────────────────────────────┐
-    │  Format                      │  Example                              │
-    ├──────────────────────────────┼───────────────────────────────────────┤
-    │  Direct                      │  node.outputs.field                   │
-    │  Nested path                 │  node.outputs.a.b.c                   │
-    │  Array index                 │  node.outputs.items[0].title          │
-    │  Multi-dimensional index     │  node.outputs.matrix[1][2]            │
-    │  Wildcard / map              │  node.outputs.items.*.title           │
-    │  Default value               │  node.outputs.val | "fallback"        │
-    │  Template interpolation      │  "Hello {node.outputs.name}!"         │
-    │  Space-separated multi-ref   │  node1.outputs.x node2.outputs.y      │
-    │  Sibling-key placeholder     │  "Topics: {topics}"  (key in inputs)  │
-    │  Nested dict values          │  {"key": "node.outputs.field"}        │
-    │  Nested list elements        │  ["node.outputs.x", "node.outputs.y"] │
-    └──────────────────────────────┴───────────────────────────────────────┘
+    Sibling-key placeholders (pass 2):
+        topics = "node.outputs.outlines"
+        prompt = "Write about {topics}"   ← resolved after pass 1
 
     Args:
-        inputs:     Dict of input key → value (may contain references at any depth).
-        outputs:    Dict of node_name → output produced by that node.
-        type_hints: Optional dict of input key → Python type for coercion.
-        strict:     If True, raises RuntimeError when any reference fails.
-        log_level:  Python logging level for emitting resolution errors.
+        inputs:     Dict of input key → value (references at any depth).
+        outputs:    Dict of node_name → output from previous executions.
+        context:    Pipeline.context dict (runtime / user-defined variables).
+                    Defaults to {} if not provided.
+        type_hints: Optional {key: type} for automatic coercion.
+        strict:     Raise RuntimeError on any unresolved reference.
+        log_level:  Log level for resolution warnings.
 
     Returns:
-        ResolutionResult with `.resolved` dict and `.errors` list.
+        ResolutionResult with .resolved dict and .errors list.
     """
+    context = context or {}
     type_hints = type_hints or {}
     all_errors: list[ResolutionError] = []
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # PASS 1 — Recursively resolve all node-output references
-    #
-    # _resolve_value handles strings, dicts, lists, and scalars uniformly.
-    # Nested dicts (e.g. the `values` field of an if_node) are walked in full
-    # so every leaf string is checked for references.
-    # ══════════════════════════════════════════════════════════════════════════
+    # ── Pass 1: resolve all node-output and context references ────────────────
     pass1: dict[str, Any] = {}
-
     for key, value in inputs.items():
         pass1[key] = _resolve_value(
-            value, outputs, key, all_errors, type_hints, _top_level_key=key
+            value,
+            outputs,
+            context,
+            key,
+            all_errors,
+            type_hints,
+            _top_level_key=key,
         )
 
-    # ══════════════════════════════════════════════════════════════════════════
-    # PASS 2 — Substitute {sibling_key} placeholders in top-level strings only
-    #
-    # After node references are resolved, some string values may still contain
-    # {key} placeholders referring to other input keys resolved in pass 1.
-    # We only do this at the top level (not recursing into nested dicts) because
-    # nested dicts are self-contained argument bags for their node's input model.
-    #
-    # Rules:
-    #   • Only string values containing {…} tokens are processed.
-    #   • Only tokens matching a key in `inputs` are substituted.
-    #   • list → comma-separated; other → str().
-    #   • Unknown tokens are left intact.
-    # ══════════════════════════════════════════════════════════════════════════
+    # ── Pass 2: substitute {sibling_key} placeholders in top-level strings ───
     _PLACEHOLDER = re.compile(r"\{([^}]+)\}")
 
     result_dict: dict[str, Any] = {}
-
     for key, value in pass1.items():
         if not isinstance(value, str) or "{" not in value:
             result_dict[key] = value
             continue
 
-        def _replace_placeholder(m: re.Match, _pass1: dict = pass1) -> str:
+        def _replace(m: re.Match, _p1: dict = pass1) -> str:
             token = m.group(1).strip()
-            if token not in _pass1:
+            if token not in _p1:
                 return m.group(0)
-            sibling = _pass1[token]
-            if isinstance(sibling, list):
-                return ", ".join(str(v) for v in sibling)
-            return str(sibling)
+            sibling = _p1[token]
+            return (
+                ", ".join(str(v) for v in sibling)
+                if isinstance(sibling, list)
+                else str(sibling)
+            )
 
-        substituted = _PLACEHOLDER.sub(_replace_placeholder, value)
-
+        substituted = _PLACEHOLDER.sub(_replace, value)
         target_type = type_hints.get(key)
         result_dict[key] = (
             _coerce(substituted, target_type, value, key, all_errors)
@@ -617,10 +681,8 @@ def resolve_inputs(
 
     result = ResolutionResult(resolved=result_dict, errors=all_errors)
     result.log_errors(log_level)
-
     if strict:
         result.raise_if_errors()
-
     return result
 
 

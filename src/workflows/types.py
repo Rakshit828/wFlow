@@ -74,6 +74,8 @@ class Pipeline(BaseModel):
     nodes: List[Node]
     edges: List[Edge]
 
+    context: Dict[str, Any] = {} # Holds the runtime or user created variables
+
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
@@ -116,9 +118,6 @@ class ParsedNodeData(BaseModel):
         return self
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
-
-# ─── Execution plan produced by the planner ───────────────────────────────────
 
 
 class ExecutionStepKind(str, enum.Enum):
