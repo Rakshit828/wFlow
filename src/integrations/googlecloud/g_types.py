@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, HttpUrl, Field, ConfigDict, computed_field
-from typing import Optional, List
+from typing import Optional, List, Literal
 from src.integrations.googlecloud.scopes import (
     GOOGLE_EMAIL_ONLY_OPENID_SCOPE,
     GOOGLE_SERVICES,
@@ -9,6 +9,9 @@ from datetime import datetime
 from typing import TypedDict, List
 from enum import Enum
 
+SERVICE_THAT_SHOULD_BE_REPLACED_BY_IN_BASE_URL: list = [
+    "gmail", "gsheets"
+]
 
 class GoogleApiErrorDetail(TypedDict):
     message: str

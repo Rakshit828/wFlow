@@ -7,13 +7,14 @@ from fastapi import APIRouter, Depends, Query, UploadFile, File, Form
 from src.api.dependencies import (
     AccessTokenBearer,
 )
+from src.config import CONFIG
 from src.utils.file_uploads import AsyncLocalStorageClient
 
 pipeline_router = APIRouter()
 
 
 internal_storage_client = AsyncLocalStorageClient(
-    base_storage_dir="/tmp/workflow_files"
+    base_storage_dir=CONFIG.LOCAL_STORAGE_PATH
 )
 
 

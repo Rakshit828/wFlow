@@ -25,6 +25,24 @@ from src.integrations.googlecloud.gsheets import (
     UpdateCellValuesInput,
     UpdateCellValuesResponse,
 )
+from src.integrations.googlecloud.drive import (
+    upload_file_on_drive,
+    UploadFileDriveInput,
+    UploadFileDriveResponse,
+)
+
+UPLOAD_FILE_ON_DRIVE_NODE = ApplicationNode(
+    key="drive.upload",
+    name="upload_file_on_drive",
+    fn=upload_file_on_drive,
+    service="google.drive",
+    valid_permissions=["drive.fullaccess", "drive.file", "drive.activity"],
+    type=NodesTypeEnum.ACTION,
+    description="Upload a file to Google Drive.",
+    node_input_model=UploadFileDriveInput,
+    node_output_model=UploadFileDriveResponse,
+)
+
 
 CREATE_GOOGLE_SHEET_NODE = ApplicationNode(
     key="sheets.create_google_sheet",
@@ -94,7 +112,7 @@ LIST_USER_GMAIL_LABELS_NODE = ApplicationNode(
     name="list_gmail_labels",
     fn=list_gmail_labels,
     service="google.gmail",
-    valid_permissions=[ 
+    valid_permissions=[
         "gmail.readonly",
         "gmail.fullaccess",
         "gmail.metadata",

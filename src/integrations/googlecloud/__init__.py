@@ -9,6 +9,8 @@ from src.integrations.googlecloud.g_types import (
     GoogleApiErrorDetail,
     GoogleApiErrorResponse,
     GoogleErrorStatus,
+
+    SERVICE_THAT_SHOULD_BE_REPLACED_BY_IN_BASE_URL
 )
 from src.integrations.googlecloud.shared import CommonGoogleConfigModel
 from src.integrations.googlecloud.google_api_client import GoogleAPIClient
@@ -28,4 +30,5 @@ __all__ = [
     "GoogleApiErrorResponse",
     "GoogleErrorStatus",
     "CommonGoogleConfigModel",
+    "SERVICE_THAT_SHOULD_BE_REPLACED_BY_IN_BASE_URL"
 ]

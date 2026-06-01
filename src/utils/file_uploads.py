@@ -5,7 +5,7 @@ from typing import AsyncIterator
 
 
 class AsyncLocalStorageClient:
-    def __init__(self, base_storage_dir: str = "/tmp/pipeline_storage"):
+    def __init__(self, base_storage_dir: str):
         self.base_dir = base_storage_dir
 
     async def _ensure_dir(self):

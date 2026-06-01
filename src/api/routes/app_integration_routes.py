@@ -12,8 +12,6 @@ from src.services.app_integration_service import GoogleIntegrationService
 
 integration_router = APIRouter()
 
-
-
 # @integration_router.get("/discord/url")
 # async def discord_login_redirect(
 #     tier: Literal["basic", "pro"] = Query(...),

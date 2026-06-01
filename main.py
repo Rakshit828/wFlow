@@ -82,7 +82,49 @@ if __name__ == "__main__":
             {"source": "send_gmail_node1", "target": "end", "type": "linear"},
         ],
     }
-
+    drive_upload_pipeline = {
+        "nodes": [
+            {
+                "key": "llm.groq",
+                "name": "groq_llm_node1",
+                "type": "LLM",
+                "inputs": {"prompt": "Generate me very very short essay on Social Media."},
+                "config": {
+                    "response_model": {
+                        "type": "object",
+                        "properties": {
+                            "output": {
+                                "type": "object",
+                                "properties": {"essay": {"type": "string"}},
+                                "required": ["essay"],
+                            }
+                        },
+                        "required": ["output"],
+                    }
+                },
+                "outputs": {},
+            },
+            {
+                "key": "drive.upload",
+                "name": "drive_upload_node1",
+                "type": "ACTION",
+                "inputs": {
+                    "content_ref": "groq_llm_node1.outputs.output.essay",
+                    "filename": "social_media_essay.txt",
+                    "mime_type": "text/plain",
+                },
+            },
+        ],
+        "edges": [
+            {"source": "start", "target": "groq_llm_node1", "type": "linear"},
+            {
+                "source": "groq_llm_node1",
+                "target": "drive_upload_node1",
+                "type": "linear",
+            },
+            {"source": "drive_upload_node1", "target": "end", "type": "linear"},
+        ],
+    }
     pipeline_with_control_flow = {
         "nodes": [
             # ── Step 1: Generate 9 outlines ───────────────────────────────────────
@@ -468,4 +510,4 @@ if __name__ == "__main__":
             {"source": "rewrite_node", "target": "end", "type": "linear"},
         ],
     }
-    asyncio.run(main(pipeline_str=json.dumps(pipeline)))
+    asyncio.run(main(pipeline_str=json.dumps(drive_upload_pipeline)))

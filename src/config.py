@@ -32,6 +32,8 @@ class Config(BaseSettings):
     ACCESS_TOKEN_EXPIRY: str
     REFRESH_TOKEN_EXPIRY: str
 
+    LOCAL_STORAGE_PATH: str
+
     @property
     def GOOGLE_LOGIN_REDIRECT_URL(self) -> str:
         return self.BASE_LOGIN_REDIRECT_URL.format(provider="google")

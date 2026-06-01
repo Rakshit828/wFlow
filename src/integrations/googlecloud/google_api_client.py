@@ -4,7 +4,10 @@ from datetime import datetime, timedelta
 from loguru import logger
 
 from src.config import CONFIG
-from src.integrations.googlecloud import CredentialsModel
+from src.integrations.googlecloud import (
+    CredentialsModel,
+    SERVICE_THAT_SHOULD_BE_REPLACED_BY_IN_BASE_URL,
+)
 from src.integrations.googlecloud import GoogleErrorStatus, GoogleApiErrorResponse
 from src.repositories.app_integrations import AppIntegrationsRepository
 
@@ -22,7 +25,11 @@ class GoogleAPIClient:
         self.__client = httpx.AsyncClient(timeout=req_timeout, **kwargs)
         self.__integration_repo: AppIntegrationsRepository = integration_repo
         self.__credentials: CredentialsModel = credentials
-        self.base_url = base_url.replace("www", service)
+        self.base_url = (
+            base_url.replace("www", service)
+            if service in SERVICE_THAT_SHOULD_BE_REPLACED_BY_IN_BASE_URL
+            else base_url
+        )
 
         print(f"\nCredentials are : {self.__credentials}\n (from GoogleAPIClient)")
 
@@ -82,10 +89,12 @@ class GoogleAPIClient:
     ) -> Tuple[httpx.Response, dict]:
 
         if requires_bearer_token:
-            kwargs["headers"] = {}
-
+            headers = kwargs.get("headers", {})
+            
             if not is_refresh:
-                kwargs["headers"] = self._set_authorization_header(kwargs["headers"])
+                headers = self._set_authorization_header(headers)
+            
+            kwargs["headers"] = headers
 
         url = f"{self.base_url}/{endpoint.lstrip('/')}" if use_base_url else endpoint
         response = await self.__client.request(method, url, **kwargs)
