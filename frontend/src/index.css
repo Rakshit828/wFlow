@@ -56,11 +56,18 @@
     font-family: 'Outfit', sans-serif;
   }
   
+  html {
+    font-size: 106.25%; /* 17px — slightly larger base for readability */
+  }
+
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
+    font-size: 0.9375rem; /* 15px at 16px root; scales with html */
+    line-height: 1.55;
     font-feature-settings: "rlig" 1, "calt" 1;
     overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
   }
 
   code, pre {
@@ -188,7 +195,7 @@
 
 /* Edge label styling */
 .react-flow__edge-text {
-  font-size: 9px !important;
+  font-size: 11px !important;
   font-weight: 600;
   fill: hsl(var(--foreground)) !important;
 }

@@ -1,13 +1,12 @@
 import React from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import {
-  Workflow,
   Moon,
   Sun,
   Monitor,
   Zap,
   ArrowLeft,
-  LayoutDashboard,
+  FileJson,
 } from 'lucide-react';
 import { FlowCanvas } from './components/canvas/FlowCanvas';
 import { SidebarCatalog } from './components/canvas/SidebarCatalog';
@@ -15,7 +14,6 @@ import { PropertiesPanel } from './components/canvas/PropertiesPanel';
 import { EdgePropertiesPanel } from './components/canvas/EdgePropertiesPanel';
 import { JsonTracker } from './components/canvas/JsonTracker';
 import { Dashboard } from './components/dashboard/Dashboard';
-import { EditorToolbar } from './components/layout/EditorToolbar';
 import { useWorkflowStore } from './store/useWorkflowStore';
 
 type AppView = 'dashboard' | 'editor';
@@ -25,7 +23,7 @@ function App() {
   const [view, setView] = React.useState<AppView>('dashboard');
   const [theme, setTheme] = React.useState<ThemeMode>('dark');
   const [jsonOpen, setJsonOpen] = React.useState(false);
-  const { workflowName, activeNodeId, activeEdgeId } = useWorkflowStore();
+  const { activeNodeId, activeEdgeId } = useWorkflowStore();
 
   React.useEffect(() => {
     const root = document.documentElement;
@@ -56,14 +54,14 @@ function App() {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-background text-foreground overflow-hidden">
-      <header className="h-12 flex items-center justify-between px-4 border-b border-border bg-card/80 backdrop-blur-md z-50 shrink-0">
+      <header className="h-14 flex items-center justify-between px-4 border-b border-border bg-card/80 backdrop-blur-md z-50 shrink-0">
         <div className="flex items-center gap-3">
           {view === 'editor' && (
             <button
               onClick={() => setView('dashboard')}
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors mr-2"
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mr-2"
             >
-              <ArrowLeft size={14} />
+              <ArrowLeft size={16} />
               <span className="hidden sm:inline">Dashboard</span>
             </button>
           )}
@@ -71,34 +69,26 @@ function App() {
             <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20">
               <Zap className="text-primary" size={16} />
             </div>
-            <h1 className="text-sm font-bold tracking-wide">
+            <h1 className="text-base font-bold tracking-wide">
               wFlow
-              <span className="text-[9px] ml-1.5 text-muted-foreground font-normal uppercase tracking-widest">
+              <span className="text-[11px] ml-1.5 text-muted-foreground font-normal uppercase tracking-widest">
                 {view === 'editor' ? 'Editor' : 'Dashboard'}
               </span>
             </h1>
           </div>
-          {view === 'editor' && (
-            <div className="hidden md:flex items-center gap-1.5 ml-4 text-[11px] text-muted-foreground">
-              <Workflow size={12} className="text-primary/60" />
-              <span className="font-medium text-foreground/80 max-w-[200px] truncate">
-                {workflowName}
-              </span>
-            </div>
-          )}
         </div>
 
         <div className="flex items-center gap-2">
           {view === 'editor' && (
             <button
               onClick={() => setJsonOpen(!jsonOpen)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all border ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-semibold transition-all border ${
                 jsonOpen
                   ? 'bg-primary/10 text-primary border-primary/30'
                   : 'bg-card text-muted-foreground border-border hover:text-foreground'
               }`}
             >
-              <LayoutDashboard size={12} />
+              <FileJson size={14} />
               JSON
             </button>
           )}
@@ -120,7 +110,6 @@ function App() {
             <div className="flex h-full w-full">
               <SidebarCatalog />
               <div className="flex-1 flex flex-col relative">
-                <EditorToolbar />
                 <FlowCanvas />
                 {jsonOpen && <JsonTracker onClose={() => setJsonOpen(false)} />}
               </div>

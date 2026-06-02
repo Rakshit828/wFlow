@@ -366,7 +366,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
 
                     {/* Footer metadata */}
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         {w.visibility === 'public' ? (
                           <span className="flex items-center gap-1">
                             <Globe size={10} className="text-emerald-400" />
@@ -386,7 +386,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
 
                       <button
                         onClick={(e) => handleStar(e, w.workflow_id)}
-                        className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-amber-400 transition-colors"
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-amber-400 transition-colors"
                       >
                         <Star size={11} className={w.stars > 0 ? 'text-amber-400 fill-amber-400' : ''} />
                         {w.stars}
@@ -415,11 +415,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
                     <h3 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors truncate">
                       {w.name}
                     </h3>
-                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                    <p className="text-sm text-muted-foreground truncate mt-0.5">
                       {w.description}
                     </p>
                   </div>
-                  <div className="flex items-center gap-4 shrink-0 text-[10px] text-muted-foreground">
+                  <div className="flex items-center gap-4 shrink-0 text-xs text-muted-foreground">
                     {w.visibility === 'public' ? (
                       <span className="flex items-center gap-1">
                         <Globe size={10} className="text-emerald-400" />
@@ -510,7 +510,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
 
         {/* Footer stats */}
         {pagination && (
-          <div className="text-center text-[11px] text-muted-foreground pb-4">
+          <div className="text-center text-sm text-muted-foreground pb-4">
             Showing {workflows.length} of {pagination.total} workflows · Page {pagination.page} of {pagination.total_pages}
           </div>
         )}

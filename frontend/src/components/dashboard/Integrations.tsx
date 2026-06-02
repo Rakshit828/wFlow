@@ -51,7 +51,7 @@ export const Integrations: React.FC = () => {
           <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
             Account
           </h3>
-          <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+          <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
             Login stores a secure session cookie. Required to save workflows and connect Google services.
           </p>
           <button
@@ -95,14 +95,14 @@ export const Integrations: React.FC = () => {
       </div>
 
       <div className="mt-4 p-4 rounded-xl bg-muted/30 border border-border">
-        <p className="text-[10px] text-muted-foreground mb-2 font-semibold uppercase tracking-wide">
+        <p className="text-xs text-muted-foreground mb-2 font-semibold uppercase tracking-wide">
           Nodes requiring Google permissions ({googleNodes.length})
         </p>
         <div className="flex flex-wrap gap-1.5">
           {googleNodes.map((n) => (
             <span
               key={n.key}
-              className="text-[9px] px-2 py-0.5 rounded-full bg-card border border-border text-muted-foreground"
+              className="text-xs px-2 py-0.5 rounded-full bg-card border border-border text-muted-foreground"
             >
               {n.name}
             </span>

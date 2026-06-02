@@ -121,15 +121,15 @@ export const JsonTracker: React.FC<JsonTrackerProps> = ({ onClose }) => {
   };
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 h-[45%] z-30 flex flex-col border-t border-slate-800 bg-slate-950/95 backdrop-blur-xl shadow-[0_-10px_30px_-5px_rgba(0,0,0,0.6)] animate-slide-up">
+    <div className="absolute bottom-0 left-0 right-0 h-[45%] z-30 flex flex-col border-t border-border bg-card/95 backdrop-blur-xl shadow-[0_-10px_30px_-5px_rgba(0,0,0,0.6)] animate-slide-up">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-800/80 bg-slate-900/40 shrink-0">
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-muted/30 shrink-0">
         <div className="flex items-center gap-2">
           <FileJson className="text-primary" size={14} />
-          <h3 className="text-[11px] font-bold text-white uppercase tracking-wider">
+          <h3 className="text-sm font-bold text-foreground uppercase tracking-wider">
             Live Workflow JSON
           </h3>
-          <span className="text-[9px] bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20 font-semibold">
+          <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20 font-semibold">
             {workflowJson.nodes.length} nodes · {workflowJson.edges.length} edges
           </span>
         </div>
@@ -139,7 +139,7 @@ export const JsonTracker: React.FC<JsonTrackerProps> = ({ onClose }) => {
           <div className="flex bg-slate-900 rounded-lg border border-slate-800 overflow-hidden">
             <button
               onClick={() => setMode('tree')}
-              className={`px-2.5 py-1 text-[10px] font-semibold transition-colors ${
+              className={`px-2.5 py-1 text-xs font-semibold transition-colors ${
                 mode === 'tree'
                   ? 'bg-primary/15 text-primary'
                   : 'text-slate-400 hover:text-slate-200'
@@ -150,7 +150,7 @@ export const JsonTracker: React.FC<JsonTrackerProps> = ({ onClose }) => {
             </button>
             <button
               onClick={() => setMode('raw')}
-              className={`px-2.5 py-1 text-[10px] font-semibold transition-colors ${
+              className={`px-2.5 py-1 text-xs font-semibold transition-colors ${
                 mode === 'raw'
                   ? 'bg-primary/15 text-primary'
                   : 'text-slate-400 hover:text-slate-200'
@@ -163,7 +163,7 @@ export const JsonTracker: React.FC<JsonTrackerProps> = ({ onClose }) => {
           {/* Copy button */}
           <button
             onClick={handleCopy}
-            className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition-all"
+            className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-background hover:bg-accent text-foreground border border-border transition-all"
           >
             {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
             {copied ? 'Copied!' : 'Copy'}
@@ -179,7 +179,7 @@ export const JsonTracker: React.FC<JsonTrackerProps> = ({ onClose }) => {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto p-3 font-mono text-[10.5px] leading-relaxed">
+      <div className="flex-1 overflow-auto p-3 font-mono text-sm leading-relaxed">
         {mode === 'tree' ? (
           <div className="space-y-0.5">
             {Object.entries(workflowJson).map(([key, val]) => (

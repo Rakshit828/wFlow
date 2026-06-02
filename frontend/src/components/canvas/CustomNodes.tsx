@@ -82,7 +82,7 @@ export const WFlowCustomNode: React.FC<CustomNodeProps> = ({ data, selected }) =
 
   return (
     <div 
-      className={`relative w-[260px] rounded-xl border text-slate-100 transition-all duration-300 ${
+      className={`relative w-[272px] rounded-xl border text-foreground transition-all duration-300 ${
         selected ? styles.borderColorSelected : `${styles.borderColor} hover:border-slate-500/40`
       }`}
       style={{
@@ -123,9 +123,9 @@ export const WFlowCustomNode: React.FC<CustomNodeProps> = ({ data, selected }) =
             {getNodeIcon(data.key)}
           </div>
           <div>
-            <h4 className="font-semibold text-sm leading-tight text-white tracking-wide">{data.label}</h4>
+            <h4 className="font-semibold text-base leading-tight text-foreground tracking-wide">{data.label}</h4>
             <div className="flex items-center gap-1 mt-0.5 group">
-              <span className="text-[10px] text-slate-400 font-mono select-all">{data.name}</span>
+              <span className="text-xs text-muted-foreground font-mono select-all">{data.name}</span>
               <button 
                 onClick={copyName} 
                 className="opacity-0 group-hover:opacity-100 hover:text-slate-200 transition-opacity p-0.5 rounded"
@@ -136,21 +136,21 @@ export const WFlowCustomNode: React.FC<CustomNodeProps> = ({ data, selected }) =
             </div>
           </div>
         </div>
-        <div className={`px-2 py-0.5 rounded-full text-[9px] font-semibold border ${styles.badgeBg}`}>
+        <div className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${styles.badgeBg}`}>
           {data.type}
         </div>
       </div>
 
       {/* Node Mini-Details Body */}
-      <div className="p-3 text-[11px] text-slate-300 space-y-2">
-        <p className="text-[10px] text-slate-400 leading-snug">
+      <div className="p-3 text-sm text-foreground/90 space-y-2">
+        <p className="text-xs text-muted-foreground leading-snug">
           {spec?.description || 'No description available'}
         </p>
 
         {/* Dynamic configuration preview */}
         {data.key.startsWith('llm.') && (
-          <div className="flex items-center justify-between bg-slate-900/40 p-1.5 rounded border border-slate-800/40 font-mono text-[9px]">
-            <span className="text-slate-400">Model:</span>
+          <div className="flex items-center justify-between bg-muted/40 p-1.5 rounded border border-border font-mono text-xs">
+            <span className="text-muted-foreground">Model:</span>
             <span className="text-amber-400 truncate max-w-[120px]">{data.config?.model || 'default'}</span>
           </div>
         )}
