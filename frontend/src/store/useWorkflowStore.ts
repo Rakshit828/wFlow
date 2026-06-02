@@ -1,0 +1,762 @@
+import { create } from 'zustand';
+import {
+  applyNodeChanges,
+  applyEdgeChanges,
+  addEdge,
+} from '@xyflow/react';
+import type {
+  Node as RFNode,
+  Edge as RFEdge,
+  OnNodesChange,
+  OnEdgesChange,
+  OnConnect,
+  XYPosition
+} from '@xyflow/react';
+import type { Node as wNode, Edge as wEdge, Workflow } from '../types/workflow';
+import { NODE_SPEC_CATALOG } from '../types/workflow';
+import type { WFlowNodeData, WFlowEdgeData } from '../types/flow';
+import { asNodeData, asEdgeData } from '../types/flow';
+import { createWorkflow } from '../api/workflows';
+
+
+// Standard displacement constants for automatic node layout
+const NODE_WIDTH = 250;
+const NODE_HEIGHT = 100;
+const HORIZONTAL_GAP = 120;
+const VERTICAL_GAP = 120;
+
+interface WorkflowState {
+  // Metadata
+  workflowId: string | null;
+  workflowName: string;
+  workflowDescription: string;
+  workflowVisibility: 'public' | 'private';
+
+  // React Flow elements
+  nodes: RFNode<WFlowNodeData>[];
+  edges: RFEdge<WFlowEdgeData>[];
+  activeNodeId: string | null;
+  activeEdgeId: string | null;
+  isDirty: boolean;
+  saveStatus: 'idle' | 'saving' | 'saved' | 'error';
+  saveError: string | null;
+
+  // Basic Metadata setters
+  setMetadata: (meta: { name?: string; description?: string; visibility?: 'public' | 'private' }) => void;
+
+  // React Flow standard events
+  setNodes: (nodes: RFNode<WFlowNodeData>[]) => void;
+  setEdges: (edges: RFEdge<WFlowEdgeData>[]) => void;
+  onNodesChange: OnNodesChange;
+  onEdgesChange: OnEdgesChange;
+  onConnect: OnConnect;
+
+  // Flow Manipulation
+  addNode: (key: string, position?: XYPosition) => void;
+  updateNodeInputs: (nodeId: string, inputs: Record<string, any>) => void;
+  updateNodeConfig: (nodeId: string, config: Record<string, any>) => void;
+  deleteNode: (nodeId: string) => void;
+  setActiveNodeId: (nodeId: string | null) => void;
+  setActiveEdgeId: (edgeId: string | null) => void;
+  updateEdgeProps: (edgeId: string, updates: Partial<WFlowEdgeData>) => void;
+  deleteEdge: (edgeId: string) => void;
+  saveWorkflow: () => Promise<boolean>;
+
+  // Load and Export
+  loadWorkflow: (workflow: Workflow) => void;
+  resetWorkflow: (loadSample?: boolean) => void;
+  getWorkflowJson: () => Workflow;
+
+  // Reference and autocomplete helper
+  getPrecedingNodes: (nodeId: string) => wNode[];
+}
+
+// Minimal topological sorting helper to arrange loaded nodes beautifully
+function computeAutomaticLayout(wNodes: wNode[], wEdges: wEdge[]): Record<string, XYPosition> {
+  const positions: Record<string, XYPosition> = {};
+
+  // Create adjacency lists
+  const adj: Record<string, string[]> = {};
+  const inDegree: Record<string, number> = {};
+
+  wNodes.forEach(n => {
+    adj[n.name] = [];
+    inDegree[n.name] = 0;
+  });
+
+  wEdges.forEach(e => {
+    if (adj[e.source] && adj[e.target] !== undefined) {
+      adj[e.source].push(e.target);
+      inDegree[e.target] = (inDegree[e.target] || 0) + 1;
+    }
+  });
+
+  // Simple BFS / Kahn's algorithm for layering
+  const queue: string[] = [];
+  const layers: Record<string, number> = {};
+
+  wNodes.forEach(n => {
+    if (inDegree[n.name] === 0) {
+      queue.push(n.name);
+      layers[n.name] = 0;
+    }
+  });
+
+  while (queue.length > 0) {
+    const curr = queue.shift()!;
+    const currLayer = layers[curr];
+
+    adj[curr].forEach(neighbor => {
+      inDegree[neighbor]--;
+      layers[neighbor] = Math.max(layers[neighbor] || 0, currLayer + 1);
+      if (inDegree[neighbor] === 0) {
+        queue.push(neighbor);
+      }
+    });
+  }
+
+  // Group nodes by layers
+  const layerGroups: Record<number, string[]> = {};
+  wNodes.forEach(n => {
+    // If there was a cycle or disconnected, default to layer 0
+    const l = layers[n.name] !== undefined ? layers[n.name] : 0;
+    if (!layerGroups[l]) layerGroups[l] = [];
+    layerGroups[l].push(n.name);
+  });
+
+  // Calculate coordinates based on layers
+  Object.keys(layerGroups).forEach(layerStr => {
+    const l = parseInt(layerStr, 10);
+    const nodesInLayer = layerGroups[l];
+    nodesInLayer.forEach((nodeName, idx) => {
+      positions[nodeName] = {
+        x: 100 + l * (NODE_WIDTH + HORIZONTAL_GAP),
+        y: 100 + idx * (NODE_HEIGHT + VERTICAL_GAP) - ((nodesInLayer.length - 1) * (NODE_HEIGHT + VERTICAL_GAP)) / 2
+      };
+    });
+  });
+
+  return positions;
+}
+
+export const useWorkflowStore = create<WorkflowState>((set, get) => ({
+  workflowId: null,
+  workflowName: 'My Awesome Workflow',
+  workflowDescription: 'An automated pipeline built on wFlow.',
+  workflowVisibility: 'private',
+
+  nodes: [],
+  edges: [],
+  activeNodeId: null,
+  activeEdgeId: null,
+  isDirty: false,
+  saveStatus: 'idle',
+  saveError: null,
+
+  setMetadata: (meta) => set(() => {
+    const updates: Partial<WorkflowState> = {};
+    if (meta.name !== undefined) updates.workflowName = meta.name;
+    if (meta.description !== undefined) updates.workflowDescription = meta.description;
+    if (meta.visibility !== undefined) updates.workflowVisibility = meta.visibility;
+    return { ...updates, isDirty: true };
+  }),
+
+  setNodes: (nodes) => set({ nodes }),
+  setEdges: (edges) => set({ edges }),
+
+  onNodesChange: (changes) => set((state) => ({
+    nodes: applyNodeChanges(changes, state.nodes) as RFNode<WFlowNodeData>[],
+    isDirty: true
+  })),
+
+  onEdgesChange: (changes) => set((state) => ({
+    edges: applyEdgeChanges(changes, state.edges) as RFEdge<WFlowEdgeData>[],
+    isDirty: true
+  })),
+
+  onConnect: (connection) => set((state) => {
+    const sourceNode = state.nodes.find(n => n.id === connection.source);
+    const sourceKey = sourceNode ? asNodeData(sourceNode.data).key : '';
+
+    const existingFromSource = state.edges.filter(e => e.source === connection.source);
+    const existingToTarget = state.edges.filter(e => e.target === connection.target);
+
+    let edgeType: wEdge['type'] = 'linear';
+    let decision: boolean | null = null;
+    let switchCase: string | null = null;
+
+    if (sourceKey === 'if_node') {
+      edgeType = 'if';
+      const hasTrue = existingFromSource.some(
+        (e) => asEdgeData(e.data).type === 'if' && asEdgeData(e.data).decision === true
+      );
+      decision = !hasTrue;
+    } else if (sourceKey === 'switch_node') {
+      edgeType = 'switch';
+      const inputs = sourceNode ? asNodeData(sourceNode.data).inputs : {};
+      const cases = (inputs.cases as string[]) || ['default'];
+      const usedCases = existingFromSource
+        .map((e) => asEdgeData(e.data).case)
+        .filter(Boolean);
+      switchCase = cases.find((c) => !usedCases.includes(c)) ?? cases[0] ?? 'default';
+    } else if (existingFromSource.length > 0) {
+      edgeType = 'parallel';
+    } else if (existingToTarget.length > 0) {
+      edgeType = 'merge';
+    }
+
+    const edgeData: WFlowEdgeData = { type: edgeType, decision, case: switchCase };
+    const label =
+      edgeType === 'if'
+        ? decision
+          ? 'True'
+          : 'False'
+        : edgeType === 'switch'
+          ? switchCase ?? undefined
+          : edgeType === 'parallel'
+            ? 'parallel'
+            : edgeType === 'merge'
+              ? 'merge'
+              : undefined;
+
+    const newEdge: RFEdge<WFlowEdgeData> = {
+      id: `edge-${connection.source}-${connection.target}-${Date.now()}`,
+      source: connection.source!,
+      target: connection.target!,
+      sourceHandle: connection.sourceHandle,
+      targetHandle: connection.targetHandle,
+      animated: true,
+      data: edgeData,
+      style: { stroke: 'hsl(var(--primary))' },
+      label,
+    };
+
+    return {
+      edges: addEdge(newEdge, state.edges),
+      isDirty: true,
+      activeEdgeId: newEdge.id,
+      activeNodeId: null,
+    };
+  }),
+
+  addNode: (key, position) => set((state) => {
+    const spec = NODE_SPEC_CATALOG[key];
+    if (!spec) return {};
+
+    // Generate unique name e.g. "groq_llm_node1"
+    const keyClean = key.replace('.', '_');
+    const existingCount = state.nodes.filter(n => (n.data.key as string) === key).length;
+    const name = `${keyClean}_node${existingCount + 1}`;
+
+    const nodeData: WFlowNodeData = {
+      label: spec.name,
+      key: spec.key,
+      name,
+      type: spec.type,
+      inputs: JSON.parse(JSON.stringify(spec.defaultInputs)) as Record<string, unknown>,
+      config: JSON.parse(JSON.stringify(spec.defaultConfig)) as Record<string, unknown>,
+      outputs: {},
+    };
+
+    const newRFNode: RFNode<WFlowNodeData> = {
+      id: name,
+      type: 'wflowNode',
+      position: position || { x: 250 + Math.random() * 50, y: 150 + Math.random() * 50 },
+      data: nodeData,
+    };
+
+    return {
+      nodes: [...state.nodes, newRFNode],
+      activeNodeId: name,
+      isDirty: true
+    };
+  }),
+
+  updateNodeInputs: (nodeId, inputs) => set((state) => {
+    const nodes = state.nodes.map((n) => {
+      if (n.id === nodeId) {
+        const data = asNodeData(n.data);
+        return {
+          ...n,
+          data: {
+            ...data,
+            inputs: { ...data.inputs, ...inputs },
+          } satisfies WFlowNodeData,
+        };
+      }
+      return n;
+    });
+    return { nodes, isDirty: true };
+  }),
+
+  updateNodeConfig: (nodeId, config) => set((state) => {
+    const nodes = state.nodes.map((n) => {
+      if (n.id === nodeId) {
+        const data = asNodeData(n.data);
+        return {
+          ...n,
+          data: {
+            ...data,
+            config: { ...data.config, ...config },
+          } satisfies WFlowNodeData,
+        };
+      }
+      return n;
+    });
+    return { nodes, isDirty: true };
+  }),
+
+  deleteNode: (nodeId) => set((state) => {
+    // Delete node and any associated edges
+    const nodes = state.nodes.filter(n => n.id !== nodeId);
+    const edges = state.edges.filter(e => e.source !== nodeId && e.target !== nodeId);
+    return {
+      nodes,
+      edges,
+      activeNodeId: state.activeNodeId === nodeId ? null : state.activeNodeId,
+      isDirty: true
+    };
+  }),
+
+  setActiveNodeId: (nodeId) => set({ activeNodeId: nodeId, activeEdgeId: null }),
+
+  setActiveEdgeId: (edgeId) => set({ activeEdgeId: edgeId, activeNodeId: null }),
+
+  updateEdgeProps: (edgeId, updates) => set((state) => {
+    const edges = state.edges.map(e => {
+      if (e.id === edgeId) {
+        const prev = asEdgeData(e.data);
+        const data: WFlowEdgeData = { ...prev, ...updates };
+        let label: string | undefined;
+        if (data.type === 'if') {
+          label = data.decision ? 'True' : 'False';
+        } else if (data.type === 'switch') {
+          label = data.case ?? undefined;
+        } else if (data.type === 'parallel') {
+          label = 'parallel';
+        } else if (data.type === 'merge') {
+          label = 'merge';
+        }
+
+        return { ...e, data, label };
+      }
+      return e;
+    });
+    return { edges, isDirty: true };
+  }),
+
+  deleteEdge: (edgeId) => set((state) => ({
+    edges: state.edges.filter(e => e.id !== edgeId),
+    isDirty: true
+  })),
+
+  loadWorkflow: (workflow) => set(() => {
+    // Convert Beanie/FastAPI workflow nodes and edges to React Flow
+    // If stashed node configuration position is found, use it; otherwise compute layout!
+    const nodePositions: Record<string, XYPosition> = {};
+    workflow.nodes.forEach(n => {
+      if (n.config && n.config._position) {
+        nodePositions[n.name] = n.config._position;
+      }
+    });
+
+    // Check if we need to compute full layout
+    const needsLayout = Object.keys(nodePositions).length < workflow.nodes.length;
+    const computedPositions = needsLayout
+      ? computeAutomaticLayout(workflow.nodes, workflow.edges)
+      : nodePositions;
+
+    const rfNodes: RFNode<WFlowNodeData>[] = workflow.nodes.map(n => {
+      const position = computedPositions[n.name] || { x: 100, y: 100 };
+
+      // Filter out position coordinates from config payload for visualization
+      const configClean = { ...n.config };
+      delete configClean._position;
+
+      const spec = NODE_SPEC_CATALOG[n.key];
+
+      const data: WFlowNodeData = {
+        label: spec ? spec.name : n.name,
+        key: n.key,
+        name: n.name,
+        type: n.type,
+        inputs: (n.inputs || {}) as Record<string, unknown>,
+        config: (configClean || {}) as Record<string, unknown>,
+        outputs: (n.outputs || {}) as Record<string, unknown>,
+      };
+
+      return {
+        id: n.name,
+        type: 'wflowNode',
+        position,
+        data,
+      };
+    });
+
+    const rfEdges: RFEdge<WFlowEdgeData>[] = workflow.edges.map((e, index) => {
+      const label = e.type === 'if'
+        ? (e.decision ? 'True' : 'False')
+        : e.type === 'switch'
+          ? e.case
+          : undefined;
+
+      return {
+        id: `edge-${e.source}-${e.target}-${index}`,
+        source: e.source,
+        target: e.target,
+        animated: true,
+        data: {
+          type: e.type,
+          decision: e.decision ?? null,
+          case: e.case ?? null,
+        } satisfies WFlowEdgeData,
+        style: { stroke: 'hsl(var(--primary))' },
+        label
+      };
+    });
+
+    return {
+      workflowId: workflow.workflow_id || null,
+      workflowName: workflow.name,
+      workflowDescription: workflow.description || '',
+      workflowVisibility: workflow.visibility || 'private',
+      nodes: rfNodes,
+      edges: rfEdges,
+      activeNodeId: null,
+      activeEdgeId: null,
+      isDirty: false,
+      saveStatus: 'idle',
+      saveError: null,
+    };
+  }),
+
+  saveWorkflow: async () => {
+    const { getWorkflowJson } = get();
+    set({ saveStatus: 'saving', saveError: null });
+    try {
+      const payload = getWorkflowJson();
+      const res = await createWorkflow({
+        name: payload.name,
+        description: payload.description,
+        nodes: payload.nodes,
+        edges: payload.edges,
+        visibility: payload.visibility,
+      });
+      set({
+        workflowId: res.workflow_id,
+        saveStatus: 'saved',
+        isDirty: false,
+      });
+      return true;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Save failed';
+      set({ saveStatus: 'error', saveError: message });
+      return false;
+    }
+  },
+
+  resetWorkflow: (loadSample) => set(() => {
+    if (loadSample) {
+      // Load standard Nepalese Essay workflow template shown in prompt
+      const sampleWorkflow: Workflow = {
+        name: 'Nepal Essay Auto-Publisher',
+        description: 'Generates outlines, writes parallel sections, merges, and routes based on quality checks.',
+        visibility: 'private',
+        nodes: [
+          {
+            key: 'llm.groq',
+            name: 'groq_llm_node1',
+            type: 'LLM',
+            inputs: { prompt: 'Generate me 9 outlines for an essay on Nepal.' },
+            config: {
+              model: 'llama-3.3-70b-versatile',
+              response_model: { output: { outlines: 'list.str' } }
+            },
+            outputs: {}
+          },
+          {
+            key: 'llm.groq',
+            name: 'groq_llm_node2',
+            type: 'LLM',
+            inputs: {
+              prompt: 'Generate me a detailed article section on these topics: {topics}',
+              topics: 'groq_llm_node1.outputs.output.outlines[0] groq_llm_node1.outputs.output.outlines[1] groq_llm_node1.outputs.output.outlines[2]'
+            },
+            config: {
+              model: 'llama-3.3-70b-versatile',
+              response_model: { output: { article: 'str' } }
+            },
+            outputs: {}
+          },
+          {
+            key: 'llm.groq',
+            name: 'groq_llm_node3',
+            type: 'LLM',
+            inputs: {
+              prompt: 'Generate me a detailed article section on these topics: {topics}',
+              topics: 'groq_llm_node1.outputs.output.outlines[3] groq_llm_node1.outputs.output.outlines[4] groq_llm_node1.outputs.output.outlines[5]'
+            },
+            config: {
+              model: 'llama-3.3-70b-versatile',
+              response_model: { output: { article: 'str' } }
+            },
+            outputs: {}
+          },
+          {
+            key: 'llm.groq',
+            name: 'groq_llm_node4',
+            type: 'LLM',
+            inputs: {
+              prompt: 'Generate me a detailed article section on these topics: {topics}',
+              topics: 'groq_llm_node1.outputs.output.outlines[6] groq_llm_node1.outputs.output.outlines[7] groq_llm_node1.outputs.output.outlines[8]'
+            },
+            config: {
+              model: 'llama-3.3-70b-versatile',
+              response_model: { output: { article: 'str' } }
+            },
+            outputs: {}
+          },
+          {
+            key: 'llm.groq',
+            name: 'groq_llm_node5',
+            type: 'LLM',
+            inputs: {
+              prompt: 'Merge these article sections into one cohesive final article: {articles}',
+              articles: 'groq_llm_node2.outputs.output.article groq_llm_node3.outputs.output.article groq_llm_node4.outputs.output.article'
+            },
+            config: {
+              model: 'llama-3.3-70b-versatile',
+              response_model: { output: { final_article: 'str', word_count: 'int' } }
+            },
+            outputs: {}
+          },
+          {
+            key: 'if_node',
+            name: 'quality_gate',
+            type: 'CONTROL_FLOW',
+            inputs: {
+              condition: 'word_count >= min_words',
+              values: {
+                word_count: 'groq_llm_node5.outputs.output.word_count',
+                min_words: 500
+              }
+            },
+            config: {},
+            outputs: {}
+          },
+          {
+            key: 'llm.groq',
+            name: 'channel_classifier',
+            type: 'LLM',
+            inputs: {
+              prompt: 'Read the article below and respond with exactly one word indicating the best publishing channel: \'blog\', \'newsletter\', or \'social\'.\n\nArticle: {article}',
+              article: 'groq_llm_node5.outputs.output.final_article'
+            },
+            config: {
+              model: 'llama-3.3-70b-versatile',
+              response_model: { output: { channel: 'str' } }
+            },
+            outputs: {}
+          },
+          {
+            key: 'llm.groq',
+            name: 'rewrite_node',
+            type: 'LLM',
+            inputs: {
+              prompt: 'The following article is too short. Expand it to at least 500 words while preserving the original meaning.\n\nArticle: {article}',
+              article: 'groq_llm_node5.outputs.output.final_article'
+            },
+            config: {
+              model: 'llama-3.3-70b-versatile',
+              response_model: { output: { final_article: 'str' } }
+            },
+            outputs: {}
+          },
+          {
+            key: 'switch_node',
+            name: 'channel_router',
+            type: 'CONTROL_FLOW',
+            inputs: {
+              value: 'channel_classifier.outputs.output.channel',
+              cases: ['blog', 'newsletter', 'social'],
+              default: 'blog'
+            },
+            config: {},
+            outputs: {}
+          },
+          {
+            key: 'llm.groq',
+            name: 'blog_publisher',
+            type: 'LLM',
+            inputs: {
+              prompt: 'Format the following article for a blog post with proper headings and SEO meta description:\n\n{article}',
+              article: 'groq_llm_node5.outputs.output.final_article'
+            },
+            config: {
+              model: 'llama-3.3-70b-versatile',
+              response_model: { output: { published_content: 'str' } }
+            },
+            outputs: {}
+          },
+          {
+            key: 'llm.groq',
+            name: 'newsletter_publisher',
+            type: 'LLM',
+            inputs: {
+              prompt: 'Format the following article as an email newsletter with a subject line and preview text:\n\n{article}',
+              article: 'groq_llm_node5.outputs.output.final_article'
+            },
+            config: {
+              model: 'llama-3.3-70b-versatile',
+              response_model: { output: { published_content: 'str' } }
+            },
+            outputs: {}
+          },
+          {
+            key: 'llm.groq',
+            name: 'social_publisher',
+            type: 'LLM',
+            inputs: {
+              prompt: 'Summarise the following article into 3 punchy social media posts (Twitter/LinkedIn):\n\n{article}',
+              article: 'groq_llm_node5.outputs.output.final_article'
+            },
+            config: {
+              model: 'llama-3.3-70b-versatile',
+              response_model: { output: { published_content: 'str' } }
+            },
+            outputs: {}
+          }
+        ],
+        edges: [
+          { source: 'start', target: 'groq_llm_node1', type: 'linear' },
+          { source: 'groq_llm_node1', target: 'groq_llm_node2', type: 'parallel' },
+          { source: 'groq_llm_node1', target: 'groq_llm_node3', type: 'parallel' },
+          { source: 'groq_llm_node1', target: 'groq_llm_node4', type: 'parallel' },
+          { source: 'groq_llm_node2', target: 'groq_llm_node5', type: 'merge' },
+          { source: 'groq_llm_node3', target: 'groq_llm_node5', type: 'merge' },
+          { source: 'groq_llm_node4', target: 'groq_llm_node5', type: 'merge' },
+          { source: 'groq_llm_node5', target: 'quality_gate', type: 'linear' },
+          { source: 'quality_gate', target: 'channel_classifier', type: 'if', decision: true },
+          { source: 'quality_gate', target: 'rewrite_node', type: 'if', decision: false },
+          { source: 'rewrite_node', target: 'channel_classifier', type: 'linear' },
+          { source: 'channel_classifier', target: 'channel_router', type: 'linear' },
+          { source: 'channel_router', target: 'blog_publisher', type: 'switch', case: 'blog' },
+          { source: 'channel_router', target: 'newsletter_publisher', type: 'switch', case: 'newsletter' },
+          { source: 'channel_router', target: 'social_publisher', type: 'switch', case: 'social' },
+          { source: 'blog_publisher', target: 'end', type: 'linear' },
+          { source: 'newsletter_publisher', target: 'end', type: 'linear' },
+          { source: 'social_publisher', target: 'end', type: 'linear' },
+          { source: 'rewrite_node', target: 'end', type: 'linear' }
+        ]
+      };
+
+      get().loadWorkflow(sampleWorkflow);
+      return {};
+    }
+
+    return {
+      workflowId: null,
+      workflowName: 'New AI Pipeline',
+      workflowDescription: 'Configure your custom automation workflow here.',
+      workflowVisibility: 'private',
+      nodes: [],
+      edges: [],
+      activeNodeId: null,
+      activeEdgeId: null,
+      isDirty: false,
+      saveStatus: 'idle',
+      saveError: null,
+    };
+  }),
+
+  getWorkflowJson: () => {
+    const { workflowId, workflowName, workflowDescription, workflowVisibility, nodes, edges } = get();
+
+    // Map RFNodes back to clean Beanie models
+    const parsedNodes: wNode[] = nodes.map(n => {
+      const data = asNodeData(n.data);
+      const configWithPosition = {
+        ...data.config,
+        _position: n.position,
+      };
+
+      return {
+        key: data.key,
+        name: n.id,
+        type: data.type,
+        inputs: data.inputs as Record<string, unknown>,
+        config: configWithPosition,
+        outputs: data.outputs as Record<string, unknown>,
+      };
+    });
+
+    const parsedEdges: wEdge[] = edges.map(e => {
+      const edgeData = asEdgeData(e.data);
+      const type = edgeData.type || 'linear';
+      const edge: wEdge = {
+        source: e.source,
+        target: e.target,
+        type,
+      };
+
+      if (type === 'if') {
+        edge.decision = edgeData.decision ?? true;
+      } else if (type === 'switch') {
+        edge.case = edgeData.case || 'default';
+      }
+
+      return edge;
+    });
+
+    const workflowJson: Workflow = {
+      name: workflowName,
+      description: workflowDescription,
+      nodes: parsedNodes,
+      edges: parsedEdges,
+      visibility: workflowVisibility
+    };
+
+    if (workflowId) {
+      workflowJson.workflow_id = workflowId;
+    }
+
+    return workflowJson;
+  },
+
+  getPrecedingNodes: (nodeId) => {
+    const { nodes, edges } = get();
+
+    const reverseAdj: Record<string, string[]> = {};
+    nodes.forEach(n => { reverseAdj[n.id] = []; });
+    edges.forEach(e => {
+      if (!reverseAdj[e.target]) reverseAdj[e.target] = [];
+      reverseAdj[e.target].push(e.source);
+    });
+
+    const ancestors = new Set<string>();
+    const queue = [...(reverseAdj[nodeId] || [])];
+    const visited = new Set<string>();
+
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      if (visited.has(curr)) continue;
+      visited.add(curr);
+      ancestors.add(curr);
+      queue.push(...(reverseAdj[curr] || []));
+    }
+
+    return nodes
+      .filter(n => ancestors.has(n.id))
+      .map(n => {
+        const data = asNodeData(n.data);
+        return {
+          key: data.key,
+          name: n.id,
+          type: data.type,
+          inputs: data.inputs as Record<string, unknown>,
+          config: data.config as Record<string, unknown>,
+          outputs: data.outputs as Record<string, unknown>,
+        };
+      });
+  }
+}));
