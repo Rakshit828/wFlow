@@ -18,6 +18,7 @@ class Config(BaseSettings):
     GOOGLE_AUTH_URL: str
     GOOGLE_TOKEN_URL: str
     GOOGLE_PUBLIC_KEY_URL: str
+    GOOGLE_PUBSUB_TOPIC: str 
 
     GITHUB_CLIENT_SECRET: str
     GITHUB_CLIENT_ID: str

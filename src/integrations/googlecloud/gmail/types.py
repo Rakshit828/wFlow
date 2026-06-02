@@ -11,8 +11,6 @@ from email.policy import default
 from src.integrations.googlecloud.shared import CommonBaseModel, CommonGoogleConfigModel
 
 
-
-
 class MessageHeader(BaseModel):
     name: str
     value: str
@@ -140,6 +138,8 @@ class GmailApis(str, Enum):
     SEND_EMAIL = "gmail/v1/users/me/messages/send"
     DRAFT_EMAIL = "/gmail/v1/users/me/drafts"
     GET_LIST_VALID_FROM_IDENTITIES = "/gmail/v1/users/me/settings/sendAs"
+    WATCH_GMAIL = "/gmail/v1/users/me/watch"
+    STOP_WATCH_GMAIL = "/gmail/v1/users/me/stop"
 
 
 class EmailIdsAndThreads(BaseModel):
@@ -218,3 +218,17 @@ class SendAndDraftEmailInput(BaseModel):
 
 class SendAndDraftEmailResponse(BaseModel):
     success: bool
+
+
+class WatchGmailInput(BaseModel):
+    topic_name: str = Field(
+        CONFIG.GOOGLE_PUBSUB_TOPIC,
+        description="The name of the pub/sub topic created in google cloud console project.",
+    )
+    label_ids: List[Literal["INBOX", "UNREAD", "STARRED", "SPAM"]]
+
+    config: CommonGoogleConfigModel
+
+class WatchGmailOutput(BaseModel):
+    history_id: str = Field(alias="historyId")
+    expiration: int 
