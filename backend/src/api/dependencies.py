@@ -50,7 +50,7 @@ async def get_current_user(
     token_data=Depends(AccessTokenBearer()),
 ):
     user_uid = token_data["sub"]
-    result: Users | None = await UserRepository.get_user_by_id(user_id=user_uid)
+    result: Users | None = await UserRepository().get_user_by_id(user_id=user_uid)
     if result is not None:
         return result
 
