@@ -65,7 +65,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
   const [debouncedQuery, setDebouncedQuery] = React.useState('');
   const [page, setPage] = React.useState(1);
   const [viewMode, setViewMode] = React.useState<ViewMode>('grid');
-  const [useDemoData, setUseDemoData] = React.useState(false);
+  const [loadError, setLoadError] = React.useState<string | null>(null);
 
   // Debounce search input
   React.useEffect(() => {
@@ -76,65 +76,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Demo/fallback data for when backend is unavailable
-  const demoWorkflows: WorkflowListItem[] = React.useMemo(
-    () => [
-      {
-        workflow_id: 'demo-1',
-        name: 'Nepal Essay Auto-Publisher',
-        description: 'Generates outlines, writes parallel essay sections, quality-gates, and multi-channel publishing.',
-        visibility: 'public',
-        stars: 24,
-        created_by: 'rakshit',
-      },
-      {
-        workflow_id: 'demo-2',
-        name: 'Customer Support Classifier',
-        description: 'Routes incoming support tickets through LLM classification and auto-responds to common queries.',
-        visibility: 'private',
-        stars: 12,
-        created_by: 'rakshit',
-      },
-      {
-        workflow_id: 'demo-3',
-        name: 'Weekly Newsletter Generator',
-        description: 'Aggregates trending topics, generates summary articles, and sends formatted newsletters via Gmail.',
-        visibility: 'public',
-        stars: 8,
-        created_by: 'admin',
-      },
-      {
-        workflow_id: 'demo-4',
-        name: 'Google Sheets Data Pipeline',
-        description: 'Reads raw data from Sheets, processes through LLM enrichment, and writes results back.',
-        visibility: 'private',
-        stars: 5,
-        created_by: 'rakshit',
-      },
-      {
-        workflow_id: 'demo-5',
-        name: 'Content Quality Checker',
-        description: 'Multi-model consensus pipeline that evaluates content quality with automatic rewrite loops.',
-        visibility: 'public',
-        stars: 31,
-        created_by: 'admin',
-      },
-      {
-        workflow_id: 'demo-6',
-        name: 'Drive Document Organizer',
-        description: 'Classifies and organizes Drive documents into labeled folders based on content analysis.',
-        visibility: 'private',
-        stars: 3,
-        created_by: 'rakshit',
-      },
-    ],
-    []
-  );
-
-  // Fetch workflows from API or fall back to demo
   const loadData = React.useCallback(async () => {
     setLoading(true);
     setError(null);
+    setLoadError(null);
 
     try {
       const result = debouncedQuery
@@ -142,31 +87,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
         : await fetchWorkflows(page);
       setWorkflows(result.data);
       setPagination(result.pagination);
-      setUseDemoData(false);
-    } catch (err: any) {
-      // Fallback to demo data when backend is unavailable
-      const filtered = debouncedQuery
-        ? demoWorkflows.filter(
-          (w) =>
-            w.name.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
-            w.description.toLowerCase().includes(debouncedQuery.toLowerCase())
-        )
-        : demoWorkflows;
-      setWorkflows(filtered);
-      setPagination({
-        total: filtered.length,
-        page: 1,
-        page_size: 10,
-        total_pages: 1,
-        has_next: false,
-        has_previous: false,
-      });
-      setUseDemoData(true);
-      setError(null); // suppress error since demo data is shown
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to load workflows';
+      setLoadError(message);
+      setWorkflows([]);
+      setPagination(null);
+      setError(message);
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedQuery, demoWorkflows]);
+  }, [page, debouncedQuery]);
 
   React.useEffect(() => {
     loadData();
@@ -181,25 +111,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
     onOpenEditor();
   };
 
-  const handleOpenWorkflow = (workflow: WorkflowListItem) => {
-    // For demo items, load the sample. For real items, you'd fetch and loadWorkflow.
-    if (workflow.workflow_id.startsWith('demo-')) {
-      resetWorkflow(true);
-    }
+  const handleOpenWorkflow = (_workflow: WorkflowListItem) => {
     onOpenEditor();
   };
 
   const handleStar = async (e: React.MouseEvent, workflowId: string) => {
     e.stopPropagation();
-    if (useDemoData) {
-      // Toggle star locally for demo
-      setWorkflows((prev) =>
-        prev.map((w) =>
-          w.workflow_id === workflowId ? { ...w, stars: w.stars + 1 } : w
-        )
-      );
-      return;
-    }
     try {
       const result = await starWorkflow(workflowId);
       setWorkflows((prev) =>
@@ -308,14 +225,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
           </button>
         </div>
 
-        {/* Demo mode banner */}
-        {useDemoData && (
-          <div className="flex items-center gap-2 mb-5 px-4 py-2.5 rounded-xl bg-amber-500/5 border border-amber-500/20 text-amber-400 text-xs">
-            <AlertCircle size={14} />
-            <span>
-              <span className="font-semibold">Demo Mode</span> — Backend API unavailable. Showing sample workflows.
-              Start the FastAPI backend on port 8000 — Vite proxies <code className="text-amber-300 bg-amber-500/10 px-1 rounded">/api</code> automatically.
-            </span>
+        {loadError && (
+          <div className="flex items-center gap-2 mb-5 px-4 py-2.5 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-sm">
+            <AlertCircle size={16} />
+            <span>{loadError}</span>
           </div>
         )}
 

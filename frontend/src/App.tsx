@@ -7,6 +7,7 @@ import {
   Zap,
   ArrowLeft,
   FileJson,
+  Loader2,
 } from 'lucide-react';
 import { FlowCanvas } from './components/canvas/FlowCanvas';
 import { SidebarCatalog } from './components/canvas/SidebarCatalog';
@@ -14,16 +15,26 @@ import { PropertiesPanel } from './components/canvas/PropertiesPanel';
 import { EdgePropertiesPanel } from './components/canvas/EdgePropertiesPanel';
 import { JsonTracker } from './components/canvas/JsonTracker';
 import { Dashboard } from './components/dashboard/Dashboard';
+import { LandingPage } from './components/landing/LandingPage';
+import { SignInPage } from './components/auth/SignInPage';
 import { useWorkflowStore } from './store/useWorkflowStore';
+import { useAuthStore } from './store/useAuthStore';
 
 type AppView = 'dashboard' | 'editor';
+type PublicView = 'landing' | 'signin';
 type ThemeMode = 'light' | 'dark' | 'system';
 
 function App() {
+  const [publicView, setPublicView] = React.useState<PublicView>('landing');
   const [view, setView] = React.useState<AppView>('dashboard');
   const [theme, setTheme] = React.useState<ThemeMode>('dark');
   const [jsonOpen, setJsonOpen] = React.useState(false);
   const { activeNodeId, activeEdgeId } = useWorkflowStore();
+  const { status, user, checkSession } = useAuthStore();
+
+  React.useEffect(() => {
+    checkSession();
+  }, [checkSession]);
 
   React.useEffect(() => {
     const root = document.documentElement;
@@ -52,12 +63,29 @@ function App() {
       <Monitor size={14} />
     );
 
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-3 text-muted-foreground">
+        <Loader2 className="text-primary animate-spin" size={32} />
+        <p className="text-sm">Loading wFlow…</p>
+      </div>
+    );
+  }
+
+  if (status === 'unauthenticated') {
+    if (publicView === 'signin') {
+      return <SignInPage onBack={() => setPublicView('landing')} />;
+    }
+    return <LandingPage onGetStarted={() => setPublicView('signin')} />;
+  }
+
   return (
     <div className="h-screen w-screen flex flex-col bg-background text-foreground overflow-hidden">
       <header className="h-14 flex items-center justify-between px-4 border-b border-border bg-card/80 backdrop-blur-md z-50 shrink-0">
         <div className="flex items-center gap-3">
           {view === 'editor' && (
             <button
+              type="button"
               onClick={() => setView('dashboard')}
               className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mr-2"
             >
@@ -76,11 +104,17 @@ function App() {
               </span>
             </h1>
           </div>
+          {user?.email && (
+            <span className="hidden lg:inline text-xs text-muted-foreground truncate max-w-[180px]">
+              {user.email}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
           {view === 'editor' && (
             <button
+              type="button"
               onClick={() => setJsonOpen(!jsonOpen)}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-semibold transition-all border ${
                 jsonOpen
@@ -93,6 +127,7 @@ function App() {
             </button>
           )}
           <button
+            type="button"
             onClick={cycleTheme}
             className="p-2 rounded-lg bg-card text-muted-foreground hover:text-foreground border border-border hover:border-primary/30 transition-all"
             title={`Theme: ${theme}`}

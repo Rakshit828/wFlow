@@ -1,7 +1,8 @@
 import React from 'react';
-import { Mail, FileSpreadsheet, FolderUp, LogIn, ExternalLink } from 'lucide-react';
-import { redirectToGoogleLogin, googleNewScopeUrl } from '../../api/auth';
+import { Mail, FileSpreadsheet, FolderUp, ExternalLink } from 'lucide-react';
+import { googleNewScopeUrl } from '../../api/auth';
 import { NODE_SPEC_CATALOG } from '../../types/workflow';
+import { useAuthStore } from '../../store/useAuthStore';
 
 const GOOGLE_SCOPE_GROUPS = [
   {
@@ -25,78 +26,45 @@ const GOOGLE_SCOPE_GROUPS = [
 ];
 
 export const Integrations: React.FC = () => {
-  const [email, setEmail] = React.useState('');
+  const { user } = useAuthStore();
+  const email = user?.email ?? '';
 
   const googleNodes = Object.values(NODE_SPEC_CATALOG).filter(
     (s) => s.service?.startsWith('google.')
   );
 
   const handleConnectScopes = (scopes: string[]) => {
-    if (!email.trim()) {
-      alert('Enter the Google account email used for wFlow.');
-      return;
-    }
-    window.location.href = googleNewScopeUrl(scopes, email.trim());
+    if (!email) return;
+    window.location.href = googleNewScopeUrl(scopes, email);
   };
 
   return (
     <section className="max-w-6xl mx-auto px-6 pb-10">
-      <h2 className="text-sm font-bold text-foreground mb-1">Integrations</h2>
-      <p className="text-xs text-muted-foreground mb-4">
-        Sign in with Google, then grant scopes required by action nodes in your workflows.
+      <h2 className="text-sm font-bold text-foreground mb-1">Google integrations</h2>
+      <p className="text-sm text-muted-foreground mb-4">
+        Grant additional permissions for Gmail, Sheets, and Drive nodes in your workflows.
       </p>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-5 rounded-2xl bg-card border border-border">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
-            Account
-          </h3>
-          <p className="text-sm text-muted-foreground mb-4 leading-relaxed">
-            Login stores a secure session cookie. Required to save workflows and connect Google services.
-          </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {GOOGLE_SCOPE_GROUPS.map((group) => (
           <button
+            key={group.id}
             type="button"
-            onClick={() => redirectToGoogleLogin()}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-all"
+            onClick={() => handleConnectScopes(group.scopes)}
+            className="flex items-center justify-between gap-2 px-4 py-3 rounded-xl border border-border bg-card hover:border-primary/30 hover:bg-accent/50 text-left transition-all"
           >
-            <LogIn size={15} />
-            Sign in with Google
+            <span className="flex items-center gap-2 text-sm font-medium">
+              <group.icon size={16} className="text-primary" />
+              {group.label}
+            </span>
+            <ExternalLink size={14} className="text-muted-foreground shrink-0" />
           </button>
-        </div>
-
-        <div className="p-5 rounded-2xl bg-card border border-border">
-          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
-            Additional scopes
-          </h3>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="your@gmail.com"
-            className="w-full mb-3 px-3 py-2 rounded-xl bg-background border border-border text-xs focus:outline-none focus:border-primary/50"
-          />
-          <div className="space-y-2">
-            {GOOGLE_SCOPE_GROUPS.map((group) => (
-              <button
-                key={group.id}
-                type="button"
-                onClick={() => handleConnectScopes(group.scopes)}
-                className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl border border-border hover:border-primary/30 hover:bg-accent/50 text-left transition-all"
-              >
-                <span className="flex items-center gap-2 text-xs font-medium">
-                  <group.icon size={14} className="text-primary" />
-                  {group.label}
-                </span>
-                <ExternalLink size={12} className="text-muted-foreground shrink-0" />
-              </button>
-            ))}
-          </div>
-        </div>
+        ))}
       </div>
 
       <div className="mt-4 p-4 rounded-xl bg-muted/30 border border-border">
         <p className="text-xs text-muted-foreground mb-2 font-semibold uppercase tracking-wide">
-          Nodes requiring Google permissions ({googleNodes.length})
+          Nodes using Google ({googleNodes.length})
         </p>
         <div className="flex flex-wrap gap-1.5">
           {googleNodes.map((n) => (
