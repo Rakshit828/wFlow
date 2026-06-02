@@ -37,7 +37,7 @@ class UserService:
             user: Users = Users(
                 email=auth_response.decoded_id_token.email,
                 full_name=auth_response.decoded_id_token.name,
-                username=None,
+                username=auth_response.decoded_id_token.email.split("@")[0],
                 avatar_url=str(auth_response.decoded_id_token.picture),
                 is_verified=auth_response.decoded_id_token.email_verified,
             )
