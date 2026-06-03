@@ -9,6 +9,7 @@ import {
   FileJson,
   Loader2,
   ChevronRight,
+  ChevronLeft,
 } from "lucide-react";
 import { FlowCanvas } from "./components/canvas/FlowCanvas";
 import { SidebarCatalog } from "./components/canvas/SidebarCatalog";
@@ -39,6 +40,15 @@ function App() {
   });
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [isResizing, setIsResizing] = React.useState(false);
+  const [propertiesWidth, setPropertiesWidth] = React.useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("wflow-properties-width");
+      return stored ? parseInt(stored, 10) : 360;
+    }
+    return 360;
+  });
+  const [propertiesCollapsed, setPropertiesCollapsed] = React.useState(false);
+  const [isPanelResizing, setIsPanelResizing] = React.useState(false);
   const { activeNodeId, activeEdgeId } = useWorkflowStore();
   const { status, user, checkSession } = useAuthStore();
 
@@ -47,8 +57,10 @@ function App() {
   }, [checkSession]);
 
   const sidebarRef = React.useRef<HTMLDivElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
   const startXRef = React.useRef<number>(0);
   const startWidthRef = React.useRef<number>(sidebarWidth);
+  const panelStartWidthRef = React.useRef<number>(propertiesWidth);
 
   React.useEffect(() => {
     if (!isResizing) return;
@@ -80,6 +92,60 @@ function App() {
       document.body.style.cursor = "auto";
     };
   }, [isResizing]);
+
+  const handlePanelDividerMouseDown = (e: React.MouseEvent) => {
+    startXRef.current = e.clientX;
+    panelStartWidthRef.current = propertiesWidth;
+    setIsPanelResizing(true);
+  };
+
+  React.useEffect(() => {
+    if (!isPanelResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const delta = startXRef.current - e.clientX;
+      const minWidth = 280;
+      const maxWidth = 520;
+      const newWidth = Math.max(
+        minWidth,
+        Math.min(maxWidth, panelStartWidthRef.current + delta),
+      );
+      setPropertiesWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsPanelResizing(false);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.userSelect = "auto";
+      document.body.style.cursor = "auto";
+    };
+  }, [isPanelResizing]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const stored = localStorage.getItem("wflow-properties-width");
+    if (stored) return;
+
+    const initialWidth = Math.round(
+      Math.max(320, Math.min(520, window.innerWidth / 3)),
+    );
+    setPropertiesWidth(initialWidth);
+  }, []);
+
+  React.useEffect(() => {
+    if (!isPanelResizing) {
+      localStorage.setItem("wflow-properties-width", String(propertiesWidth));
+    }
+  }, [propertiesWidth, isPanelResizing]);
 
   const handleDividerMouseDown = (e: React.MouseEvent) => {
     startXRef.current = e.clientX;
@@ -197,7 +263,7 @@ function App() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-hidden relative">
         {view === "dashboard" ? (
           <Dashboard onOpenEditor={() => setView("editor")} />
         ) : (
@@ -237,15 +303,63 @@ function App() {
                   />
                 </>
               )}
-              <div className="flex-1 flex flex-col relative">
+
+              <div
+                className="flex-1 flex flex-col relative"
+                style={{
+                  marginRight:
+                    (activeEdgeId || activeNodeId) && !propertiesCollapsed
+                      ? propertiesWidth
+                      : 0,
+                }}
+              >
                 <FlowCanvas />
                 {jsonOpen && <JsonTracker onClose={() => setJsonOpen(false)} />}
               </div>
-              {activeEdgeId ? (
-                <EdgePropertiesPanel />
-              ) : (
-                activeNodeId && <PropertiesPanel />
-              )}
+
+              {activeEdgeId || activeNodeId ? (
+                propertiesCollapsed ? (
+                  <button
+                    type="button"
+                    onClick={() => setPropertiesCollapsed(false)}
+                    className="fixed right-0 top-20 z-50 m-2 flex h-11 w-11 items-center justify-center rounded-l-2xl border border-border bg-card text-muted-foreground shadow-lg shadow-black/10 hover:text-foreground hover:bg-primary/10 transition-all"
+                    title="Open properties panel"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                ) : (
+                  <div
+                    ref={panelRef}
+                    style={{
+                      width: `${propertiesWidth}px`,
+                      minWidth: `${propertiesWidth}px`,
+                    }}
+                    className="fixed right-0 top-14 bottom-0 z-40 flex h-[calc(100vh-3.5rem)] shrink-0 flex-col overflow-hidden bg-slate-950 border-l border-slate-700"
+                  >
+                    <div
+                      onMouseDown={handlePanelDividerMouseDown}
+                      className={`absolute left-0 top-0 h-full cursor-col-resize bg-border transition-all ${
+                        isPanelResizing ? "w-2 bg-primary" : "w-1.5"
+                      }`}
+                    />
+                    <div className="absolute right-4 top-4 z-10">
+                      <button
+                        type="button"
+                        onClick={() => setPropertiesCollapsed(true)}
+                        className="h-9 w-9 rounded-lg border border-border bg-background/90 text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-all"
+                        title="Collapse panel"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                    {activeEdgeId ? (
+                      <EdgePropertiesPanel />
+                    ) : (
+                      <PropertiesPanel />
+                    )}
+                  </div>
+                )
+              ) : null}
             </div>
           </ReactFlowProvider>
         )}

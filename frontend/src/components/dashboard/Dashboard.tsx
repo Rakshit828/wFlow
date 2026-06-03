@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Search,
   Plus,
@@ -16,15 +16,14 @@ import {
   RefreshCw,
   ArrowUpRight,
   AlertCircle,
-} from 'lucide-react';
+} from "lucide-react";
 import {
   fetchWorkflows,
   searchWorkflows,
   starWorkflow,
-} from '../../api/workflows';
-import type { WorkflowListItem, PaginationMeta } from '../../types/workflow';
-import { CreateDialog } from './CreateDialog';
-
+} from "../../api/workflows";
+import type { WorkflowListItem, PaginationMeta } from "../../types/workflow";
+import { CreateDialog } from "./CreateDialog";
 
 interface DashboardProps {
   onOpenEditor: () => void;
@@ -32,36 +31,53 @@ interface DashboardProps {
 
 /* ─── Gradient Card Background Patterns ─── */
 const cardGradients = [
-  'from-indigo-500/10 via-purple-500/5 to-transparent',
-  'from-emerald-500/10 via-teal-500/5 to-transparent',
-  'from-amber-500/10 via-orange-500/5 to-transparent',
-  'from-rose-500/10 via-pink-500/5 to-transparent',
-  'from-sky-500/10 via-cyan-500/5 to-transparent',
-  'from-violet-500/10 via-fuchsia-500/5 to-transparent',
+  "from-indigo-500/10 via-purple-500/5 to-transparent",
+  "from-emerald-500/10 via-teal-500/5 to-transparent",
+  "from-amber-500/10 via-orange-500/5 to-transparent",
+  "from-rose-500/10 via-pink-500/5 to-transparent",
+  "from-sky-500/10 via-cyan-500/5 to-transparent",
+  "from-violet-500/10 via-fuchsia-500/5 to-transparent",
 ];
 
 const accentColors = [
-  { border: 'border-indigo-500/20', dot: 'bg-indigo-500', text: 'text-indigo-400' },
-  { border: 'border-emerald-500/20', dot: 'bg-emerald-500', text: 'text-emerald-400' },
-  { border: 'border-amber-500/20', dot: 'bg-amber-500', text: 'text-amber-400' },
-  { border: 'border-rose-500/20', dot: 'bg-rose-500', text: 'text-rose-400' },
-  { border: 'border-sky-500/20', dot: 'bg-sky-500', text: 'text-sky-400' },
-  { border: 'border-violet-500/20', dot: 'bg-violet-500', text: 'text-violet-400' },
+  {
+    border: "border-indigo-500/20",
+    dot: "bg-indigo-500",
+    text: "text-indigo-400",
+  },
+  {
+    border: "border-emerald-500/20",
+    dot: "bg-emerald-500",
+    text: "text-emerald-400",
+  },
+  {
+    border: "border-amber-500/20",
+    dot: "bg-amber-500",
+    text: "text-amber-400",
+  },
+  { border: "border-rose-500/20", dot: "bg-rose-500", text: "text-rose-400" },
+  { border: "border-sky-500/20", dot: "bg-sky-500", text: "text-sky-400" },
+  {
+    border: "border-violet-500/20",
+    dot: "bg-violet-500",
+    text: "text-violet-400",
+  },
 ];
 
-type ViewMode = 'grid' | 'list';
+type ViewMode = "grid" | "list";
 
 export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
-
   const [workflows, setWorkflows] = React.useState<WorkflowListItem[]>([]);
-  const [pagination, setPagination] = React.useState<PaginationMeta | null>(null);
+  const [pagination, setPagination] = React.useState<PaginationMeta | null>(
+    null,
+  );
   const [loading, setLoading] = React.useState(false);
   const [, setError] = React.useState<string | null>(null);
   const [createOpen, setCreateOpen] = React.useState(false);
-  const [searchQuery, setSearchQuery] = React.useState('');
-  const [debouncedQuery, setDebouncedQuery] = React.useState('');
+  const [searchQuery, setSearchQuery] = React.useState("");
+  const [debouncedQuery, setDebouncedQuery] = React.useState("");
   const [page, setPage] = React.useState(1);
-  const [viewMode, setViewMode] = React.useState<ViewMode>('grid');
+  const [viewMode, setViewMode] = React.useState<ViewMode>("grid");
   const [loadError, setLoadError] = React.useState<string | null>(null);
 
   // Debounce search input
@@ -85,7 +101,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
       setWorkflows(result.data);
       setPagination(result.pagination);
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to load workflows';
+      const message =
+        err instanceof Error ? err.message : "Failed to load workflows";
       setLoadError(message);
       setWorkflows([]);
       setPagination(null);
@@ -113,10 +130,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
       const result = await starWorkflow(workflowId);
       setWorkflows((prev) =>
         prev.map((w) =>
-          w.workflow_id === workflowId ? { ...w, stars: result.stars } : w
-        )
+          w.workflow_id === workflowId ? { ...w, stars: result.stars } : w,
+        ),
       );
-    } catch { }
+    } catch {}
   };
 
   return (
@@ -139,7 +156,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
                     Your Workflows
                   </h1>
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    Build, manage, and orchestrate AI-powered automation pipelines.
+                    Build, manage, and orchestrate AI-powered automation
+                    pipelines.
                   </p>
                 </div>
               </div>
@@ -179,21 +197,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
           {/* View toggle */}
           <div className="flex bg-card rounded-xl border border-border overflow-hidden shrink-0">
             <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2.5 transition-colors ${viewMode === 'grid'
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:text-foreground'
-                }`}
+              onClick={() => setViewMode("grid")}
+              className={`p-2.5 transition-colors ${
+                viewMode === "grid"
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
               title="Grid view"
             >
               <LayoutGrid size={15} />
             </button>
             <button
-              onClick={() => setViewMode('list')}
-              className={`p-2.5 transition-colors ${viewMode === 'list'
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:text-foreground'
-                }`}
+              onClick={() => setViewMode("list")}
+              className={`p-2.5 transition-colors ${
+                viewMode === "list"
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
               title="List view"
             >
               <List size={15} />
@@ -206,7 +226,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
             disabled={loading}
             className="p-2.5 rounded-xl bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all disabled:opacity-50 shrink-0"
           >
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
 
@@ -222,13 +242,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
           <div className="flex items-center justify-center py-20">
             <div className="flex flex-col items-center gap-3">
               <Loader2 className="text-primary animate-spin" size={28} />
-              <span className="text-sm text-muted-foreground">Loading workflows…</span>
+              <span className="text-sm text-muted-foreground">
+                Loading workflows…
+              </span>
             </div>
           </div>
         )}
 
         {/* ─── Grid View ─── */}
-        {!loading && viewMode === 'grid' && (
+        {!loading && viewMode === "grid" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {workflows.map((w, idx) => {
               const gradient = cardGradients[idx % cardGradients.length];
@@ -240,13 +262,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
                   className={`group relative text-left p-5 rounded-2xl bg-card border ${accent.border} hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5`}
                 >
                   {/* Gradient overlay */}
-                  <div className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${gradient} pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity`} />
+                  <div
+                    className={`absolute inset-0 rounded-2xl bg-gradient-to-br ${gradient} pointer-events-none opacity-60 group-hover:opacity-100 transition-opacity`}
+                  />
 
                   <div className="relative">
                     {/* Header row */}
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex items-center gap-2.5">
-                        <div className={`w-2 h-2 rounded-full ${accent.dot} shadow-sm`} />
+                        <div
+                          className={`w-2 h-2 rounded-full ${accent.dot} shadow-sm`}
+                        />
                         <h3 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors leading-tight line-clamp-1">
                           {w.name}
                         </h3>
@@ -265,7 +291,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
                     {/* Footer metadata */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        {w.visibility === 'public' ? (
+                        {w.visibility === "public" ? (
                           <span className="flex items-center gap-1">
                             <Globe size={10} className="text-emerald-400" />
                             Public
@@ -282,13 +308,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
                         </span>
                       </div>
 
-                      <button
-                        onClick={(e) => handleStar(e, w.workflow_id)}
-                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-amber-400 transition-colors"
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStar(e, w.workflow_id);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleStar(e, w.workflow_id);
+                          }
+                        }}
+                        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-amber-400 transition-colors cursor-pointer"
                       >
-                        <Star size={11} className={w.stars > 0 ? 'text-amber-400 fill-amber-400' : ''} />
+                        <Star
+                          size={11}
+                          className={
+                            w.stars > 0 ? "text-amber-400 fill-amber-400" : ""
+                          }
+                        />
                         {w.stars}
-                      </button>
+                      </span>
                     </div>
                   </div>
                 </button>
@@ -298,7 +341,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
         )}
 
         {/* ─── List View ─── */}
-        {!loading && viewMode === 'list' && (
+        {!loading && viewMode === "list" && (
           <div className="space-y-2">
             {workflows.map((w, idx) => {
               const accent = accentColors[idx % accentColors.length];
@@ -308,7 +351,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
                   onClick={() => handleOpenWorkflow(w)}
                   className={`group w-full text-left flex items-center gap-4 p-4 rounded-xl bg-card border ${accent.border} hover:border-primary/30 transition-all hover:shadow-md hover:shadow-primary/5`}
                 >
-                  <div className={`w-1.5 h-8 rounded-full ${accent.dot} shrink-0`} />
+                  <div
+                    className={`w-1.5 h-8 rounded-full ${accent.dot} shrink-0`}
+                  />
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors truncate">
                       {w.name}
@@ -318,7 +363,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
                     </p>
                   </div>
                   <div className="flex items-center gap-4 shrink-0 text-xs text-muted-foreground">
-                    {w.visibility === 'public' ? (
+                    {w.visibility === "public" ? (
                       <span className="flex items-center gap-1">
                         <Globe size={10} className="text-emerald-400" />
                         Public
@@ -330,14 +375,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
                       </span>
                     )}
                     <span>{w.created_by}</span>
-                    <button
-                      onClick={(e) => handleStar(e, w.workflow_id)}
-                      className="flex items-center gap-1 hover:text-amber-400 transition-colors"
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStar(e, w.workflow_id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleStar(e, w.workflow_id);
+                        }
+                      }}
+                      className="flex items-center gap-1 hover:text-amber-400 transition-colors cursor-pointer"
                     >
-                      <Star size={11} className={w.stars > 0 ? 'text-amber-400 fill-amber-400' : ''} />
+                      <Star
+                        size={11}
+                        className={
+                          w.stars > 0 ? "text-amber-400 fill-amber-400" : ""
+                        }
+                      />
                       {w.stars}
-                    </button>
-                    <ArrowUpRight size={13} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                    </span>
+                    <ArrowUpRight
+                      size={13}
+                      className="text-muted-foreground group-hover:text-primary transition-colors"
+                    />
                   </div>
                 </button>
               );
@@ -351,11 +416,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
             <div className="p-4 rounded-2xl bg-muted/50 mb-4">
               <Workflow size={32} className="text-muted-foreground" />
             </div>
-            <h3 className="text-base font-semibold text-foreground mb-1">No workflows found</h3>
+            <h3 className="text-base font-semibold text-foreground mb-1">
+              No workflows found
+            </h3>
             <p className="text-sm text-muted-foreground mb-6 max-w-md">
               {searchQuery
                 ? `No workflows match "${searchQuery}". Try a different search term.`
-                : 'Get started by creating your first AI automation pipeline.'}
+                : "Get started by creating your first AI automation pipeline."}
             </p>
             <button
               onClick={handleCreateNew}
@@ -379,21 +446,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
               Previous
             </button>
             <div className="flex items-center gap-1">
-              {Array.from({ length: Math.min(pagination.total_pages, 5) }, (_, i) => {
-                const pageNum = i + 1;
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => setPage(pageNum)}
-                    className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${page === pageNum
-                      ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
-                      : 'bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent'
+              {Array.from(
+                { length: Math.min(pagination.total_pages, 5) },
+                (_, i) => {
+                  const pageNum = i + 1;
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setPage(pageNum)}
+                      className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${
+                        page === pageNum
+                          ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                          : "bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent"
                       }`}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                },
+              )}
             </div>
             <button
               onClick={() => setPage((p) => p + 1)}
@@ -409,10 +480,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
         {/* Footer stats */}
         {pagination && (
           <div className="text-center text-sm text-muted-foreground pb-4">
-            Showing {workflows.length} of {pagination.total} workflows · Page {pagination.page} of {pagination.total_pages}
+            Showing {workflows.length} of {pagination.total} workflows · Page{" "}
+            {pagination.page} of {pagination.total_pages}
           </div>
         )}
-
       </div>
 
       <CreateDialog
