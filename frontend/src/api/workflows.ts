@@ -1,39 +1,7 @@
 import { apiFetch } from '../lib/api';
-import type { Workflow, PaginatedNodesResponse } from '../types/workflow';
+import type { Workflow, PaginatedWorkflowsResponse, CreateWorkflowResponse } from '../types/workflow';
+import type { PaginatedNodesResponse } from '../types/workflow';
 
-export interface WorkflowListItem {
-  workflow_id: string;
-  name: string;
-  description: string;
-  visibility: 'public' | 'private';
-  stars: number;
-  created_by: string;
-}
-
-export interface PaginationMeta {
-  total: number;
-  page: number;
-  page_size: number;
-  total_pages: number;
-  has_next: boolean;
-  has_previous: boolean;
-}
-
-export interface PaginatedWorkflowsResponse {
-  data: WorkflowListItem[];
-  pagination: PaginationMeta;
-}
-
-export interface WorkflowResponse {
-  workflow_id: string;
-  name: string;
-  description: string;
-  nodes: Workflow['nodes'];
-  edges: Workflow['edges'];
-  visibility: 'public' | 'private';
-  stars?: number;
-  created_by: string;
-}
 
 export async function fetchWorkflows(
   page: number = 1,
@@ -54,7 +22,7 @@ export async function searchWorkflows(
 
 export async function createWorkflow(
   workflow: Omit<Workflow, 'workflow_id' | 'stars' | 'created_by'>
-): Promise<WorkflowResponse> {
+): Promise<CreateWorkflowResponse> {
   return apiFetch('/api/workflows/create', {
     method: 'POST',
     json: workflow,

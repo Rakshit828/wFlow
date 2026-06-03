@@ -10,7 +10,7 @@ interface CreateDialogProps {
 
 export const CreateDialog: React.FC<CreateDialogProps> = ({ open, onClose, onCreated }) => {
   const { resetWorkflow, setMetadata } = useWorkflowStore();
-  const [name, setName] = React.useState('New AI Pipeline');
+  const [name, setName] = React.useState('New Workflow');
   const [description, setDescription] = React.useState(
     'Configure your custom automation workflow here.'
   );
@@ -20,7 +20,7 @@ export const CreateDialog: React.FC<CreateDialogProps> = ({ open, onClose, onCre
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    resetWorkflow(false);
+    resetWorkflow();
     setMetadata({
       name: name.trim() || 'New AI Pipeline',
       description: description.trim(),

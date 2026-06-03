@@ -1,17 +1,5 @@
 import { apiFetch } from '../lib/api';
-
-export interface LoginResponse {
-  user_id: string;
-  email: string;
-  created_at: string;
-}
-
-export interface UserSession {
-  user_id: string;
-  email: string;
-  full_name: string | null;
-  avatar_url: string | null;
-}
+import type { UserSession } from '../types/auth';
 
 /** Check whether the browser has a valid session cookie. */
 export async function fetchCurrentUser(): Promise<UserSession> {

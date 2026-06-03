@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { fetchCurrentUser } from '../api/auth';
-import type { UserSession } from '../api/auth';
+import type { UserSession } from '../types/auth';
 
 export type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 

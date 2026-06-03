@@ -9,7 +9,6 @@ import {
   ChevronRight,
   Workflow,
   Zap,
-  Sparkles,
   Clock,
   LayoutGrid,
   List,
@@ -23,10 +22,9 @@ import {
   searchWorkflows,
   starWorkflow,
 } from '../../api/workflows';
-import type { WorkflowListItem, PaginationMeta } from '../../api/workflows';
-import { useWorkflowStore } from '../../store/useWorkflowStore';
+import type { WorkflowListItem, PaginationMeta } from '../../types/workflow';
 import { CreateDialog } from './CreateDialog';
-import { Integrations } from './Integrations';
+
 
 interface DashboardProps {
   onOpenEditor: () => void;
@@ -54,7 +52,6 @@ const accentColors = [
 type ViewMode = 'grid' | 'list';
 
 export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
-  const { resetWorkflow } = useWorkflowStore();
 
   const [workflows, setWorkflows] = React.useState<WorkflowListItem[]>([]);
   const [pagination, setPagination] = React.useState<PaginationMeta | null>(null);
@@ -106,11 +103,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
     setCreateOpen(true);
   };
 
-  const handleLoadSample = () => {
-    resetWorkflow(true);
-    onOpenEditor();
-  };
-
   const handleOpenWorkflow = (_workflow: WorkflowListItem) => {
     onOpenEditor();
   };
@@ -155,13 +147,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
 
             <div className="flex items-center gap-3">
               <button
-                onClick={handleLoadSample}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-card hover:bg-accent text-foreground border border-border hover:border-primary/30 text-sm font-medium transition-all shadow-sm"
-              >
-                <Sparkles size={15} className="text-primary" />
-                Load Sample
-              </button>
-              <button
                 onClick={handleCreateNew}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold transition-all shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98]"
               >
@@ -196,8 +181,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
             <button
               onClick={() => setViewMode('grid')}
               className={`p-2.5 transition-colors ${viewMode === 'grid'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:text-foreground'
                 }`}
               title="Grid view"
             >
@@ -206,8 +191,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
             <button
               onClick={() => setViewMode('list')}
               className={`p-2.5 transition-colors ${viewMode === 'list'
-                  ? 'bg-primary/10 text-primary'
-                  : 'text-muted-foreground hover:text-foreground'
+                ? 'bg-primary/10 text-primary'
+                : 'text-muted-foreground hover:text-foreground'
                 }`}
               title="List view"
             >
@@ -401,8 +386,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
                     key={pageNum}
                     onClick={() => setPage(pageNum)}
                     className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${page === pageNum
-                        ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
-                        : 'bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent'
+                      ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20'
+                      : 'bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent'
                       }`}
                   >
                     {pageNum}
@@ -428,7 +413,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
           </div>
         )}
 
-        <Integrations />
       </div>
 
       <CreateDialog
