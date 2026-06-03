@@ -9,6 +9,7 @@ from src.db.models import (
     OAuthAccounts,
     Workflows,
     WorkflowsStars,
+    NodesRegistry,
 )
 from src.db.mongo_db import MongoClient
 from src.api.routes.auth_routes import auth_router
@@ -24,7 +25,7 @@ async def lifespan(app: FastAPI):
     app.state.mongo_db = mongo_db
     await mongo_db.get_database(CONFIG.DATABASE_NAME)
     await mongo_db.init_beanie_odm(
-        models=[Users, AppIntegrations, OAuthAccounts, Workflows, WorkflowsStars]
+        models=[Users, AppIntegrations, OAuthAccounts, Workflows, WorkflowsStars, NodesRegistry]
     )
 
     yield

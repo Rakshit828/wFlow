@@ -11,7 +11,9 @@ from src.schemas.workflow import (
     WorkflowResponseModel,
     StarWorkflowResponseModel,
     PaginatedWorkflowsResponse,
+    PaginatedNodesResponse,
 )
+from src.workflows.types import NodesTypeEnum
 from src.services.workflow_service import WorkflowService
 
 workflow_router = APIRouter()
@@ -21,17 +23,37 @@ internal_storage_client = AsyncLocalStorageClient(
 )
 
 
+@workflow_router.get("/all-nodes", response_model=PaginatedNodesResponse)
+async def get_all_nodes(
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    workflow_service: WorkflowService = Depends(WorkflowService),
+) -> PaginatedNodesResponse:
+    return await workflow_service.get_all_nodes(page=page, page_size=page_size)
+
+
+@workflow_router.get("/nodes/{node_type}", response_model=PaginatedNodesResponse)
+async def get_all_nodes_by_type_and_service(
+    node_type: NodesTypeEnum,
+    service: str = Query(None),
+    page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    workflow_service: WorkflowService = Depends(WorkflowService),
+):
+    return await workflow_service.get_nodes_by_type_and_service(
+        node_type=node_type, service=service, page=page, page_size=page_size
+    )
+
+
 @workflow_router.get("/", response_model=PaginatedWorkflowsResponse)
 async def get_all_workflows(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
-    page_size: int = Query(
-        10, ge=1, le=100, description="Number of items per page"
-    ),
+    page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     workflow_service: WorkflowService = Depends(WorkflowService),
 ) -> PaginatedWorkflowsResponse:
     """
     Fetch all workflows with pagination.
-    
+
     Query Parameters:
     - page: Page number (default: 1)
     - page_size: Number of items per page, max 100 (default: 10)
@@ -43,14 +65,12 @@ async def get_all_workflows(
 async def search_workflows(
     query: str = Query(..., min_length=1, description="Search query for workflow name"),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
-    page_size: int = Query(
-        10, ge=1, le=100, description="Number of items per page"
-    ),
+    page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     workflow_service: WorkflowService = Depends(WorkflowService),
 ) -> PaginatedWorkflowsResponse:
     """
     Search workflows by name with pagination (case-insensitive).
-    
+
     Query Parameters:
     - query: Search term for workflow name (required)
     - page: Page number (default: 1)
@@ -96,9 +116,14 @@ async def star_workflow(
         workflow_id=workflow_id, user_id=user_id
     )
     data = {"workflow_id": str(workflow.id), "stars": workflow.stars}
-    
+
     logger.info(f"Data is {data}")
     return data
+
+
+@workflow_router.get("/nodes")
+async def load_from_node_registry():
+    pass
 
 
 @workflow_router.post("/upload-file")

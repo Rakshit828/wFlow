@@ -82,7 +82,6 @@ class OAuthAccounts(Document):
 
 class NodesRegistry(Document):
     """List of application nodes for data consistency and single source of truth."""
-
     name: str
     description: str
     type: NodesTypeEnum

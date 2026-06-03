@@ -5,8 +5,10 @@ from src.schemas.workflow import (
     WorkflowListItemModel,
     PaginationMetadata,
     PaginatedWorkflowsResponse,
+    NodesRegistryListItemModel,
+    PaginatedNodesResponse,
 )
-from src.db.models import Users, Workflows, WorkflowsStars
+from src.db.models import Users, Workflows, WorkflowsStars, NodesRegistry
 from beanie.odm.operators.update.general import Set
 from beanie.operators import Inc
 from loguru import logger
@@ -14,13 +16,17 @@ from beanie.odm.queries.update import UpdateResponse
 from pymongo.results import UpdateResult
 from beanie import PydanticObjectId
 from fastapi import HTTPException, status
-from typing import Tuple
+from typing import Optional
+from src.workflows.types import NodesTypeEnum, ApplicationNode
 
 
 class WorkflowService:
     def __init__(self):
         self._user_repo = UserRepository()
         self._workflow_repo = WorkflowRepository()
+
+    async def load_from_node_registry(self):
+        pass
 
     async def star_workflow(self, workflow_id: str, user_id: str) -> Workflows | None:
         wf_id_obj = PydanticObjectId(workflow_id)
@@ -87,6 +93,19 @@ class WorkflowService:
             visibility=workflow.visibility,
             stars=workflow.stars,
             created_by=str(workflow.created_by),
+        )
+
+    def _format_node_list_item(self, node: NodesRegistry) -> NodesRegistryListItemModel:
+        return NodesRegistryListItemModel(
+            node_id=str(node.id),
+            name=node.name,
+            description=node.description,
+            type=node.type,
+            service=node.service,
+            valid_permissions=node.valid_permissions,
+            fn_key=node.fn_key,
+            input_model=node.input_model,
+            output_model=node.output_model,
         )
 
     def _create_pagination_metadata(
@@ -166,3 +185,38 @@ class WorkflowService:
         return PaginatedWorkflowsResponse(
             data=formatted_workflows, pagination=pagination
         )
+
+    async def get_all_nodes(self, page: int, page_size: int):
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = 10
+
+        total = await NodesRegistry.find().count()
+        nodes = await NodesRegistry.find_all().skip((page - 1) * page_size).limit(page_size).to_list()
+
+        formatted_nodes = [self._format_node_list_item(node) for node in nodes]
+        pagination = self._create_pagination_metadata(total, page, page_size)
+
+        return PaginatedNodesResponse(data=formatted_nodes, pagination=pagination)
+
+    async def get_nodes_by_type_and_service(
+        self,
+        node_type: NodesTypeEnum,
+        page: int,
+        page_size: int,
+        service: Optional[str] = None,
+    ):
+        if page < 1:
+            page = 1
+        if page_size < 1 or page_size > 100:
+            page_size = 10
+
+        nodes, total = await self._workflow_repo.search_nodes_by_type_and_service(
+            node_type=node_type, service=service, page=page, page_size=page_size
+        )
+
+        formatted_nodes = [self._format_node_list_item(node) for node in nodes]
+        pagination = self._create_pagination_metadata(total, page, page_size)
+
+        return PaginatedNodesResponse(data=formatted_nodes, pagination=pagination)
