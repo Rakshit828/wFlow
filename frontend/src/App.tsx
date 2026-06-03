@@ -322,7 +322,7 @@ function App() {
                   <button
                     type="button"
                     onClick={() => setPropertiesCollapsed(false)}
-                    className="fixed right-0 top-20 z-50 m-2 flex h-11 w-11 items-center justify-center rounded-l-2xl border border-border bg-card text-muted-foreground shadow-lg shadow-black/10 hover:text-foreground hover:bg-primary/10 transition-all"
+                    className="fixed right-0 top-28 z-50 m-2 flex h-11 w-11 items-center justify-center rounded-l-2xl border border-border bg-card text-muted-foreground shadow-lg shadow-black/10 hover:text-foreground hover:bg-primary/10 transition-all"
                     title="Open properties panel"
                   >
                     <ChevronLeft size={18} />
@@ -342,11 +342,11 @@ function App() {
                         isPanelResizing ? "w-2 bg-primary" : "w-1.5"
                       }`}
                     />
-                    <div className="absolute right-4 top-4 z-10">
+                    <div className="absolute right-14 top-4 z-10">
                       <button
                         type="button"
                         onClick={() => setPropertiesCollapsed(true)}
-                        className="h-9 w-9 rounded-lg border border-border bg-background/90 text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-all"
+                        className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background/90 text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-all"
                         title="Collapse panel"
                       >
                         <ChevronRight size={16} />
