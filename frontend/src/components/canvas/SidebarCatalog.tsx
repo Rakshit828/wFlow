@@ -240,9 +240,10 @@ const PaginationBar: React.FC<{
   );
 };
 
-export const SidebarCatalog: React.FC<{ sidebarWidth: number }> = ({
-  sidebarWidth,
-}) => {
+export const SidebarCatalog: React.FC<{
+  sidebarWidth: number;
+  onToggleCollapse: () => void;
+}> = ({ sidebarWidth, onToggleCollapse }) => {
   const { addRegistryItems } = useWorkflowStore();
   const [activeTab, setActiveTab] = React.useState<"all" | "explore">("all");
 
@@ -393,11 +394,21 @@ export const SidebarCatalog: React.FC<{ sidebarWidth: number }> = ({
             <PlaySquare className="text-primary" size={18} />
             Nodes catalog
           </h3>
-          {allTotal > 0 && (
-            <span className="animate-badge text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-              {allTotal}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {allTotal > 0 && (
+              <span className="animate-badge text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                {allTotal}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              className="h-9 w-9 place-items-center rounded-lg border border-border bg-background/80 text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-all"
+              title="Collapse sidebar"
+            >
+              <ChevronLeft size={16} />
+            </button>
+          </div>
         </div>
         <p className="text-[11px] text-muted-foreground mt-1.5 leading-snug">
           Drag and drop nodes onto the canvas to construct your workflow.

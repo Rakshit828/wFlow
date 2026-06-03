@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   FileJson,
   Loader2,
+  ChevronRight,
 } from "lucide-react";
 import { FlowCanvas } from "./components/canvas/FlowCanvas";
 import { SidebarCatalog } from "./components/canvas/SidebarCatalog";
@@ -27,7 +28,7 @@ type ThemeMode = "light" | "dark" | "system";
 function App() {
   const [publicView, setPublicView] = React.useState<PublicView>("landing");
   const [view, setView] = React.useState<AppView>("dashboard");
-  const [theme, setTheme] = React.useState<ThemeMode>("dark");
+  const [theme, setTheme] = React.useState<ThemeMode>("system");
   const [jsonOpen, setJsonOpen] = React.useState(false);
   const [sidebarWidth, setSidebarWidth] = React.useState(() => {
     if (typeof window !== "undefined") {
@@ -36,6 +37,7 @@ function App() {
     }
     return 310;
   });
+  const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [isResizing, setIsResizing] = React.useState(false);
   const { activeNodeId, activeEdgeId } = useWorkflowStore();
   const { status, user, checkSession } = useAuthStore();
@@ -201,22 +203,40 @@ function App() {
         ) : (
           <ReactFlowProvider>
             <div className="flex h-full w-full">
-              <div
-                ref={sidebarRef}
-                style={{
-                  width: `${sidebarWidth}px`,
-                  minWidth: `${sidebarWidth}px`,
-                }}
-                className="flex h-full relative shrink-0" // ✅
-              >
-                <SidebarCatalog sidebarWidth={sidebarWidth} />
-              </div>
-              <div
-                onMouseDown={handleDividerMouseDown}
-                className={`w-1.5 hover:w-2 bg-border hover:bg-primary/50 cursor-col-resize transition-all ${
-                  isResizing ? "bg-primary w-2" : ""
-                }`}
-              />
+              {sidebarCollapsed ? (
+                <div className="flex h-full items-center justify-center border-r border-border bg-card px-1">
+                  <button
+                    type="button"
+                    onClick={() => setSidebarCollapsed(false)}
+                    className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background/80 text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-all"
+                    title="Show sidebar"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div
+                    ref={sidebarRef}
+                    style={{
+                      width: `${sidebarWidth}px`,
+                      minWidth: `${sidebarWidth}px`,
+                    }}
+                    className="flex h-full relative shrink-0"
+                  >
+                    <SidebarCatalog
+                      sidebarWidth={sidebarWidth}
+                      onToggleCollapse={() => setSidebarCollapsed(true)}
+                    />
+                  </div>
+                  <div
+                    onMouseDown={handleDividerMouseDown}
+                    className={`w-1.5 hover:w-2 bg-border hover:bg-primary/50 cursor-col-resize transition-all ${
+                      isResizing ? "bg-primary w-2" : ""
+                    }`}
+                  />
+                </>
+              )}
               <div className="flex-1 flex flex-col relative">
                 <FlowCanvas />
                 {jsonOpen && <JsonTracker onClose={() => setJsonOpen(false)} />}
