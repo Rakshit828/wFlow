@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Mail,
   FileSpreadsheet,
@@ -15,34 +15,37 @@ import {
   Webhook,
   GripVertical,
   X,
-  Package
-} from 'lucide-react';
-import { useWorkflowStore } from '../../store/useWorkflowStore';
-import { fetchRegisteredNodes, searchRegisteredNodes } from '../../api/workflows';
-import type { NodesRegistryListItem } from '../../types/workflow';
+  Package,
+} from "lucide-react";
+import { useWorkflowStore } from "../../store/useWorkflowStore";
+import {
+  fetchRegisteredNodes,
+  searchRegisteredNodes,
+} from "../../api/workflows";
+import type { NodesRegistryListItem } from "../../types/workflow";
 
 const getCategoryIcon = (type: string, service?: string | null) => {
-  const svc = service?.toLowerCase() || '';
-  if (svc.includes('gmail')) {
+  const svc = service?.toLowerCase() || "";
+  if (svc.includes("gmail")) {
     return <Mail className="text-rose-400" size={15} />;
   }
-  if (svc.includes('sheets')) {
+  if (svc.includes("sheets")) {
     return <FileSpreadsheet className="text-emerald-400" size={15} />;
   }
-  if (svc.includes('drive')) {
+  if (svc.includes("drive")) {
     return <FolderUp className="text-sky-400" size={15} />;
   }
 
   switch (type) {
-    case 'LLM':
+    case "LLM":
       return <Sparkles className="text-amber-400" size={15} />;
-    case 'CONTROL_FLOW':
+    case "CONTROL_FLOW":
       return <GitFork className="text-purple-400" size={15} />;
-    case 'TRANSFORM':
+    case "TRANSFORM":
       return <Layers className="text-teal-400" size={15} />;
-    case 'API':
+    case "API":
       return <Webhook className="text-indigo-400" size={15} />;
-    case 'DATA_SOURCE':
+    case "DATA_SOURCE":
       return <Cpu className="text-blue-400" size={15} />;
     default:
       return <Wrench className="text-slate-400" size={15} />;
@@ -51,27 +54,43 @@ const getCategoryIcon = (type: string, service?: string | null) => {
 
 const getTypeColor = (type: string): string => {
   switch (type) {
-    case 'LLM': return 'text-amber-400 bg-amber-400/10 border-amber-400/20';
-    case 'CONTROL_FLOW': return 'text-purple-400 bg-purple-400/10 border-purple-400/20';
-    case 'ACTION': return 'text-blue-400 bg-blue-400/10 border-blue-400/20';
-    case 'TRANSFORM': return 'text-teal-400 bg-teal-400/10 border-teal-400/20';
-    case 'API': return 'text-indigo-400 bg-indigo-400/10 border-indigo-400/20';
-    case 'DATA_SOURCE': return 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20';
-    case 'TRIGGER': return 'text-orange-400 bg-orange-400/10 border-orange-400/20';
-    default: return 'text-slate-400 bg-slate-400/10 border-slate-400/20';
+    case "LLM":
+      return "text-amber-400 bg-amber-400/10 border-amber-400/20";
+    case "CONTROL_FLOW":
+      return "text-purple-400 bg-purple-400/10 border-purple-400/20";
+    case "ACTION":
+      return "text-blue-400 bg-blue-400/10 border-blue-400/20";
+    case "TRANSFORM":
+      return "text-teal-400 bg-teal-400/10 border-teal-400/20";
+    case "API":
+      return "text-indigo-400 bg-indigo-400/10 border-indigo-400/20";
+    case "DATA_SOURCE":
+      return "text-cyan-400 bg-cyan-400/10 border-cyan-400/20";
+    case "TRIGGER":
+      return "text-orange-400 bg-orange-400/10 border-orange-400/20";
+    default:
+      return "text-slate-400 bg-slate-400/10 border-slate-400/20";
   }
 };
 
 const getTypeNameLabel = (type: string) => {
   switch (type) {
-    case 'LLM': return 'Language Model';
-    case 'CONTROL_FLOW': return 'Control Flow';
-    case 'ACTION': return 'Integration';
-    case 'TRANSFORM': return 'Transform';
-    case 'API': return 'External API';
-    case 'DATA_SOURCE': return 'Data Source';
-    case 'TRIGGER': return 'Trigger';
-    default: return type;
+    case "LLM":
+      return "Language Model";
+    case "CONTROL_FLOW":
+      return "Control Flow";
+    case "ACTION":
+      return "Integration";
+    case "TRANSFORM":
+      return "Transform";
+    case "API":
+      return "External API";
+    case "DATA_SOURCE":
+      return "Data Source";
+    case "TRIGGER":
+      return "Trigger";
+    default:
+      return type;
   }
 };
 
@@ -99,9 +118,17 @@ const SkeletonCard: React.FC<{ index: number }> = ({ index }) => (
 const NodeCard: React.FC<{
   node: NodesRegistryListItem;
   index: number;
+  fontScale: number;
   onDragStart: (e: React.DragEvent, key: string) => void;
-}> = ({ node, index, onDragStart }) => {
+}> = ({ node, index, fontScale, onDragStart }) => {
   const [isDragging, setIsDragging] = React.useState(false);
+
+  // Derive pixel sizes from fontScale so all text in the card scales together.
+  // Base sizes (at fontScale=1): name=14px, description=11px, badge=9px, service=10px
+  const nameSize = Math.round(14 * fontScale);
+  const descSize = Math.round(11 * fontScale);
+  const badgeSize = Math.round(9 * fontScale);
+  const serviceSize = Math.round(10 * fontScale);
 
   return (
     <div
@@ -111,10 +138,11 @@ const NodeCard: React.FC<{
         onDragStart(e, node.fn_key);
       }}
       onDragEnd={() => setIsDragging(false)}
-      className={`animate-catalog-card group flex flex-col p-3 rounded-xl border bg-background/50 cursor-grab active:cursor-grabbing transition-all duration-200 ${isDragging
-          ? 'drag-active border-primary/40 bg-primary/5 scale-[0.98] opacity-80'
-          : 'border-border hover:bg-accent/40 hover:border-primary/20 hover:shadow-lg hover:shadow-black/10'
-        }`}
+      className={`animate-catalog-card group flex flex-col p-3 rounded-xl border bg-background/50 cursor-grab active:cursor-grabbing transition-all duration-200 ${
+        isDragging
+          ? "drag-active border-primary/40 bg-primary/5 scale-[0.98] opacity-80"
+          : "border-border hover:bg-accent/40 hover:border-primary/20 hover:shadow-lg hover:shadow-black/10"
+      }`}
       style={{ animationDelay: `${index * 50}ms` }}
     >
       <div className="flex items-center justify-between gap-2">
@@ -123,28 +151,49 @@ const NodeCard: React.FC<{
             {getCategoryIcon(node.type, node.service)}
           </div>
           <div className="min-w-0 flex-1">
-            <span className="text-sm font-semibold text-foreground tracking-wide group-hover:text-primary transition-colors block truncate">
+            <span
+              className="font-semibold text-foreground tracking-wide group-hover:text-primary transition-colors block truncate"
+              style={{ fontSize: `${nameSize}px` }}
+            >
               {node.name}
             </span>
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-800/80 text-slate-400 font-medium border border-slate-700/50">
+          <span
+            className="px-1.5 py-0.5 rounded-md bg-slate-800/80 text-slate-400 font-medium border border-slate-700/50"
+            style={{ fontSize: `${serviceSize}px` }}
+          >
             {node.service}
           </span>
-          <GripVertical size={12} className="text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+          <GripVertical
+            size={12}
+            className="text-muted-foreground/40 group-hover:text-muted-foreground transition-colors"
+          />
         </div>
       </div>
-      <p className="text-[11px] text-muted-foreground mt-2 leading-snug line-clamp-2">
+
+      <p
+        className="text-muted-foreground mt-2 leading-snug line-clamp-2"
+        style={{ fontSize: `${descSize}px` }}
+      >
         {node.description}
       </p>
+
       <div className="flex items-center gap-1.5 mt-2">
-        <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-semibold border ${getTypeColor(node.type)}`}>
+        <span
+          className={`px-1.5 py-0.5 rounded-md font-semibold border ${getTypeColor(node.type)}`}
+          style={{ fontSize: `${badgeSize}px` }}
+        >
           {getTypeNameLabel(node.type)}
         </span>
         {node.valid_permissions && node.valid_permissions.length > 0 && (
-          <span className="text-[9px] px-1 py-0.5 rounded bg-slate-900/50 text-slate-500 font-mono">
-            {node.valid_permissions.length} perm{node.valid_permissions.length > 1 ? 's' : ''}
+          <span
+            className="px-1 py-0.5 rounded bg-slate-900/50 text-slate-500 font-mono"
+            style={{ fontSize: `${badgeSize}px` }}
+          >
+            {node.valid_permissions.length} perm
+            {node.valid_permissions.length > 1 ? "s" : ""}
           </span>
         )}
       </div>
@@ -175,7 +224,9 @@ const PaginationBar: React.FC<{
           {page} / {totalPages}
         </span>
         {total !== undefined && (
-          <span className="text-[9px] text-muted-foreground/60">{total} total</span>
+          <span className="text-[9px] text-muted-foreground/60">
+            {total} total
+          </span>
         )}
       </div>
       <button
@@ -189,9 +240,18 @@ const PaginationBar: React.FC<{
   );
 };
 
-export const SidebarCatalog: React.FC = () => {
+export const SidebarCatalog: React.FC<{ sidebarWidth: number }> = ({
+  sidebarWidth,
+}) => {
   const { addRegistryItems } = useWorkflowStore();
-  const [activeTab, setActiveTab] = React.useState<'all' | 'explore'>('all');
+  const [activeTab, setActiveTab] = React.useState<"all" | "explore">("all");
+
+  // fontScale: 250px (min) = 0.85, 310px (default) = 1, 600px (max) = 1.35
+  // Used ONLY for NodeCard text — not for headers or tab labels.
+  const fontScale = Math.max(
+    0.85,
+    Math.min(1.35, (sidebarWidth - 250) / 350 + 0.85),
+  );
 
   // All Nodes Tab State
   const [allNodes, setAllNodes] = React.useState<NodesRegistryListItem[]>([]);
@@ -202,22 +262,22 @@ export const SidebarCatalog: React.FC = () => {
   const [allError, setAllError] = React.useState<string | null>(null);
 
   // Explore Tab State
-  const [exploreNodes, setExploreNodes] = React.useState<NodesRegistryListItem[]>([]);
-  const [selectedType, setSelectedType] = React.useState<string>('ACTION');
-  const [searchService, setSearchService] = React.useState('');
-  const [debouncedService, setDebouncedService] = React.useState('');
+  const [exploreNodes, setExploreNodes] = React.useState<
+    NodesRegistryListItem[]
+  >([]);
+  const [selectedType, setSelectedType] = React.useState<string>("ACTION");
+  const [searchService, setSearchService] = React.useState("");
+  const [debouncedService, setDebouncedService] = React.useState("");
   const [explorePage, setExplorePage] = React.useState(1);
   const [exploreTotalPages, setExploreTotalPages] = React.useState(1);
   const [exploreTotal, setExploreTotal] = React.useState(0);
   const [exploreLoading, setExploreLoading] = React.useState(false);
   const [exploreError, setExploreError] = React.useState<string | null>(null);
 
-  // Content key for re-triggering animations on tab/page changes
   const [contentKey, setContentKey] = React.useState(0);
 
   const PAGE_SIZE = 6;
 
-  // Debounce search input
   React.useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedService(searchService);
@@ -226,58 +286,76 @@ export const SidebarCatalog: React.FC = () => {
     return () => clearTimeout(timer);
   }, [searchService]);
 
-  // Load All Nodes
-  const loadAllNodes = React.useCallback(async (page: number) => {
-    setAllLoading(true);
-    setAllError(null);
-    try {
-      const res = await fetchRegisteredNodes(page, PAGE_SIZE);
-      setAllNodes(res.data);
-      setAllTotalPages(res.pagination.total_pages);
-      setAllTotal(res.pagination.total);
-      addRegistryItems(res.data);
-      setContentKey(k => k + 1);
-    } catch (err) {
-      setAllError(err instanceof Error ? err.message : 'Failed to fetch nodes');
-    } finally {
-      setAllLoading(false);
-    }
-  }, [addRegistryItems]);
+  const loadAllNodes = React.useCallback(
+    async (page: number) => {
+      setAllLoading(true);
+      setAllError(null);
+      try {
+        const res = await fetchRegisteredNodes(page, PAGE_SIZE);
+        setAllNodes(res.data);
+        setAllTotalPages(res.pagination.total_pages);
+        setAllTotal(res.pagination.total);
+        addRegistryItems(res.data);
+        setContentKey((k) => k + 1);
+      } catch (err) {
+        setAllError(
+          err instanceof Error ? err.message : "Failed to fetch nodes",
+        );
+      } finally {
+        setAllLoading(false);
+      }
+    },
+    [addRegistryItems],
+  );
 
-  // Load Explore Nodes
-  const loadExploreNodes = React.useCallback(async (type: string, service: string, page: number) => {
-    setExploreLoading(true);
-    setExploreError(null);
-    try {
-      const res = await searchRegisteredNodes(type, service || undefined, page, PAGE_SIZE);
-      setExploreNodes(res.data);
-      setExploreTotalPages(res.pagination.total_pages);
-      setExploreTotal(res.pagination.total);
-      addRegistryItems(res.data);
-      setContentKey(k => k + 1);
-    } catch (err) {
-      setExploreError(err instanceof Error ? err.message : 'Failed to explore nodes');
-    } finally {
-      setExploreLoading(false);
-    }
-  }, [addRegistryItems]);
+  const loadExploreNodes = React.useCallback(
+    async (type: string, service: string, page: number) => {
+      setExploreLoading(true);
+      setExploreError(null);
+      try {
+        const res = await searchRegisteredNodes(
+          type,
+          service || undefined,
+          page,
+          PAGE_SIZE,
+        );
+        setExploreNodes(res.data);
+        setExploreTotalPages(res.pagination.total_pages);
+        setExploreTotal(res.pagination.total);
+        addRegistryItems(res.data);
+        setContentKey((k) => k + 1);
+      } catch (err) {
+        setExploreError(
+          err instanceof Error ? err.message : "Failed to explore nodes",
+        );
+      } finally {
+        setExploreLoading(false);
+      }
+    },
+    [addRegistryItems],
+  );
 
-  // Fetch when page/tab changes
   React.useEffect(() => {
-    if (activeTab === 'all') {
+    if (activeTab === "all") {
       loadAllNodes(allPage);
     }
   }, [activeTab, allPage, loadAllNodes]);
 
   React.useEffect(() => {
-    if (activeTab === 'explore') {
+    if (activeTab === "explore") {
       loadExploreNodes(selectedType, debouncedService, explorePage);
     }
-  }, [activeTab, selectedType, debouncedService, explorePage, loadExploreNodes]);
+  }, [
+    activeTab,
+    selectedType,
+    debouncedService,
+    explorePage,
+    loadExploreNodes,
+  ]);
 
   const onDragStart = (event: React.DragEvent, nodeKey: string) => {
-    event.dataTransfer.setData('application/reactflow-nodekey', nodeKey);
-    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData("application/reactflow-nodekey", nodeKey);
+    event.dataTransfer.effectAllowed = "move";
   };
 
   const renderError = (error: string) => (
@@ -307,8 +385,8 @@ export const SidebarCatalog: React.FC = () => {
   );
 
   return (
-    <aside className="w-[310px] h-full border-r border-border bg-card flex flex-col select-none shrink-0 overflow-hidden">
-      {/* Title Header */}
+    <aside className="w-full h-full border-r border-border bg-card flex flex-col select-none shrink-0 overflow-hidden">
+      {/* Title Header — fixed size, no fontScale */}
       <div className="p-4 border-b border-border bg-muted/20">
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-base text-foreground uppercase tracking-wider flex items-center gap-2">
@@ -326,23 +404,25 @@ export const SidebarCatalog: React.FC = () => {
         </p>
       </div>
 
-      {/* Mini Tabs */}
+      {/* Tab Headers — fixed size, no fontScale */}
       <div className="flex border-b border-border text-xs font-bold bg-muted/10 shrink-0 relative">
         <button
-          onClick={() => setActiveTab('all')}
-          className={`flex-1 py-3 text-center uppercase tracking-wider transition-all border-b-2 tab-indicator ${activeTab === 'all'
-              ? 'text-primary border-primary bg-background/20'
-              : 'text-muted-foreground border-transparent hover:text-foreground'
-            }`}
+          onClick={() => setActiveTab("all")}
+          className={`flex-1 py-3 text-center uppercase tracking-wider transition-all border-b-2 tab-indicator ${
+            activeTab === "all"
+              ? "text-primary border-primary bg-background/20"
+              : "text-muted-foreground border-transparent hover:text-foreground"
+          }`}
         >
           All Nodes
         </button>
         <button
-          onClick={() => setActiveTab('explore')}
-          className={`flex-1 py-3 text-center uppercase tracking-wider transition-all border-b-2 tab-indicator ${activeTab === 'explore'
-              ? 'text-primary border-primary bg-background/20'
-              : 'text-muted-foreground border-transparent hover:text-foreground'
-            }`}
+          onClick={() => setActiveTab("explore")}
+          className={`flex-1 py-3 text-center uppercase tracking-wider transition-all border-b-2 tab-indicator ${
+            activeTab === "explore"
+              ? "text-primary border-primary bg-background/20"
+              : "text-muted-foreground border-transparent hover:text-foreground"
+          }`}
         >
           Explore
         </button>
@@ -350,15 +430,27 @@ export const SidebarCatalog: React.FC = () => {
 
       {/* Content Area */}
       <div className="flex-1 flex flex-col min-h-0">
-        {activeTab === 'all' ? (
-          // Tab 1: All Nodes
-          <div className="flex-1 flex flex-col min-h-0 p-4" key={`all-${contentKey}`}>
-            {allLoading ? renderLoading() : allError ? renderError(allError) : allNodes.length === 0 ? (
-              renderEmpty('No nodes registered in backend registry.')
+        {activeTab === "all" ? (
+          <div
+            className="flex-1 flex flex-col min-h-0 p-4"
+            key={`all-${contentKey}`}
+          >
+            {allLoading ? (
+              renderLoading()
+            ) : allError ? (
+              renderError(allError)
+            ) : allNodes.length === 0 ? (
+              renderEmpty("No nodes registered in backend registry.")
             ) : (
               <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 animate-content-switch">
                 {allNodes.map((node, i) => (
-                  <NodeCard key={node.fn_key} node={node} index={i} onDragStart={onDragStart} />
+                  <NodeCard
+                    key={node.fn_key}
+                    node={node}
+                    index={i}
+                    fontScale={fontScale}
+                    onDragStart={onDragStart}
+                  />
                 ))}
               </div>
             )}
@@ -368,15 +460,17 @@ export const SidebarCatalog: React.FC = () => {
                 page={allPage}
                 totalPages={allTotalPages}
                 total={allTotal}
-                onPrev={() => setAllPage(p => Math.max(1, p - 1))}
-                onNext={() => setAllPage(p => Math.min(allTotalPages, p + 1))}
+                onPrev={() => setAllPage((p) => Math.max(1, p - 1))}
+                onNext={() => setAllPage((p) => Math.min(allTotalPages, p + 1))}
               />
             )}
           </div>
         ) : (
-          // Tab 2: Explore / Search
-          <div className="flex-1 flex flex-col min-h-0 p-4 animate-content-switch" key={`explore-${contentKey}`}>
-            {/* Search Header */}
+          <div
+            className="flex-1 flex flex-col min-h-0 p-4 animate-content-switch"
+            key={`explore-${contentKey}`}
+          >
+            {/* Search Header — fixed size, no fontScale */}
             <div className="space-y-3 mb-4 shrink-0">
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
@@ -412,11 +506,14 @@ export const SidebarCatalog: React.FC = () => {
                     placeholder="e.g. google.gmail, groq"
                     className="w-full text-xs rounded-lg bg-background border border-border pl-8 pr-8 py-2 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
                   />
-                  <Search className="absolute left-2.5 top-2.5 text-muted-foreground/60" size={13} />
+                  <Search
+                    className="absolute left-2.5 top-2.5 text-muted-foreground/60"
+                    size={13}
+                  />
                   {searchService && (
                     <button
                       type="button"
-                      onClick={() => setSearchService('')}
+                      onClick={() => setSearchService("")}
                       className="absolute right-2 top-2 p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                     >
                       <X size={12} />
@@ -425,19 +522,31 @@ export const SidebarCatalog: React.FC = () => {
                 </div>
                 {debouncedService && (
                   <p className="text-[9px] text-muted-foreground/60 mt-0.5 animate-tooltip">
-                    Filtering by "{debouncedService}" · {exploreTotal} result{exploreTotal !== 1 ? 's' : ''}
+                    Filtering by "{debouncedService}" · {exploreTotal} result
+                    {exploreTotal !== 1 ? "s" : ""}
                   </p>
                 )}
               </div>
             </div>
 
-            {/* Results */}
-            {exploreLoading ? renderLoading() : exploreError ? renderError(exploreError) : exploreNodes.length === 0 ? (
-              renderEmpty(`No matching nodes for type "${getTypeNameLabel(selectedType)}"${debouncedService ? ` and service "${debouncedService}"` : ''}.`)
+            {exploreLoading ? (
+              renderLoading()
+            ) : exploreError ? (
+              renderError(exploreError)
+            ) : exploreNodes.length === 0 ? (
+              renderEmpty(
+                `No matching nodes for type "${getTypeNameLabel(selectedType)}"${debouncedService ? ` and service "${debouncedService}"` : ""}.`,
+              )
             ) : (
               <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 animate-content-switch">
                 {exploreNodes.map((node, i) => (
-                  <NodeCard key={node.fn_key} node={node} index={i} onDragStart={onDragStart} />
+                  <NodeCard
+                    key={node.fn_key}
+                    node={node}
+                    index={i}
+                    fontScale={fontScale}
+                    onDragStart={onDragStart}
+                  />
                 ))}
               </div>
             )}
@@ -447,8 +556,10 @@ export const SidebarCatalog: React.FC = () => {
                 page={explorePage}
                 totalPages={exploreTotalPages}
                 total={exploreTotal}
-                onPrev={() => setExplorePage(p => Math.max(1, p - 1))}
-                onNext={() => setExplorePage(p => Math.min(exploreTotalPages, p + 1))}
+                onPrev={() => setExplorePage((p) => Math.max(1, p - 1))}
+                onNext={() =>
+                  setExplorePage((p) => Math.min(exploreTotalPages, p + 1))
+                }
               />
             )}
           </div>
