@@ -23,6 +23,14 @@ internal_storage_client = AsyncLocalStorageClient(
 )
 
 
+@workflow_router.post("/update-node-registry")
+async def update_node_registry(
+    workflow_service: WorkflowService = Depends(WorkflowService),
+):
+    await workflow_service.update_node_registry()
+    return {"status": "success", "message": "Node registry updated successfully"}
+
+
 @workflow_router.get("/all-nodes", response_model=PaginatedNodesResponse)
 async def get_all_nodes(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
@@ -121,9 +129,6 @@ async def star_workflow(
     return data
 
 
-@workflow_router.get("/nodes")
-async def load_from_node_registry():
-    pass
 
 
 @workflow_router.post("/upload-file")

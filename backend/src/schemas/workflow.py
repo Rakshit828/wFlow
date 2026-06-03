@@ -41,7 +41,7 @@ class NodesRegistryListItemModel(BaseModel):
     description: str
     type: NodesTypeEnum
     service: str
-    valid_permissions: list[str]
+    valid_permissions: list[str] | None = None
     fn_key: str
     input_model: dict  # THis is the json schema
     output_model: dict | None = (

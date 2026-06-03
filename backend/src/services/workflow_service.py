@@ -1,5 +1,6 @@
 from src.repositories.workflows import WorkflowRepository
 from src.repositories.auth_repository import UserRepository
+from src.repositories.node_registry_repository import NodeRegistryRepository
 from src.schemas.workflow import (
     CreateNewWorkflowModel,
     WorkflowListItemModel,
@@ -18,15 +19,18 @@ from beanie import PydanticObjectId
 from fastapi import HTTPException, status
 from typing import Optional
 from src.workflows.types import NodesTypeEnum, ApplicationNode
+from src.workflows.nodes import NODES_MAP
 
 
 class WorkflowService:
     def __init__(self):
         self._user_repo = UserRepository()
         self._workflow_repo = WorkflowRepository()
+        self._node_registry_repo = NodeRegistryRepository()
 
-    async def load_from_node_registry(self):
-        pass
+    async def update_node_registry(self):
+        await self._node_registry_repo.delete_all()
+        await self._node_registry_repo.create_nodes(NODES_MAP.values())
 
     async def star_workflow(self, workflow_id: str, user_id: str) -> Workflows | None:
         wf_id_obj = PydanticObjectId(workflow_id)
@@ -193,7 +197,12 @@ class WorkflowService:
             page_size = 10
 
         total = await NodesRegistry.find().count()
-        nodes = await NodesRegistry.find_all().skip((page - 1) * page_size).limit(page_size).to_list()
+        nodes = (
+            await NodesRegistry.find_all()
+            .skip((page - 1) * page_size)
+            .limit(page_size)
+            .to_list()
+        )
 
         formatted_nodes = [self._format_node_list_item(node) for node in nodes]
         pagination = self._create_pagination_metadata(total, page, page_size)

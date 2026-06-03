@@ -4,6 +4,10 @@ from typing import List, Optional
 
 
 class NodeRegistryRepository:
+    async def delete_all(self):
+        await NodesRegistry.find_all().delete()
+        return None
+
     async def create_new_node(self, node: ApplicationNode) -> NodesRegistry | None:
         node: NodesRegistry | None = await NodesRegistry.insert_one(
             NodesRegistry(

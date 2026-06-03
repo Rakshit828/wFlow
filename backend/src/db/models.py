@@ -1,6 +1,6 @@
 from beanie import Document, Indexed, before_event, Update, PydanticObjectId
 from pydantic import EmailStr, Field, ConfigDict
-from typing import Optional, List, Annotated, Literal
+from typing import Optional, List, Annotated, Literal, Dict, Any
 from datetime import datetime, timezone
 
 from src.workflows.types import Node, Edge, NodesTypeEnum
@@ -82,14 +82,15 @@ class OAuthAccounts(Document):
 
 class NodesRegistry(Document):
     """List of application nodes for data consistency and single source of truth."""
+
     name: str
     description: str
-    type: NodesTypeEnum
-    service: str
-    valid_permissions: list[str]
+    type: Annotated[str, Indexed()]
+    service: Annotated[str, Indexed()]
+    valid_permissions: list[str] | None = None 
     fn_key: Annotated[str, Indexed(unique=True)]
-    input_model: dict
-    output_model: dict
+    input_model: Dict[str, Any]
+    output_model: Optional[Dict[str, Any]] = None
 
 
 class Workflows(Document):
