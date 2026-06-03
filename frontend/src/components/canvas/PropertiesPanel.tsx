@@ -7,11 +7,40 @@ import {
   Plus,
   Minus,
   Link,
-  AlertCircle
+  AlertCircle,
+  Info,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { useWorkflowStore } from '../../store/useWorkflowStore';
 import { NODE_SPEC_CATALOG } from '../../types/workflow';
 import { asNodeData, inputStr } from '../../types/flow';
+
+const getNodeTypeColor = (type: string): string => {
+  switch (type) {
+    case 'LLM': return 'text-amber-400 bg-amber-400/10 border-amber-400/20';
+    case 'CONTROL_FLOW': return 'text-purple-400 bg-purple-400/10 border-purple-400/20';
+    case 'ACTION': return 'text-blue-400 bg-blue-400/10 border-blue-400/20';
+    case 'TRANSFORM': return 'text-teal-400 bg-teal-400/10 border-teal-400/20';
+    case 'API': return 'text-indigo-400 bg-indigo-400/10 border-indigo-400/20';
+    case 'DATA_SOURCE': return 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20';
+    case 'TRIGGER': return 'text-orange-400 bg-orange-400/10 border-orange-400/20';
+    default: return 'text-slate-400 bg-slate-400/10 border-slate-400/20';
+  }
+};
+
+const getTypeLabel = (type: string): string => {
+  switch (type) {
+    case 'LLM': return 'Language Model';
+    case 'CONTROL_FLOW': return 'Control Flow';
+    case 'ACTION': return 'Integration';
+    case 'TRANSFORM': return 'Transform';
+    case 'API': return 'External API';
+    case 'DATA_SOURCE': return 'Data Source';
+    case 'TRIGGER': return 'Trigger';
+    default: return type;
+  }
+};
 
 export const PropertiesPanel: React.FC = () => {
   const { 
@@ -21,11 +50,13 @@ export const PropertiesPanel: React.FC = () => {
     updateNodeConfig, 
     deleteNode, 
     setActiveNodeId,
-    getPrecedingNodes 
+    getPrecedingNodes,
+    nodeRegistry
   } = useWorkflowStore();
 
   const [activeTab, setActiveTab] = React.useState<'inputs' | 'config'>('inputs');
   const [copiedPath, setCopiedPath] = React.useState<string | null>(null);
+  const [showSchemaInfo, setShowSchemaInfo] = React.useState(false);
 
   const activeNode = React.useMemo(() => {
     return nodes.find(n => n.id === activeNodeId) || null;
@@ -85,34 +116,55 @@ export const PropertiesPanel: React.FC = () => {
           {precedingNodes.map(pn => {
             const outputsList: string[] = [];
             
-            // Map common schemas for autocomplete based on node key
+            // 1. If output_model is defined in the node's schema
+            if (pn.output_model && pn.output_model.properties) {
+              Object.entries(pn.output_model.properties).forEach(([k, propVal]: [string, any]) => {
+                if (k === 'output' && propVal && propVal.properties) {
+                  // Nesting check for standard output structures (e.g. LLMs)
+                  Object.keys(propVal.properties).forEach(subK => {
+                    outputsList.push(`${pn.name}.outputs.output.${subK}`);
+                  });
+                } else {
+                  outputsList.push(`${pn.name}.outputs.${k}`);
+                }
+              });
+            }
+            
+            // 2. Custom schema overlays/fallbacks for dynamic LLM configuration at runtime
             if (pn.key.startsWith('llm.')) {
-              // Custom schemas stashed inside pydantic response models
               const responseSchema = pn.config?.response_model?.output || {};
               Object.keys(responseSchema).forEach(k => {
-                outputsList.push(`${pn.name}.outputs.output.${k}`);
+                const path = `${pn.name}.outputs.output.${k}`;
+                if (!outputsList.includes(path)) {
+                  outputsList.push(path);
+                }
               });
               if (outputsList.length === 0) {
                 outputsList.push(`${pn.name}.outputs.output`);
               }
-            } else if (pn.key === 'if_node') {
-              outputsList.push(`${pn.name}.outputs.decision`);
-            } else if (pn.key === 'switch_node') {
-              outputsList.push(`${pn.name}.outputs.case`);
-            } else if (pn.key.startsWith('gmail.')) {
-              outputsList.push(`${pn.name}.outputs.id`);
-              outputsList.push(`${pn.name}.outputs.threadId`);
-            } else if (pn.key.startsWith('sheets.')) {
-              outputsList.push(`${pn.name}.outputs.spreadsheet_id`);
-              outputsList.push(`${pn.name}.outputs.values`);
-            } else {
-              outputsList.push(`${pn.name}.outputs.output`);
+            }
+
+            // 3. Fallbacks for standard hardcoded nodes if output_model wasn't loaded
+            if (outputsList.length === 0) {
+              if (pn.key === 'if_node') {
+                outputsList.push(`${pn.name}.outputs.decision`);
+              } else if (pn.key === 'switch_node') {
+                outputsList.push(`${pn.name}.outputs.case`);
+              } else if (pn.key.startsWith('gmail.')) {
+                outputsList.push(`${pn.name}.outputs.id`);
+                outputsList.push(`${pn.name}.outputs.threadId`);
+              } else if (pn.key.startsWith('sheets.')) {
+                outputsList.push(`${pn.name}.outputs.spreadsheet_id`);
+                outputsList.push(`${pn.name}.outputs.values`);
+              } else {
+                outputsList.push(`${pn.name}.outputs.output`);
+              }
             }
 
             return (
               <div key={pn.name} className="space-y-1">
                 <span className="text-xs font-bold text-foreground block">
-                  {pn.name} ({NODE_SPEC_CATALOG[pn.key]?.name ?? pn.key})
+                  {pn.name} ({nodeRegistry[pn.key]?.name || NODE_SPEC_CATALOG[pn.key]?.name || pn.key})
                 </span>
                 <div className="flex flex-col gap-1 pl-1.5">
                   {outputsList.map(path => (
@@ -145,36 +197,178 @@ export const PropertiesPanel: React.FC = () => {
     );
   };
 
+  const renderDynamicFormFromSchema = () => {
+    const schema = data.input_model;
+    if (!schema || !schema.properties) return null;
+
+    return (
+      <div className="space-y-4">
+        {Object.entries(schema.properties).map(([fieldKey, propSchema]: [string, any]) => {
+          if (fieldKey === 'config') return null;
+
+          const title = propSchema.title || fieldKey;
+          const description = propSchema.description;
+          const isRequired = Array.isArray(schema.required) && schema.required.includes(fieldKey);
+
+          return (
+            <div key={fieldKey} className="space-y-1">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide flex justify-between items-center">
+                <span>
+                  {title}
+                  {isRequired && <span className="text-rose-400 ml-1">*</span>}
+                </span>
+                {description && (
+                  <span className="text-[10px] text-slate-500 font-normal normal-case italic">
+                    {description}
+                  </span>
+                )}
+              </label>
+
+              {propSchema.enum ? (
+                <select
+                  value={typeof inputs[fieldKey] === 'string' || typeof inputs[fieldKey] === 'number' ? String(inputs[fieldKey]) : ''}
+                  onChange={(e) => handleInputChange(fieldKey, e.target.value)}
+                  className="w-full rounded-lg bg-background border border-border px-3 py-2 text-sm text-foreground focus:outline-none focus:border-indigo-500 transition-colors"
+                >
+                  <option value="">Select option...</option>
+                  {propSchema.enum.map((opt: string) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
+              ) : propSchema.type === 'boolean' ? (
+                <select
+                  value={String(inputs[fieldKey] ?? false)}
+                  onChange={(e) => handleInputChange(fieldKey, e.target.value === 'true')}
+                  className="w-full rounded-lg bg-background border border-border px-2 py-2 text-sm text-foreground focus:outline-none focus:border-indigo-500 transition-colors"
+                >
+                  <option value="true">True</option>
+                  <option value="false">False</option>
+                </select>
+              ) : propSchema.type === 'array' && propSchema.items?.type === 'string' ? (
+                <div className="space-y-1">
+                  <input
+                    type="text"
+                    value={Array.isArray(inputs[fieldKey]) ? inputs[fieldKey].join(', ') : inputStr(inputs, fieldKey)}
+                    onChange={(e) => {
+                      const arr = e.target.value.split(',').map(s => s.trim()).filter(Boolean);
+                      handleInputChange(fieldKey, arr);
+                    }}
+                    placeholder="Comma-separated values"
+                    className="w-full rounded-lg bg-background border border-border px-3 py-2 text-sm text-foreground focus:outline-none focus:border-indigo-500 transition-colors"
+                  />
+                  {renderAutocompleteAssistant(fieldKey)}
+                </div>
+              ) : propSchema.type === 'integer' || propSchema.type === 'number' ? (
+                <input
+                  type="number"
+                  value={typeof inputs[fieldKey] === 'number' || typeof inputs[fieldKey] === 'string' ? (inputs[fieldKey] as any) : ''}
+                  onChange={(e) => handleInputChange(fieldKey, e.target.value === '' ? 0 : Number(e.target.value))}
+                  className="w-full rounded-lg bg-background border border-border px-3 py-2 text-sm text-foreground focus:outline-none focus:border-indigo-500 transition-colors"
+                />
+              ) : propSchema.type === 'object' ? (
+                <div className="space-y-1">
+                  <textarea
+                    value={typeof inputs[fieldKey] === 'string' ? inputs[fieldKey] : JSON.stringify(inputs[fieldKey] ?? {}, null, 2)}
+                    onChange={(e) => {
+                      let parsed = e.target.value;
+                      try {
+                        parsed = JSON.parse(e.target.value);
+                      } catch {}
+                      handleInputChange(fieldKey, parsed);
+                    }}
+                    rows={4}
+                    placeholder='{"key": "value"}'
+                    className="w-full rounded-lg bg-background border border-border p-2.5 text-xs text-foreground focus:outline-none focus:border-indigo-500 transition-colors font-mono resize-y"
+                  />
+                  {renderAutocompleteAssistant(fieldKey)}
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {fieldKey === 'prompt' || fieldKey === 'body' || fieldKey === 'condition' || fieldKey === 'template' ? (
+                    <textarea
+                      value={inputStr(inputs, fieldKey)}
+                      onChange={(e) => handleInputChange(fieldKey, e.target.value)}
+                      rows={4}
+                      placeholder={`Enter ${title.toLowerCase()}...`}
+                      className="w-full rounded-lg bg-background border border-border p-2.5 text-sm text-foreground focus:outline-none focus:border-indigo-500 transition-colors font-sans leading-normal resize-y"
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={inputStr(inputs, fieldKey)}
+                      onChange={(e) => handleInputChange(fieldKey, e.target.value)}
+                      placeholder={`Enter ${title.toLowerCase()}...`}
+                      className="w-full rounded-lg bg-background border border-border px-3 py-2 text-sm text-foreground focus:outline-none focus:border-indigo-500 transition-colors"
+                    />
+                  )}
+                  {renderAutocompleteAssistant(fieldKey)}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   return (
     <aside 
-      className="w-[380px] h-full border-l border-border bg-card flex flex-col shadow-2xl relative z-40 shrink-0"
+      className="animate-slide-in-right w-[380px] h-full border-l border-border bg-card flex flex-col shadow-2xl relative z-40 shrink-0"
       style={{
         boxShadow: '-10px 0 30px -5px rgba(0, 0, 0, 0.6)'
       }}
     >
       {/* Header */}
-      <div className="p-4 border-b border-border bg-muted/30 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Settings className="text-primary" size={18} />
-          <div>
-            <h3 className="font-bold text-sm text-foreground uppercase tracking-wider">Node properties</h3>
-            <span className="text-xs text-muted-foreground font-mono leading-none">{activeNode.id}</span>
+      <div className="p-4 border-b border-border bg-muted/30">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Settings className="text-primary shrink-0" size={18} />
+            <h3 className="font-bold text-sm text-foreground uppercase tracking-wider truncate">Node properties</h3>
           </div>
+          <button 
+            type="button"
+            onClick={() => setActiveNodeId(null)}
+            className="p-1.5 rounded-lg bg-background hover:bg-accent text-muted-foreground hover:text-foreground border border-border transition-all hover:scale-105 active:scale-95"
+          >
+            <X size={14} />
+          </button>
         </div>
-        <button 
-          type="button"
-          onClick={() => setActiveNodeId(null)}
-          className="p-1.5 rounded-lg bg-background hover:bg-accent text-muted-foreground hover:text-foreground border border-border transition-colors"
-        >
-          <X size={14} />
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-muted-foreground font-mono leading-none truncate">{activeNode.id}</span>
+          <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-semibold border shrink-0 ${getNodeTypeColor(data.type)}`}>
+            {getTypeLabel(data.type)}
+          </span>
+        </div>
+        {/* Schema info toggle */}
+        {data.input_model && (
+          <button
+            type="button"
+            onClick={() => setShowSchemaInfo(!showSchemaInfo)}
+            className="mt-2 flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <Info size={10} />
+            <span>Schema info</span>
+            {showSchemaInfo ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          </button>
+        )}
+        {showSchemaInfo && data.input_model && (
+          <div className="mt-2 p-2 rounded-lg bg-background/60 border border-border text-[10px] text-muted-foreground space-y-1 animate-tooltip">
+            <p><span className="font-semibold text-foreground">Input fields:</span> {data.input_model.properties ? Object.keys(data.input_model.properties).length : 0}</p>
+            {data.input_model.required && (
+              <p><span className="font-semibold text-foreground">Required:</span> {data.input_model.required.join(', ')}</p>
+            )}
+            {data.output_model && (
+              <p><span className="font-semibold text-foreground">Output fields:</span> {data.output_model.properties ? Object.keys(data.output_model.properties).length : 'dynamic'}</p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
       <div className="flex border-b border-border text-sm font-semibold select-none bg-card">
         <button
           onClick={() => setActiveTab('inputs')}
-          className={`flex-1 py-2.5 text-center transition-colors border-b-2 ${
+          className={`flex-1 py-2.5 text-center transition-all border-b-2 tab-indicator ${
             activeTab === 'inputs' 
               ? 'text-indigo-400 border-indigo-500 bg-background/10' 
               : 'text-muted-foreground border-transparent hover:text-slate-200'
@@ -184,7 +378,7 @@ export const PropertiesPanel: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('config')}
-          className={`flex-1 py-2.5 text-center transition-colors border-b-2 ${
+          className={`flex-1 py-2.5 text-center transition-all border-b-2 tab-indicator ${
             activeTab === 'config' 
               ? 'text-indigo-400 border-indigo-500 bg-background/10' 
               : 'text-muted-foreground border-transparent hover:text-slate-200'
@@ -198,8 +392,12 @@ export const PropertiesPanel: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {activeTab === 'inputs' ? (
           <div className="space-y-4">
-            {/* LLM Input Prompts */}
-            {nodeKey.startsWith('llm.') && (
+            {data.input_model ? (
+              renderDynamicFormFromSchema()
+            ) : (
+              <>
+                {/* LLM Input Prompts */}
+                {nodeKey.startsWith('llm.') && (
               <div className="space-y-3">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-muted-foreground uppercase tracking-wide flex items-center justify-between">
@@ -613,6 +811,8 @@ export const PropertiesPanel: React.FC = () => {
                 </div>
               </div>
             )}
+              </>
+            )}
           </div>
         ) : (
           /* CONFIGURATION TAB */
@@ -740,14 +940,14 @@ export const PropertiesPanel: React.FC = () => {
       </div>
 
       {/* Delete / Danger zone Footer */}
-      <div className="p-4 border-t border-border bg-card flex gap-2 justify-between items-center">
+      <div className="p-3 border-t border-border bg-card/80 flex gap-2 justify-between items-center">
         <button
           onClick={() => {
             if (confirm('Are you sure you want to delete this node and all of its edge connections?')) {
               deleteNode(activeNode.id);
             }
           }}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 hover:border-rose-500/30 text-xs font-semibold transition-all w-full justify-center"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/20 hover:border-rose-500/30 text-xs font-semibold transition-all w-full justify-center hover:scale-[1.01] active:scale-[0.99]"
         >
           <Trash2 size={13} />
           Delete Node

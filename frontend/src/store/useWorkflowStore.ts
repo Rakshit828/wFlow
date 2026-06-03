@@ -12,7 +12,7 @@ import type {
   OnConnect,
   XYPosition
 } from '@xyflow/react';
-import type { Node as wNode, Edge as wEdge, Workflow } from '../types/workflow';
+import type { Node as wNode, Edge as wEdge, Workflow, NodesRegistryListItem } from '../types/workflow';
 import { NODE_SPEC_CATALOG } from '../types/workflow';
 import type { WFlowNodeData, WFlowEdgeData } from '../types/flow';
 import { asNodeData, asEdgeData } from '../types/flow';
@@ -40,6 +40,10 @@ interface WorkflowState {
   isDirty: boolean;
   saveStatus: 'idle' | 'saving' | 'saved' | 'error';
   saveError: string | null;
+
+  // Node Registry state for dynamic schemas
+  nodeRegistry: Record<string, NodesRegistryListItem>;
+  addRegistryItems: (items: NodesRegistryListItem[]) => void;
 
   // Basic Metadata setters
   setMetadata: (meta: { name?: string; description?: string; visibility?: 'public' | 'private' }) => void;
@@ -153,6 +157,15 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   saveStatus: 'idle',
   saveError: null,
 
+  nodeRegistry: {},
+  addRegistryItems: (items) => set((state) => {
+    const newRegistry = { ...state.nodeRegistry };
+    items.forEach(item => {
+      newRegistry[item.fn_key] = item;
+    });
+    return { nodeRegistry: newRegistry };
+  }),
+
   setMetadata: (meta) => set(() => {
     const updates: Partial<WorkflowState> = {};
     if (meta.name !== undefined) updates.workflowName = meta.name;
@@ -240,22 +253,65 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   }),
 
   addNode: (key, position) => set((state) => {
-    const spec = NODE_SPEC_CATALOG[key];
-    if (!spec) return {};
+    const registrySpec = state.nodeRegistry[key];
+    const staticSpec = NODE_SPEC_CATALOG[key];
+
+    if (!registrySpec && !staticSpec) return {};
 
     // Generate unique name e.g. "groq_llm_node1"
     const keyClean = key.replace('.', '_');
     const existingCount = state.nodes.filter(n => (n.data.key as string) === key).length;
     const name = `${keyClean}_node${existingCount + 1}`;
 
+    let label = '';
+    let type: any = 'ACTION';
+    let defaultInputs: Record<string, any> = {};
+    let defaultConfig: Record<string, any> = {};
+    let inputModel: any = null;
+    let outputModel: any = null;
+
+    if (registrySpec) {
+      label = registrySpec.name;
+      type = registrySpec.type;
+      inputModel = registrySpec.input_model;
+      outputModel = registrySpec.output_model;
+      if (registrySpec.input_model && registrySpec.input_model.properties) {
+        Object.entries(registrySpec.input_model.properties).forEach(([pKey, pVal]: [string, any]) => {
+          if (pKey === 'config') return;
+          if (pVal.default !== undefined) {
+            defaultInputs[pKey] = pVal.default;
+          } else {
+            if (pVal.type === 'array') {
+              defaultInputs[pKey] = [];
+            } else if (pVal.type === 'object') {
+              defaultInputs[pKey] = {};
+            } else if (pVal.type === 'boolean') {
+              defaultInputs[pKey] = false;
+            } else if (pVal.type === 'integer' || pVal.type === 'number') {
+              defaultInputs[pKey] = 0;
+            } else {
+              defaultInputs[pKey] = '';
+            }
+          }
+        });
+      }
+    } else if (staticSpec) {
+      label = staticSpec.name;
+      type = staticSpec.type;
+      defaultInputs = JSON.parse(JSON.stringify(staticSpec.defaultInputs));
+      defaultConfig = JSON.parse(JSON.stringify(staticSpec.defaultConfig));
+    }
+
     const nodeData: WFlowNodeData = {
-      label: spec.name,
-      key: spec.key,
+      label,
+      key,
       name,
-      type: spec.type,
-      inputs: JSON.parse(JSON.stringify(spec.defaultInputs)) as Record<string, unknown>,
-      config: JSON.parse(JSON.stringify(spec.defaultConfig)) as Record<string, unknown>,
+      type,
+      inputs: defaultInputs,
+      config: defaultConfig,
       outputs: {},
+      input_model: inputModel,
+      output_model: outputModel
     };
 
     const newRFNode: RFNode<WFlowNodeData> = {
@@ -373,7 +429,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
       const configClean = { ...n.config };
       delete configClean._position;
 
-      const spec = NODE_SPEC_CATALOG[n.key];
+      const spec = get().nodeRegistry[n.key] || NODE_SPEC_CATALOG[n.key];
 
       const data: WFlowNodeData = {
         label: spec ? spec.name : n.name,
@@ -383,6 +439,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         inputs: (n.inputs || {}) as Record<string, unknown>,
         config: (configClean || {}) as Record<string, unknown>,
         outputs: (n.outputs || {}) as Record<string, unknown>,
+        input_model: n.input_model || spec?.input_model,
+        output_model: n.output_model !== undefined ? n.output_model : spec?.output_model
       };
 
       return {
@@ -687,6 +745,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         inputs: data.inputs as Record<string, unknown>,
         config: configWithPosition,
         outputs: data.outputs as Record<string, unknown>,
+        input_model: data.input_model,
+        output_model: data.output_model
       };
     });
 

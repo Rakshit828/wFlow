@@ -8,6 +8,8 @@ export interface Node {
   inputs: Record<string, any>;
   config: Record<string, any>;
   outputs: Record<string, any>;
+  input_model?: Record<string, any>;
+  output_model?: Record<string, any> | null;
 }
 
 export interface Edge {
@@ -40,6 +42,7 @@ export interface AppNodeSpec {
   defaultInputs: Record<string, any>;
   defaultConfig: Record<string, any>;
 }
+
 
 // Static definition catalog mapping backend nodes.py keys
 export const NODE_SPEC_CATALOG: Record<string, AppNodeSpec> = {

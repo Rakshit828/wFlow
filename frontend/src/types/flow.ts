@@ -9,6 +9,8 @@ export interface WFlowNodeData extends Record<string, unknown> {
   inputs: Record<string, unknown>;
   config: Record<string, unknown>;
   outputs: Record<string, unknown>;
+  input_model?: Record<string, any>;
+  output_model?: Record<string, any> | null;
 }
 
 export interface WFlowEdgeData extends Record<string, unknown> {

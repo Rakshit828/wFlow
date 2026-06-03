@@ -1,106 +1,461 @@
 import React from 'react';
 import {
-  Brain,
   Mail,
   FileSpreadsheet,
   FolderUp,
   GitFork,
-  HelpCircle,
   Sparkles,
   PlaySquare,
-  Wrench
+  Wrench,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Cpu,
+  Layers,
+  Webhook,
+  GripVertical,
+  X,
+  Package
 } from 'lucide-react';
-import { NODE_SPEC_CATALOG } from '../../types/workflow';
-import type { AppNodeSpec } from '../../types/workflow';
+import { useWorkflowStore } from '../../store/useWorkflowStore';
+import { fetchRegisteredNodes, searchRegisteredNodes } from '../../api/workflows';
+import type { NodesRegistryListItem } from '../../types/workflow';
 
-const getCategoryIcon = (category: string) => {
-  switch (category) {
+const getCategoryIcon = (type: string, service?: string | null) => {
+  const svc = service?.toLowerCase() || '';
+  if (svc.includes('gmail')) {
+    return <Mail className="text-rose-400" size={15} />;
+  }
+  if (svc.includes('sheets')) {
+    return <FileSpreadsheet className="text-emerald-400" size={15} />;
+  }
+  if (svc.includes('drive')) {
+    return <FolderUp className="text-sky-400" size={15} />;
+  }
+
+  switch (type) {
     case 'LLM':
-      return <Sparkles className="text-amber-400" size={16} />;
-    case 'ACTION':
-      return <Wrench className="text-blue-400" size={16} />;
+      return <Sparkles className="text-amber-400" size={15} />;
     case 'CONTROL_FLOW':
-      return <GitFork className="text-purple-400" size={16} />;
+      return <GitFork className="text-purple-400" size={15} />;
+    case 'TRANSFORM':
+      return <Layers className="text-teal-400" size={15} />;
+    case 'API':
+      return <Webhook className="text-indigo-400" size={15} />;
+    case 'DATA_SOURCE':
+      return <Cpu className="text-blue-400" size={15} />;
     default:
-      return <HelpCircle className="text-muted-foreground" size={16} />;
+      return <Wrench className="text-slate-400" size={15} />;
   }
 };
 
-const getCategoryName = (category: string) => {
-  switch (category) {
-    case 'LLM': return 'AI LLM Providers';
-    case 'ACTION': return 'Google Cloud Services';
-    case 'CONTROL_FLOW': return 'Logical Gate Routing';
-    default: return 'Custom Nodes';
+const getTypeColor = (type: string): string => {
+  switch (type) {
+    case 'LLM': return 'text-amber-400 bg-amber-400/10 border-amber-400/20';
+    case 'CONTROL_FLOW': return 'text-purple-400 bg-purple-400/10 border-purple-400/20';
+    case 'ACTION': return 'text-blue-400 bg-blue-400/10 border-blue-400/20';
+    case 'TRANSFORM': return 'text-teal-400 bg-teal-400/10 border-teal-400/20';
+    case 'API': return 'text-indigo-400 bg-indigo-400/10 border-indigo-400/20';
+    case 'DATA_SOURCE': return 'text-cyan-400 bg-cyan-400/10 border-cyan-400/20';
+    case 'TRIGGER': return 'text-orange-400 bg-orange-400/10 border-orange-400/20';
+    default: return 'text-slate-400 bg-slate-400/10 border-slate-400/20';
   }
+};
+
+const getTypeNameLabel = (type: string) => {
+  switch (type) {
+    case 'LLM': return 'Language Model';
+    case 'CONTROL_FLOW': return 'Control Flow';
+    case 'ACTION': return 'Integration';
+    case 'TRANSFORM': return 'Transform';
+    case 'API': return 'External API';
+    case 'DATA_SOURCE': return 'Data Source';
+    case 'TRIGGER': return 'Trigger';
+    default: return type;
+  }
+};
+
+/* Skeleton loading card */
+const SkeletonCard: React.FC<{ index: number }> = ({ index }) => (
+  <div
+    className="flex flex-col p-3 rounded-xl border border-border bg-background/30"
+    style={{ animationDelay: `${index * 80}ms` }}
+  >
+    <div className="flex items-center gap-2">
+      <div className="w-8 h-8 rounded skeleton-shimmer shrink-0" />
+      <div className="flex-1 space-y-1.5">
+        <div className="h-3.5 w-3/4 skeleton-shimmer" />
+        <div className="h-2.5 w-1/3 skeleton-shimmer" />
+      </div>
+    </div>
+    <div className="mt-2.5 space-y-1">
+      <div className="h-2.5 w-full skeleton-shimmer" />
+      <div className="h-2.5 w-2/3 skeleton-shimmer" />
+    </div>
+  </div>
+);
+
+/* Node card component */
+const NodeCard: React.FC<{
+  node: NodesRegistryListItem;
+  index: number;
+  onDragStart: (e: React.DragEvent, key: string) => void;
+}> = ({ node, index, onDragStart }) => {
+  const [isDragging, setIsDragging] = React.useState(false);
+
+  return (
+    <div
+      draggable
+      onDragStart={(e) => {
+        setIsDragging(true);
+        onDragStart(e, node.fn_key);
+      }}
+      onDragEnd={() => setIsDragging(false)}
+      className={`animate-catalog-card group flex flex-col p-3 rounded-xl border bg-background/50 cursor-grab active:cursor-grabbing transition-all duration-200 ${isDragging
+          ? 'drag-active border-primary/40 bg-primary/5 scale-[0.98] opacity-80'
+          : 'border-border hover:bg-accent/40 hover:border-primary/20 hover:shadow-lg hover:shadow-black/10'
+        }`}
+      style={{ animationDelay: `${index * 50}ms` }}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <div className="p-1.5 rounded-lg bg-muted/80 border border-border/50 text-foreground shrink-0 group-hover:border-primary/20 transition-colors">
+            {getCategoryIcon(node.type, node.service)}
+          </div>
+          <div className="min-w-0 flex-1">
+            <span className="text-sm font-semibold text-foreground tracking-wide group-hover:text-primary transition-colors block truncate">
+              {node.name}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-800/80 text-slate-400 font-medium border border-slate-700/50">
+            {node.service}
+          </span>
+          <GripVertical size={12} className="text-muted-foreground/40 group-hover:text-muted-foreground transition-colors" />
+        </div>
+      </div>
+      <p className="text-[11px] text-muted-foreground mt-2 leading-snug line-clamp-2">
+        {node.description}
+      </p>
+      <div className="flex items-center gap-1.5 mt-2">
+        <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-semibold border ${getTypeColor(node.type)}`}>
+          {getTypeNameLabel(node.type)}
+        </span>
+        {node.valid_permissions && node.valid_permissions.length > 0 && (
+          <span className="text-[9px] px-1 py-0.5 rounded bg-slate-900/50 text-slate-500 font-mono">
+            {node.valid_permissions.length} perm{node.valid_permissions.length > 1 ? 's' : ''}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* Pagination component */
+const PaginationBar: React.FC<{
+  page: number;
+  totalPages: number;
+  total?: number;
+  onPrev: () => void;
+  onNext: () => void;
+}> = ({ page, totalPages, total, onPrev, onNext }) => {
+  if (totalPages <= 1) return null;
+  return (
+    <div className="mt-3 pt-3 border-t border-border flex items-center justify-between shrink-0">
+      <button
+        onClick={onPrev}
+        disabled={page === 1}
+        className="p-1.5 rounded-lg border border-border hover:bg-accent text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition-all hover:scale-105 active:scale-95"
+      >
+        <ChevronLeft size={14} />
+      </button>
+      <div className="flex flex-col items-center">
+        <span className="text-[11px] text-muted-foreground font-semibold">
+          {page} / {totalPages}
+        </span>
+        {total !== undefined && (
+          <span className="text-[9px] text-muted-foreground/60">{total} total</span>
+        )}
+      </div>
+      <button
+        onClick={onNext}
+        disabled={page === totalPages}
+        className="p-1.5 rounded-lg border border-border hover:bg-accent text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition-all hover:scale-105 active:scale-95"
+      >
+        <ChevronRight size={14} />
+      </button>
+    </div>
+  );
 };
 
 export const SidebarCatalog: React.FC = () => {
-  const categories = React.useMemo(() => {
-    const groups: Record<string, AppNodeSpec[]> = {};
-    Object.values(NODE_SPEC_CATALOG).forEach(spec => {
-      const type = spec.type;
-      if (!groups[type]) groups[type] = [];
-      groups[type].push(spec);
-    });
-    return groups;
-  }, []);
+  const { addRegistryItems } = useWorkflowStore();
+  const [activeTab, setActiveTab] = React.useState<'all' | 'explore'>('all');
+
+  // All Nodes Tab State
+  const [allNodes, setAllNodes] = React.useState<NodesRegistryListItem[]>([]);
+  const [allPage, setAllPage] = React.useState(1);
+  const [allTotalPages, setAllTotalPages] = React.useState(1);
+  const [allTotal, setAllTotal] = React.useState(0);
+  const [allLoading, setAllLoading] = React.useState(false);
+  const [allError, setAllError] = React.useState<string | null>(null);
+
+  // Explore Tab State
+  const [exploreNodes, setExploreNodes] = React.useState<NodesRegistryListItem[]>([]);
+  const [selectedType, setSelectedType] = React.useState<string>('ACTION');
+  const [searchService, setSearchService] = React.useState('');
+  const [debouncedService, setDebouncedService] = React.useState('');
+  const [explorePage, setExplorePage] = React.useState(1);
+  const [exploreTotalPages, setExploreTotalPages] = React.useState(1);
+  const [exploreTotal, setExploreTotal] = React.useState(0);
+  const [exploreLoading, setExploreLoading] = React.useState(false);
+  const [exploreError, setExploreError] = React.useState<string | null>(null);
+
+  // Content key for re-triggering animations on tab/page changes
+  const [contentKey, setContentKey] = React.useState(0);
+
+  const PAGE_SIZE = 6;
+
+  // Debounce search input
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedService(searchService);
+      setExplorePage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchService]);
+
+  // Load All Nodes
+  const loadAllNodes = React.useCallback(async (page: number) => {
+    setAllLoading(true);
+    setAllError(null);
+    try {
+      const res = await fetchRegisteredNodes(page, PAGE_SIZE);
+      setAllNodes(res.data);
+      setAllTotalPages(res.pagination.total_pages);
+      setAllTotal(res.pagination.total);
+      addRegistryItems(res.data);
+      setContentKey(k => k + 1);
+    } catch (err) {
+      setAllError(err instanceof Error ? err.message : 'Failed to fetch nodes');
+    } finally {
+      setAllLoading(false);
+    }
+  }, [addRegistryItems]);
+
+  // Load Explore Nodes
+  const loadExploreNodes = React.useCallback(async (type: string, service: string, page: number) => {
+    setExploreLoading(true);
+    setExploreError(null);
+    try {
+      const res = await searchRegisteredNodes(type, service || undefined, page, PAGE_SIZE);
+      setExploreNodes(res.data);
+      setExploreTotalPages(res.pagination.total_pages);
+      setExploreTotal(res.pagination.total);
+      addRegistryItems(res.data);
+      setContentKey(k => k + 1);
+    } catch (err) {
+      setExploreError(err instanceof Error ? err.message : 'Failed to explore nodes');
+    } finally {
+      setExploreLoading(false);
+    }
+  }, [addRegistryItems]);
+
+  // Fetch when page/tab changes
+  React.useEffect(() => {
+    if (activeTab === 'all') {
+      loadAllNodes(allPage);
+    }
+  }, [activeTab, allPage, loadAllNodes]);
+
+  React.useEffect(() => {
+    if (activeTab === 'explore') {
+      loadExploreNodes(selectedType, debouncedService, explorePage);
+    }
+  }, [activeTab, selectedType, debouncedService, explorePage, loadExploreNodes]);
 
   const onDragStart = (event: React.DragEvent, nodeKey: string) => {
     event.dataTransfer.setData('application/reactflow-nodekey', nodeKey);
     event.dataTransfer.effectAllowed = 'move';
   };
 
+  const renderError = (error: string) => (
+    <div className="flex-1 flex items-center justify-center p-4 text-center animate-content-switch">
+      <div className="text-xs text-destructive bg-destructive/10 border border-destructive/20 p-3.5 rounded-xl leading-normal max-w-full">
+        <p className="font-semibold mb-1">Connection Error</p>
+        <p className="text-destructive/80">{error}</p>
+      </div>
+    </div>
+  );
+
+  const renderEmpty = (message: string) => (
+    <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-content-switch">
+      <Package size={32} className="text-muted-foreground/30 mb-3" />
+      <p className="text-xs text-muted-foreground leading-relaxed">{message}</p>
+    </div>
+  );
+
+  const renderLoading = () => (
+    <div className="flex-1 flex flex-col min-h-0 animate-content-switch">
+      <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+        {Array.from({ length: PAGE_SIZE }).map((_, i) => (
+          <SkeletonCard key={i} index={i} />
+        ))}
+      </div>
+    </div>
+  );
+
   return (
-    <aside className="w-[300px] h-full border-r border-border bg-card flex flex-col select-none shrink-0">
-      <div className="p-4 border-b border-border bg-muted/30">
-        <h3 className="font-bold text-base text-foreground uppercase tracking-wider flex items-center gap-2">
-          <PlaySquare className="text-primary" size={18} />
-          Nodes catalog
-        </h3>
-        <p className="text-sm text-muted-foreground mt-1.5 leading-snug">
-          Drag and drop nodes onto the canvas to build your workflow.
+    <aside className="w-[310px] h-full border-r border-border bg-card flex flex-col select-none shrink-0 overflow-hidden">
+      {/* Title Header */}
+      <div className="p-4 border-b border-border bg-muted/20">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-base text-foreground uppercase tracking-wider flex items-center gap-2">
+            <PlaySquare className="text-primary" size={18} />
+            Nodes catalog
+          </h3>
+          {allTotal > 0 && (
+            <span className="animate-badge text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+              {allTotal}
+            </span>
+          )}
+        </div>
+        <p className="text-[11px] text-muted-foreground mt-1.5 leading-snug">
+          Drag and drop nodes onto the canvas to construct your workflow.
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-5">
-        {Object.entries(categories).map(([category, specs]) => (
-          <div key={category} className="space-y-2.5">
-            <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5 px-1">
-              {getCategoryIcon(category)}
-              {getCategoryName(category)}
-            </h4>
+      {/* Mini Tabs */}
+      <div className="flex border-b border-border text-xs font-bold bg-muted/10 shrink-0 relative">
+        <button
+          onClick={() => setActiveTab('all')}
+          className={`flex-1 py-3 text-center uppercase tracking-wider transition-all border-b-2 tab-indicator ${activeTab === 'all'
+              ? 'text-primary border-primary bg-background/20'
+              : 'text-muted-foreground border-transparent hover:text-foreground'
+            }`}
+        >
+          All Nodes
+        </button>
+        <button
+          onClick={() => setActiveTab('explore')}
+          className={`flex-1 py-3 text-center uppercase tracking-wider transition-all border-b-2 tab-indicator ${activeTab === 'explore'
+              ? 'text-primary border-primary bg-background/20'
+              : 'text-muted-foreground border-transparent hover:text-foreground'
+            }`}
+        >
+          Explore
+        </button>
+      </div>
 
-            <div className="space-y-2">
-              {specs.map(spec => (
-                <div
-                  key={spec.key}
-                  draggable
-                  onDragStart={(e) => onDragStart(e, spec.key)}
-                  className="group flex flex-col p-3 rounded-xl border border-border bg-background/60 hover:bg-accent/50 hover:border-primary/30 cursor-grab active:cursor-grabbing transition-all duration-200"
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded bg-muted border border-border text-foreground">
-                      {spec.key.startsWith('gmail.') && <Mail size={15} className="text-rose-400" />}
-                      {spec.key.startsWith('sheets.') && <FileSpreadsheet size={15} className="text-emerald-400" />}
-                      {spec.key.startsWith('drive.') && <FolderUp size={15} className="text-sky-400" />}
-                      {spec.key.startsWith('llm.') && <Brain size={15} className="text-amber-400" />}
-                      {spec.type === 'CONTROL_FLOW' && <GitFork size={15} className="text-purple-400" />}
-                    </div>
-                    <span className="text-sm font-semibold text-foreground tracking-wide group-hover:text-primary transition-colors">
-                      {spec.name}
-                    </span>
-                  </div>
-                  <span className="text-xs text-muted-foreground mt-2 leading-snug">
-                    {spec.description}
-                  </span>
-                </div>
-              ))}
-            </div>
+      {/* Content Area */}
+      <div className="flex-1 flex flex-col min-h-0">
+        {activeTab === 'all' ? (
+          // Tab 1: All Nodes
+          <div className="flex-1 flex flex-col min-h-0 p-4" key={`all-${contentKey}`}>
+            {allLoading ? renderLoading() : allError ? renderError(allError) : allNodes.length === 0 ? (
+              renderEmpty('No nodes registered in backend registry.')
+            ) : (
+              <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 animate-content-switch">
+                {allNodes.map((node, i) => (
+                  <NodeCard key={node.fn_key} node={node} index={i} onDragStart={onDragStart} />
+                ))}
+              </div>
+            )}
+
+            {!allLoading && !allError && (
+              <PaginationBar
+                page={allPage}
+                totalPages={allTotalPages}
+                total={allTotal}
+                onPrev={() => setAllPage(p => Math.max(1, p - 1))}
+                onNext={() => setAllPage(p => Math.min(allTotalPages, p + 1))}
+              />
+            )}
           </div>
-        ))}
+        ) : (
+          // Tab 2: Explore / Search
+          <div className="flex-1 flex flex-col min-h-0 p-4 animate-content-switch" key={`explore-${contentKey}`}>
+            {/* Search Header */}
+            <div className="space-y-3 mb-4 shrink-0">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  Node Type
+                </label>
+                <select
+                  value={selectedType}
+                  onChange={(e) => {
+                    setSelectedType(e.target.value);
+                    setExplorePage(1);
+                  }}
+                  className="w-full text-xs rounded-lg bg-background border border-border px-2.5 py-2 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+                >
+                  <option value="ACTION">Action / Integrations</option>
+                  <option value="LLM">AI Language Models (LLM)</option>
+                  <option value="CONTROL_FLOW">Logical Control Flow</option>
+                  <option value="TRANSFORM">Data Transformations</option>
+                  <option value="API">External APIs</option>
+                  <option value="DATA_SOURCE">Data Sources</option>
+                  <option value="TRIGGER">Event Triggers</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                  Filter by Service
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={searchService}
+                    onChange={(e) => setSearchService(e.target.value)}
+                    placeholder="e.g. google.gmail, groq"
+                    className="w-full text-xs rounded-lg bg-background border border-border pl-8 pr-8 py-2 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
+                  />
+                  <Search className="absolute left-2.5 top-2.5 text-muted-foreground/60" size={13} />
+                  {searchService && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchService('')}
+                      className="absolute right-2 top-2 p-0.5 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+                {debouncedService && (
+                  <p className="text-[9px] text-muted-foreground/60 mt-0.5 animate-tooltip">
+                    Filtering by "{debouncedService}" · {exploreTotal} result{exploreTotal !== 1 ? 's' : ''}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Results */}
+            {exploreLoading ? renderLoading() : exploreError ? renderError(exploreError) : exploreNodes.length === 0 ? (
+              renderEmpty(`No matching nodes for type "${getTypeNameLabel(selectedType)}"${debouncedService ? ` and service "${debouncedService}"` : ''}.`)
+            ) : (
+              <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 animate-content-switch">
+                {exploreNodes.map((node, i) => (
+                  <NodeCard key={node.fn_key} node={node} index={i} onDragStart={onDragStart} />
+                ))}
+              </div>
+            )}
+
+            {!exploreLoading && !exploreError && (
+              <PaginationBar
+                page={explorePage}
+                totalPages={exploreTotalPages}
+                total={exploreTotal}
+                onPrev={() => setExplorePage(p => Math.max(1, p - 1))}
+                onNext={() => setExplorePage(p => Math.min(exploreTotalPages, p + 1))}
+              />
+            )}
+          </div>
+        )}
       </div>
     </aside>
   );
 };
+
 export default SidebarCatalog;

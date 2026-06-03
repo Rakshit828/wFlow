@@ -116,11 +116,10 @@ function App() {
             <button
               type="button"
               onClick={() => setJsonOpen(!jsonOpen)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-semibold transition-all border ${
-                jsonOpen
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-semibold transition-all border ${jsonOpen
                   ? 'bg-primary/10 text-primary border-primary/30'
                   : 'bg-card text-muted-foreground border-border hover:text-foreground'
-              }`}
+                }`}
             >
               <FileJson size={14} />
               JSON
