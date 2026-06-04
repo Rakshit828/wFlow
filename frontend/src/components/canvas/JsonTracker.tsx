@@ -1,5 +1,5 @@
-import React from 'react';
-import { useWorkflowStore } from '../../store/useWorkflowStore';
+import React from "react";
+import { useWorkflowStore } from "../../store/useWorkflowStore";
 import {
   X,
   Copy,
@@ -8,7 +8,7 @@ import {
   ChevronDown,
   ChevronRight,
   Braces,
-} from 'lucide-react';
+} from "lucide-react";
 
 interface JsonTrackerProps {
   onClose: () => void;
@@ -22,20 +22,23 @@ const JsonTreeNode: React.FC<{ label: string; value: any; depth?: number }> = ({
 }) => {
   const [expanded, setExpanded] = React.useState(depth < 2);
 
-  const isObject = value !== null && typeof value === 'object';
+  const isObject = value !== null && typeof value === "object";
   const isArray = Array.isArray(value);
   const entries = isObject ? Object.entries(value) : [];
   const indent = depth * 14;
 
   // Determine displayed value for primitives
   const renderPrimitive = () => {
-    if (value === null) return <span className="text-slate-500 italic">null</span>;
-    if (typeof value === 'boolean')
-      return <span className="text-purple-400">{value ? 'true' : 'false'}</span>;
-    if (typeof value === 'number')
+    if (value === null)
+      return <span className="text-slate-500 italic">null</span>;
+    if (typeof value === "boolean")
+      return (
+        <span className="text-purple-400">{value ? "true" : "false"}</span>
+      );
+    if (typeof value === "number")
       return <span className="text-amber-400">{value}</span>;
-    if (typeof value === 'string') {
-      const truncated = value.length > 80 ? value.slice(0, 77) + '…' : value;
+    if (typeof value === "string") {
+      const truncated = value.length > 80 ? value.slice(0, 77) + "…" : value;
       return <span className="text-emerald-400">"{truncated}"</span>;
     }
     return <span className="text-slate-400">{String(value)}</span>;
@@ -53,7 +56,7 @@ const JsonTreeNode: React.FC<{ label: string; value: any; depth?: number }> = ({
     );
   }
 
-  const bracket = isArray ? ['[', ']'] : ['{', '}'];
+  const bracket = isArray ? ["[", "]"] : ["{", "}"];
 
   return (
     <div>
@@ -73,7 +76,8 @@ const JsonTreeNode: React.FC<{ label: string; value: any; depth?: number }> = ({
           {bracket[0]}
           {!expanded && (
             <span className="text-slate-600">
-              {' '}…{entries.length} {isArray ? 'items' : 'keys'}{' '}
+              {" "}
+              …{entries.length} {isArray ? "items" : "keys"}{" "}
             </span>
           )}
           {!expanded && bracket[1]}
@@ -82,7 +86,12 @@ const JsonTreeNode: React.FC<{ label: string; value: any; depth?: number }> = ({
       {expanded && (
         <div>
           {entries.map(([k, v]) => (
-            <JsonTreeNode key={k} label={isArray ? `[${k}]` : k} value={v} depth={depth + 1} />
+            <JsonTreeNode
+              key={k}
+              label={isArray ? `[${k}]` : k}
+              value={v}
+              depth={depth + 1}
+            />
           ))}
           <div className="text-slate-500" style={{ paddingLeft: indent + 14 }}>
             {bracket[1]}
@@ -102,16 +111,34 @@ export const JsonTracker: React.FC<JsonTrackerProps> = ({ onClose }) => {
   const workflowVisibility = useWorkflowStore((s) => s.workflowVisibility);
   const getWorkflowJson = useWorkflowStore((s) => s.getWorkflowJson);
 
-  const [mode, setMode] = React.useState<'tree' | 'raw'>('tree');
+  const [mode, setMode] = React.useState<"tree" | "raw">("tree");
   const [copied, setCopied] = React.useState(false);
 
   const workflowJson = React.useMemo(
     () => getWorkflowJson(),
-    [getWorkflowJson, nodes, edges, workflowName, workflowDescription, workflowVisibility]
+    [
+      getWorkflowJson,
+      nodes,
+      edges,
+      workflowName,
+      workflowDescription,
+      workflowVisibility,
+    ],
   );
+  // Prepare a display copy that omits UI-only or non-essential fields
+  // (remove `visibility` from the tracked JSON shown to users)
+  const displayWorkflow = React.useMemo(() => {
+    if (!workflowJson) return workflowJson;
+    const copy: any = { ...workflowJson };
+    if (copy && Object.prototype.hasOwnProperty.call(copy, "visibility")) {
+      delete copy.visibility;
+    }
+    return copy;
+  }, [workflowJson]);
+
   const rawJson = React.useMemo(
-    () => JSON.stringify(workflowJson, null, 2),
-    [workflowJson]
+    () => JSON.stringify(displayWorkflow ?? workflowJson, null, 2),
+    [displayWorkflow, workflowJson],
   );
 
   const handleCopy = () => {
@@ -130,7 +157,8 @@ export const JsonTracker: React.FC<JsonTrackerProps> = ({ onClose }) => {
             Live Workflow JSON
           </h3>
           <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20 font-semibold">
-            {workflowJson.nodes.length} nodes · {workflowJson.edges.length} edges
+            {(displayWorkflow ?? workflowJson).nodes.length} nodes ·{" "}
+            {(displayWorkflow ?? workflowJson).edges.length} edges
           </span>
         </div>
 
@@ -138,22 +166,22 @@ export const JsonTracker: React.FC<JsonTrackerProps> = ({ onClose }) => {
           {/* Mode toggle */}
           <div className="flex bg-slate-900 rounded-lg border border-slate-800 overflow-hidden">
             <button
-              onClick={() => setMode('tree')}
+              onClick={() => setMode("tree")}
               className={`px-2.5 py-1 text-xs font-semibold transition-colors ${
-                mode === 'tree'
-                  ? 'bg-primary/15 text-primary'
-                  : 'text-slate-400 hover:text-slate-200'
+                mode === "tree"
+                  ? "bg-primary/15 text-primary"
+                  : "text-slate-400 hover:text-slate-200"
               }`}
             >
               <Braces size={11} className="inline mr-1" />
               Tree
             </button>
             <button
-              onClick={() => setMode('raw')}
+              onClick={() => setMode("raw")}
               className={`px-2.5 py-1 text-xs font-semibold transition-colors ${
-                mode === 'raw'
-                  ? 'bg-primary/15 text-primary'
-                  : 'text-slate-400 hover:text-slate-200'
+                mode === "raw"
+                  ? "bg-primary/15 text-primary"
+                  : "text-slate-400 hover:text-slate-200"
               }`}
             >
               Raw
@@ -165,8 +193,12 @@ export const JsonTracker: React.FC<JsonTrackerProps> = ({ onClose }) => {
             onClick={handleCopy}
             className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold bg-background hover:bg-accent text-foreground border border-border transition-all"
           >
-            {copied ? <Check size={11} className="text-emerald-400" /> : <Copy size={11} />}
-            {copied ? 'Copied!' : 'Copy'}
+            {copied ? (
+              <Check size={11} className="text-emerald-400" />
+            ) : (
+              <Copy size={11} />
+            )}
+            {copied ? "Copied!" : "Copy"}
           </button>
 
           <button
@@ -180,11 +212,13 @@ export const JsonTracker: React.FC<JsonTrackerProps> = ({ onClose }) => {
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-3 font-mono text-sm leading-relaxed">
-        {mode === 'tree' ? (
+        {mode === "tree" ? (
           <div className="space-y-0.5">
-            {Object.entries(workflowJson).map(([key, val]) => (
-              <JsonTreeNode key={key} label={key} value={val} depth={0} />
-            ))}
+            {Object.entries(displayWorkflow ?? workflowJson).map(
+              ([key, val]) => (
+                <JsonTreeNode key={key} label={key} value={val} depth={0} />
+              ),
+            )}
           </div>
         ) : (
           <pre className="text-slate-300 whitespace-pre select-all">
