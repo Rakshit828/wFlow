@@ -7,7 +7,7 @@ from src.integrations.googlecloud.nodes import (
     UPDATE_CELL_VALUES_NODE,
     CREATE_GOOGLE_SHEET_NODE,
     LIST_USER_GMAIL_LABELS_NODE,
-    UPLOAD_FILE_ON_DRIVE_NODE
+    UPLOAD_FILE_ON_DRIVE_NODE,
 )
 from src.integrations.llms.nodes import GROQ_LLM_NODE, GOOGLE_LLM_NODE
 from src.workflows.control_flow_nodes import IF_NODE, SWITCH_NODE

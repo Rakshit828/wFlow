@@ -157,9 +157,4 @@ class ExecutionPlan(BaseModel):
 
 class WorkflowInput(BaseModel):
     workflow_str: str
-    configs: Optional[Dict[str, Any]] = None
-
-
-class WorkflowInput(BaseModel):
-    workflow_str: str
-    configs: Dict[str, Any] | None = None
+    configs: Optional[Dict[str, Any]] = None # Workflow Level Configs

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, PrivateAttr
+from pydantic import BaseModel, ConfigDict, Field
 from src.integrations.googlecloud.google_api_client import GoogleAPIClient
 from src.integrations.googlecloud.g_types import CredentialsModel
 from src.repositories.app_integrations import AppIntegrationsRepository
@@ -11,8 +11,8 @@ class CommonBaseModel(BaseModel):
 
 
 class CommonGoogleConfigModel(CommonBaseModel):
-    credentials: CredentialsModel
-    service: str
+    credentials: CredentialsModel = Field(json_schema_extra={"x-autofilled": True})
+    service: str = Field(json_schema_extra={"x-autofilled": True})
 
     def get_google_api_client(self) -> GoogleAPIClient:
         return GoogleAPIClient(

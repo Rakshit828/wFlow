@@ -2,7 +2,11 @@ import React from "react";
 import { useWorkflowStore } from "../../../store/useWorkflowStore";
 import { OutputSchemaTree } from "./OutputSchemaTree";
 import { SchemaFieldRenderer } from "./SchemaFieldRenderer";
-import { buildResponseModelSchema, parseFieldsFromConfig, resolveSchemaDeep } from "./utils";
+import {
+  buildResponseModelSchema,
+  parseFieldsFromConfig,
+  resolveSchemaDeep,
+} from "./utils";
 import type { WFlowNodeData } from "../../../types/flow";
 
 const RESPONSE_FIELD_TYPES = [
@@ -79,6 +83,8 @@ export const ConfigTab: React.FC<ConfigTabProps> = ({ nodeData, nodeId }) => {
 
   const nodeIdRef = React.useRef(nodeId);
 
+  const [techOpen, setTechOpen] = React.useState(false);
+
   React.useEffect(() => {
     if (nodeId !== nodeIdRef.current) {
       nodeIdRef.current = nodeId;
@@ -114,13 +120,29 @@ export const ConfigTab: React.FC<ConfigTabProps> = ({ nodeData, nodeId }) => {
       ? configSchema.required
       : [];
 
-    return Object.entries(configSchema.properties).map(
-      ([fieldKey, fieldSchema]) => ({
-        fieldKey,
-        schema: fieldSchema as Record<string, any>,
-        required: required.includes(fieldKey),
-      }),
+    // Partition fields into visible (normal) and technical. Also omit autofilled fields.
+    const visible: any[] = [];
+    const technical: any[] = [];
+
+    Object.entries(configSchema.properties).forEach(
+      ([fieldKey, fieldSchema]) => {
+        const schemaObj = fieldSchema as Record<string, any>;
+        const isAutofilled = Boolean(schemaObj["x-autofilled"] === true);
+        const isTechnical = Boolean(schemaObj["x-technical"] === true);
+        if (isAutofilled) return; // completely remove from UI
+
+        const entry = {
+          fieldKey,
+          schema: schemaObj,
+          required: required.includes(fieldKey),
+        };
+
+        if (isTechnical) technical.push(entry);
+        else visible.push(entry);
+      },
     );
+
+    return { visible, technical };
   }, [configSchema]);
 
   const getFieldTypeLabel = (schema: Record<string, any>) => {
@@ -268,7 +290,9 @@ export const ConfigTab: React.FC<ConfigTabProps> = ({ nodeData, nodeId }) => {
             Parameters and configuration options for this node.
           </p>
         </div>
-        {configFields.length === 0 ? (
+        {!configFields ||
+        (configFields.visible.length === 0 &&
+          configFields.technical.length === 0) ? (
           <div className="rounded border border-slate-700 bg-slate-900/80 p-4 text-sm text-slate-400">
             This node has no config schema defined.
           </div>
@@ -280,7 +304,7 @@ export const ConfigTab: React.FC<ConfigTabProps> = ({ nodeData, nodeId }) => {
               <div className="text-right">Required</div>
             </div>
             <div className="divide-y divide-slate-700">
-              {configFields.map((field) => (
+              {configFields.visible.map((field) => (
                 <div
                   key={field.fieldKey}
                   className="grid gap-3 lg:grid-cols-[1.5fr_1fr_auto] items-center px-4 py-3"
@@ -323,14 +347,14 @@ export const ConfigTab: React.FC<ConfigTabProps> = ({ nodeData, nodeId }) => {
             Edit the actual values for each config field here.
           </p>
         </div>
-
-        {configFields.length === 0 ? (
+        {(!configFields || configFields.visible.length === 0) &&
+        configFields.technical.length === 0 ? (
           <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4 text-sm text-slate-400">
             No editable config values available for this node.
           </div>
         ) : (
           <div className="space-y-4">
-            {configFields.map((field) => (
+            {configFields.visible.map((field) => (
               <SchemaFieldRenderer
                 key={field.fieldKey}
                 fieldKey={field.fieldKey}
@@ -342,6 +366,48 @@ export const ConfigTab: React.FC<ConfigTabProps> = ({ nodeData, nodeId }) => {
           </div>
         )}
       </div>
+
+      {/* Technical fields block (advanced users) */}
+      {configFields.technical && configFields.technical.length > 0 ? (
+        <div className="rounded-2xl border border-slate-700 bg-slate-950/80 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-foreground">
+                Technical configuration
+              </div>
+              <p className="text-xs text-slate-400">
+                Advanced options for technical users. These values are optional
+                and may be autofilled by the system.
+              </p>
+            </div>
+            <div className="text-sm">
+              <button
+                type="button"
+                onClick={() => setTechOpen((s) => !s)}
+                className="cursor-pointer px-2 py-1 rounded text-slate-400 hover:text-foreground bg-transparent border border-transparent hover:border-slate-700 transition-all"
+              >
+                {techOpen ? "Hide" : "Show"}
+              </button>
+            </div>
+          </div>
+
+          {techOpen && (
+            <div className="mt-3 space-y-3 px-4">
+              {configFields.technical.map((field: any) => (
+                <SchemaFieldRenderer
+                  key={field.fieldKey}
+                  fieldKey={field.fieldKey}
+                  schema={field.schema}
+                  value={nodeData.config[field.fieldKey]}
+                  onChange={(value) =>
+                    handleConfigChange(field.fieldKey, value)
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 };

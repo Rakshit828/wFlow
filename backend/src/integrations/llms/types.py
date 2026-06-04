@@ -1,6 +1,5 @@
 from enum import Enum
 from pydantic import BaseModel, ConfigDict, Field
-from typing import Type
 
 
 class GroqModelEnum(str, Enum):
@@ -14,9 +13,12 @@ class GroqModelEnum(str, Enum):
 class GroqModelConfig(BaseModel):
     response_model: dict
     model: GroqModelEnum = GroqModelEnum.GPT_OSS_120B
-    max_tokens: int | None = None
+    max_tokens: int = Field(default=None, json_schema_extra={"x-technical": True})
     # reasoning_effort: Literal["low", "medium", "high", "none", "default"] = "default"
-    system_prompt: str = "Your are a helpful AI Assistant."
+    system_prompt: str = Field(
+        default="You are a helpful AI Assistant.",
+        json_schema_extra={"x-technical": True},
+    )
 
 
 class GroqCallParams(BaseModel):
@@ -27,7 +29,7 @@ class GroqCallParams(BaseModel):
 
 
 class GoogleModelEnum(str, Enum):
-    """Supported Gemini models via the google-genai SDK."""
+    """Supported Gemini models."""
 
     GEMINI_2_5_FLASH = "gemini-2.5-flash"
     GEMINI_2_5_PRO = "gemini-2.5-pro"
@@ -38,24 +40,20 @@ class GoogleModelEnum(str, Enum):
 class GoogleConfig(BaseModel):
     """Configuration options for a Google LLM call."""
 
+    response_model: dict
     model: GoogleModelEnum = Field(
         default=GoogleModelEnum.GEMINI_2_5_FLASH,
-        description="The Gemini model identifier to execute the request against.",
     )
+
     system_prompt: str = Field(
         default="You are a helpful AI assistant.",
-        description="System instructions to guide the model's behavior and persona.",
-    )
-    response_model: dict = Field(
-        default=None,
+        json_schema_extra={"x-technical": True},
     )
     temperature: float | None = Field(
-        default=None,
-        description="Controls randomness in generation. Lower values are more deterministic.",
+        default=None, json_schema_extra={"x-technical": True}
     )
     max_output_tokens: int | None = Field(
-        default=None,
-        description="The maximum number of tokens to generate in the reply.",
+        default=None, json_schema_extra={"x-technical": True}
     )
 
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
@@ -64,14 +62,13 @@ class GoogleConfig(BaseModel):
 class GoogleCallParams(BaseModel):
     """The unified parameter payload passed directly to the GoogleClient methods."""
 
-    prompt: str = Field(
-        ..., description="The user input or prompt string for the model to process."
-    )
+    prompt: str
     config: GoogleConfig = Field(
         default_factory=GoogleConfig,
-        description="Execution configurations and parameters for the call.",
     )
+
 
 class DynamicOutput(BaseModel):
     """A flexible output model that allows dynamic fields from LLM responses."""
+
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
