@@ -12,6 +12,7 @@ from src.schemas.workflow import (
     StarWorkflowResponseModel,
     PaginatedWorkflowsResponse,
     PaginatedNodesResponse,
+    SingleWorkflowResponseModel
 )
 from src.workflows.types import NodesTypeEnum
 from src.services.workflow_service import WorkflowService
@@ -121,8 +122,20 @@ async def create_new_workflow(
         "visibility": workflow.visibility,
         "created_by": str(workflow.created_by),
     }
-
     return workflow_response_data
+
+
+@workflow_router.get("/{workflow_id}", response_model=SingleWorkflowResponseModel)
+async def get_workflow_by_id(
+    workflow_id: str,
+    decoded_token: dict[str, str] = Depends(AccessTokenBearer()),
+    workflow_service: WorkflowService = Depends(WorkflowService),
+) -> SingleWorkflowResponseModel:
+    user_id: str = decoded_token["sub"]
+    workflow = await workflow_service.get_workflow_data(
+        workflow_id=workflow_id, user_id=user_id
+    )
+    return workflow
 
 
 @workflow_router.post("/star/{workflow_id}", response_model=StarWorkflowResponseModel)

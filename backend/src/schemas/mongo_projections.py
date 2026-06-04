@@ -1,22 +1,22 @@
 from pydantic import BaseModel, ConfigDict, computed_field, Field
 from src.core.security import decrypt_token
 from beanie import PydanticObjectId
-from typing import Any
+from typing import Any, Literal
 from bson.dbref import DBRef
 from datetime import datetime
+
 
 
 class CredentialsAndDataForApiClient(BaseModel):
     id: PydanticObjectId = Field(alias="_id")
     service: str
-    user: Any  # THis is a DBRef, we don't use it since pydantic don't support it.
+    user: Any
     access_token_enc: str
     refresh_token_enc: str | None = None
     access_token_expiry: datetime | None = None
     refresh_token_expiry: datetime | None = None
     scopes: list[str]
     metadata: dict | None = None
-
 
     @computed_field
     @property

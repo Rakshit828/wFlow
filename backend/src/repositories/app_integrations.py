@@ -59,6 +59,7 @@ class AppIntegrationsRepository:
         projection_model: Optional[Type[ProjectionModelT]] = None,
     ) -> Optional[Union[list[AppIntegrations], list[ProjectionModelT]]]:
         kwargs: dict = {}
+        
         if projection_model:
             kwargs["projection_model"] = projection_model
         else:

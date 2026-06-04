@@ -49,9 +49,7 @@ class Node(BaseModel):
     type: NodesTypeEnum
     inputs: Dict[str, Any] = {}
     config: Dict[str, Any] = {}
-    outputs: Dict[str, Any] = {}  # This will be filled by out application in runtime.
-    input_model: Optional[Dict[str, Any]] = None
-    output_model: Optional[Dict[str, Any]] = None
+    outputs: Dict[str, Any] = {} 
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 

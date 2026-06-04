@@ -1,5 +1,6 @@
-from pydantic import BaseModel
-from typing import List, Optional, Literal
+from pydantic import BaseModel, Field, field_validator
+from bson import ObjectId
+from typing import List, Optional, Literal, Dict, Any
 from src.workflows.types import Node, Edge, NodesTypeEnum
 
 
@@ -22,6 +23,21 @@ class WorkflowResponseModel(BaseModel):
     created_by: str
 
 
+class NodeFullResponse(Node):
+    input_model: Dict[str, Any] = {}  # Json schema
+    output_model: Dict[str, Any] = {}  # json schema
+
+class SingleWorkflowResponseModel(BaseModel):
+    workflow_id: str
+    name: str
+    description: str
+    nodes: List[NodeFullResponse]
+    edges: List[Edge]
+    visibility: Literal["public", "private"]
+    stars: Optional[int] = None
+    created_by: str
+
+
 class StarWorkflowResponseModel(BaseModel):
     workflow_id: str
     stars: int
@@ -34,6 +50,14 @@ class WorkflowListItemModel(BaseModel):
     visibility: Literal["public", "private"]
     stars: int
     created_by: str
+
+    @field_validator("workflow_id", mode="before")
+    @classmethod
+    def convert_objectid(cls, v):
+        if isinstance(v, ObjectId):
+            return str(v)
+        return v
+
 
 
 class NodesRegistryListItemModel(BaseModel):

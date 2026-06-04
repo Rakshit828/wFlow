@@ -8,6 +8,8 @@ from src.schemas.workflow import (
     PaginatedWorkflowsResponse,
     NodesRegistryListItemModel,
     PaginatedNodesResponse,
+    SingleWorkflowResponseModel,
+    NodeFullResponse,
 )
 from src.db.models import Users, Workflows, WorkflowsStars, NodesRegistry
 from beanie.odm.operators.update.general import Set
@@ -71,10 +73,6 @@ class WorkflowService:
         return updated_workflow
 
     async def create_new_workflow(self, workflow: CreateNewWorkflowModel, user_id: str):
-        user: Users | None = await self._user_repo.get_user_by_id(user_id=user_id)
-
-        if not user:
-            raise Exception("User not found")
 
         doc: Workflows = Workflows(
             name=workflow.name,
@@ -82,11 +80,62 @@ class WorkflowService:
             nodes=workflow.nodes,
             edges=workflow.edges,
             visibility=workflow.visibility,
-            created_by=user.id,
+            created_by=user_id,
         )
         new_workflow = await Workflows.insert_one(doc)
-
         return new_workflow
+
+    async def _attach_node_schemas(
+        self, workflow: SingleWorkflowResponseModel
+    ) -> SingleWorkflowResponseModel:
+        """Helper to attach input_model and output_model from registry to workflow nodes."""
+        for node in workflow.nodes:
+            if not node.input_model or not node.output_model:
+                registry_item = await NodesRegistry.find_one(
+                    NodesRegistry.fn_key == node.key
+                )
+                if registry_item:
+                    if not node.input_model:
+                        node.input_model = registry_item.input_model
+                    if not node.output_model:
+                        node.output_model = registry_item.output_model
+        return workflow
+
+    async def get_workflow_data(
+        self, workflow_id: str, user_id: str
+    ) -> SingleWorkflowResponseModel:
+        workflow: Workflows = await self._workflow_repo.get_workflow_by_id(workflow_id)
+        if not workflow:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found"
+            )
+        if workflow.visibility == "private" and str(workflow.created_by) != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You do not have permission to access this workflow",
+            )
+        workflow_data = SingleWorkflowResponseModel(
+            workflow_id=str(workflow.id),
+            name=workflow.name,
+            description=workflow.description,
+            nodes=[
+                NodeFullResponse(
+                    key=node.key,
+                    name=node.name,
+                    type=node.type,
+                    inputs=node.inputs,
+                    config=node.config,
+                    outputs=node.outputs,
+                )
+                for node in workflow.nodes
+            ],
+            edges=workflow.edges,
+            visibility=workflow.visibility,
+            stars=workflow.stars,
+            created_by=user_id,
+        )
+        await self._attach_node_schemas(workflow_data)
+        return workflow_data
 
     def _format_workflow_list_item(self, workflow: Workflows) -> WorkflowListItemModel:
         """Convert Workflows document to WorkflowListItemModel."""
@@ -144,16 +193,16 @@ class WorkflowService:
         if page_size < 1 or page_size > 100:
             page_size = 10
 
-        workflows, total = await self._workflow_repo.get_all_workflows(
-            page=page, page_size=page_size, user_id=user_id
+        workflows, total = await self._workflow_repo.get_workflows(
+            projection_model=WorkflowListItemModel,
+            page=page,
+            page_size=page_size,
+            user_id=user_id,
         )
 
-        formatted_workflows = [self._format_workflow_list_item(wf) for wf in workflows]
         pagination = self._create_pagination_metadata(total, page, page_size)
 
-        return PaginatedWorkflowsResponse(
-            data=formatted_workflows, pagination=pagination
-        )
+        return PaginatedWorkflowsResponse(data=workflows, pagination=pagination)
 
     async def search_workflows(
         self, query: str, page: int = 1, page_size: int = 10, user_id: str | None = None
@@ -179,16 +228,16 @@ class WorkflowService:
                 detail="Search query cannot be empty",
             )
 
-        workflows, total = await self._workflow_repo.search_workflows_by_name(
-            query=query.strip(), page=page, page_size=page_size, user_id=user_id
+        workflows, total = await self._workflow_repo.get_workflows(
+            projection_model=WorkflowListItemModel,
+            query=query.strip(),
+            page=page,
+            page_size=page_size,
+            user_id=user_id,
         )
-
-        formatted_workflows = [self._format_workflow_list_item(wf) for wf in workflows]
         pagination = self._create_pagination_metadata(total, page, page_size)
-
-        return PaginatedWorkflowsResponse(
-            data=formatted_workflows, pagination=pagination
-        )
+        return PaginatedWorkflowsResponse(data=workflows, pagination=pagination)
+    
 
     async def get_all_nodes(self, page: int, page_size: int):
         if page < 1:

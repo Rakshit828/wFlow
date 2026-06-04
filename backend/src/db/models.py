@@ -17,7 +17,6 @@ class Users(Document):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-    model_config = ConfigDict(name="users")
 
     @before_event(Update)
     def set_update(self):
