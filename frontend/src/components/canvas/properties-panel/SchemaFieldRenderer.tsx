@@ -20,7 +20,13 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
   onChange,
   onDropReference,
 }) => {
-  const schemaType = schema?.type || "string";
+  // Normalize type: if it's an array, use the first non-null type, or "string" as fallback
+  let schemaType = schema?.type || "string";
+  if (Array.isArray(schemaType)) {
+    const nonNull = schemaType.find((t) => t !== "null");
+    schemaType = nonNull || "string";
+  }
+
   const title = schema?.title || fieldKey;
   const description = schema?.description;
   const isTextarea =

@@ -2,7 +2,7 @@ import React from "react";
 import { useWorkflowStore } from "../../../store/useWorkflowStore";
 import { OutputSchemaTree } from "./OutputSchemaTree";
 import { SchemaFieldRenderer } from "./SchemaFieldRenderer";
-import { buildResponseModelSchema, parseFieldsFromConfig } from "./utils";
+import { buildResponseModelSchema, parseFieldsFromConfig, resolveSchemaDeep } from "./utils";
 import type { WFlowNodeData } from "../../../types/flow";
 
 const RESPONSE_FIELD_TYPES = [
@@ -94,16 +94,15 @@ export const ConfigTab: React.FC<ConfigTabProps> = ({ nodeData, nodeId }) => {
     }
   }, [nodeId, nodeData.config, responseFields.length]);
 
-  const configSchema = React.useMemo(
-    () =>
-      normalizeConfigSchema(
-        nodeData.input_model?.config ??
-          nodeData.input_model?.properties?.config ??
-          null,
-        nodeData.input_model ?? null,
-      ),
-    [nodeData.input_model],
-  );
+  const configSchema = React.useMemo(() => {
+    const normalized = normalizeConfigSchema(
+      nodeData.input_model?.config ??
+        nodeData.input_model?.properties?.config ??
+        null,
+      nodeData.input_model ?? null,
+    );
+    return resolveSchemaDeep(normalized, nodeData.input_model ?? null);
+  }, [nodeData.input_model]);
 
   const handleConfigChange = (fieldKey: string, value: unknown) => {
     updateNodeConfig(nodeId, { [fieldKey]: value });

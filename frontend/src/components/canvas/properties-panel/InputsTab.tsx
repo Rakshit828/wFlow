@@ -1,8 +1,9 @@
 import React from "react";
 import { useWorkflowStore } from "../../../store/useWorkflowStore";
 import { OutputReferencePanel } from "./OutputReferencePanel";
-import { SchemaExamplePanel } from "./SchemaExamplePanel";
+
 import { SchemaFieldRenderer } from "./SchemaFieldRenderer";
+import { resolveSchemaDeep } from "./utils";
 import type { WFlowNodeData } from "../../../types/flow";
 import type { Node as WorkflowNode } from "../../../types/workflow";
 
@@ -25,10 +26,10 @@ export const InputsTab: React.FC<InputsTabProps> = ({ nodeData, nodeId }) => {
   const { updateNodeInputs, getPrecedingNodes } = useWorkflowStore();
   const precedingNodes = getPrecedingNodes(nodeId) as WorkflowNode[];
 
-  const inputSchema = React.useMemo(
-    () => removeConfigProperty(nodeData.input_model ?? null),
-    [nodeData.input_model],
-  );
+  const inputSchema = React.useMemo(() => {
+    const raw = removeConfigProperty(nodeData.input_model ?? null);
+    return resolveSchemaDeep(raw, nodeData.input_model ?? null);
+  }, [nodeData.input_model]);
 
   const inputFields = React.useMemo(() => {
     if (!inputSchema?.properties) return [];
