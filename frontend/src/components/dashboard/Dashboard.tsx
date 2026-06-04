@@ -124,7 +124,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
     onOpenEditor();
   };
 
-  const handleStar = async (e: React.MouseEvent, workflowId: string) => {
+  const handleStar = async (e: React.MouseEvent | React.KeyboardEvent, workflowId: string) => {
     e.stopPropagation();
     try {
       const result = await starWorkflow(workflowId);

@@ -7,6 +7,7 @@ import {
   parseFieldsFromConfig,
   resolveSchemaDeep,
 } from "./utils";
+import { JsonSchemaParser } from "../../../lib/jsonSchemaParser";
 import type { WFlowNodeData } from "../../../types/flow";
 
 const RESPONSE_FIELD_TYPES = [
@@ -47,7 +48,9 @@ const resolveSchemaRef = (
     }
   }
 
-  return typeof current === "object" && current !== null ? current : schema;
+  return typeof current === "object" && current !== null
+    ? { ...current, ...schema, $ref: undefined }
+    : schema;
 };
 
 const normalizeConfigSchema = (
@@ -114,22 +117,53 @@ export const ConfigTab: React.FC<ConfigTabProps> = ({ nodeData, nodeId }) => {
     updateNodeConfig(nodeId, { [fieldKey]: value });
   };
 
-  const configFields = React.useMemo(() => {
-    if (!configSchema?.properties) return [];
+  const configFields: {
+    visible: Array<{
+      fieldKey: string;
+      schema: Record<string, any>;
+      required: boolean;
+    }>;
+    technical: Array<{
+      fieldKey: string;
+      schema: Record<string, any>;
+      required: boolean;
+    }>;
+  } = React.useMemo(() => {
+    const visible: any[] = [];
+    const technical: any[] = [];
+    if (!configSchema?.properties) return { visible, technical };
     const required = Array.isArray(configSchema.required)
       ? configSchema.required
       : [];
 
-    // Partition fields into visible (normal) and technical. Also omit autofilled fields.
-    const visible: any[] = [];
-    const technical: any[] = [];
+    const parser = new JsonSchemaParser(
+      nodeData.input_model ?? configSchema ?? {},
+    );
 
     Object.entries(configSchema.properties).forEach(
       ([fieldKey, fieldSchema]) => {
         const schemaObj = fieldSchema as Record<string, any>;
-        const isAutofilled = Boolean(schemaObj["x-autofilled"] === true);
-        const isTechnical = Boolean(schemaObj["x-technical"] === true);
-        if (isAutofilled) return; // completely remove from UI
+        const resolved = resolveSchemaDeep(
+          schemaObj,
+          nodeData.input_model ?? configSchema ?? {},
+        );
+        const parsed = parser.parseField(schemaObj as any) as Record<
+          string,
+          any
+        >;
+
+        const isAutofilled = Boolean(
+          schemaObj["x-autofilled"] === true ||
+          schemaObj["x-autofillled"] === true ||
+          parsed["x-autofilled"] === true ||
+          parsed["x-autofillled"] === true ||
+          (resolved && (resolved["x-autofilled"] === true || resolved["x-autofillled"] === true))
+        );
+        if (isAutofilled) return; // remove whole branch if this property itself is autofilled
+
+        const isTechnical = Boolean(
+          parsed["x-technical"] === true || schemaObj["x-technical"] === true,
+        );
 
         const entry = {
           fieldKey,
@@ -143,7 +177,7 @@ export const ConfigTab: React.FC<ConfigTabProps> = ({ nodeData, nodeId }) => {
     );
 
     return { visible, technical };
-  }, [configSchema]);
+  }, [configSchema, nodeData.input_model]);
 
   const getFieldTypeLabel = (schema: Record<string, any>) => {
     if (!schema) return "any";
@@ -361,6 +395,7 @@ export const ConfigTab: React.FC<ConfigTabProps> = ({ nodeData, nodeId }) => {
                 schema={field.schema}
                 value={nodeData.config[field.fieldKey]}
                 onChange={(value) => handleConfigChange(field.fieldKey, value)}
+                rootSchema={nodeData.input_model ?? undefined}
               />
             ))}
           </div>
@@ -402,6 +437,7 @@ export const ConfigTab: React.FC<ConfigTabProps> = ({ nodeData, nodeId }) => {
                   onChange={(value) =>
                     handleConfigChange(field.fieldKey, value)
                   }
+                  rootSchema={nodeData.input_model ?? undefined}
                 />
               ))}
             </div>

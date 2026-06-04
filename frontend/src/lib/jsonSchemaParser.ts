@@ -338,7 +338,7 @@ export class JsonSchemaParser {
     this.refStack.clear();
 
     // Resolve top-level $ref
-    const resolved = this.maybeResolveRef(schema, 0);
+    const resolved = this.maybeResolveRef(schema);
 
     // If the top-level schema is an object with properties, parse them.
     if (resolved.properties) {

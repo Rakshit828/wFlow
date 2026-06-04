@@ -4,6 +4,7 @@ import { OutputReferencePanel } from "./OutputReferencePanel";
 
 import { SchemaFieldRenderer } from "./SchemaFieldRenderer";
 import { resolveSchemaDeep } from "./utils";
+import { JsonSchemaParser } from "../../../lib/jsonSchemaParser";
 import type { WFlowNodeData } from "../../../types/flow";
 import type { Node as WorkflowNode } from "../../../types/workflow";
 
@@ -25,26 +26,75 @@ const removeConfigProperty = (schema: Record<string, any> | null) => {
 export const InputsTab: React.FC<InputsTabProps> = ({ nodeData, nodeId }) => {
   const { updateNodeInputs, getPrecedingNodes } = useWorkflowStore();
   const precedingNodes = getPrecedingNodes(nodeId) as WorkflowNode[];
+  const [techOpen, setTechOpen] = React.useState(false);
 
   const inputSchema = React.useMemo(() => {
     const raw = removeConfigProperty(nodeData.input_model ?? null);
     return resolveSchemaDeep(raw, nodeData.input_model ?? null);
   }, [nodeData.input_model]);
 
-  const inputFields = React.useMemo(() => {
-    if (!inputSchema?.properties) return [];
+  const inputFields: {
+    visible: Array<{
+      fieldKey: string;
+      schema: Record<string, any>;
+      required: boolean;
+    }>;
+    technical: Array<{
+      fieldKey: string;
+      schema: Record<string, any>;
+      required: boolean;
+    }>;
+  } = React.useMemo(() => {
+    const visible: any[] = [];
+    const technical: any[] = [];
+    if (!inputSchema?.properties) return { visible, technical };
     const required = Array.isArray(inputSchema.required)
       ? inputSchema.required
       : [];
 
-    return Object.entries(inputSchema.properties).map(
-      ([fieldKey, fieldSchema]) => ({
-        fieldKey,
-        schema: fieldSchema as Record<string, any>,
-        required: required.includes(fieldKey),
-      }),
+    const parser = new JsonSchemaParser(
+      nodeData.input_model ?? inputSchema ?? {},
     );
-  }, [inputSchema]);
+
+    Object.entries(inputSchema.properties).forEach(([fieldKey, fieldSchema]) => {
+      const schemaObj = fieldSchema as Record<string, any>;
+      const resolved = resolveSchemaDeep(
+        schemaObj,
+        nodeData.input_model ?? inputSchema ?? {},
+      );
+      const parsed = parser.parseField(schemaObj as any) as Record<
+        string,
+        any
+      >;
+
+      const isAutofilled = Boolean(
+        schemaObj["x-autofilled"] === true ||
+        schemaObj["x-autofillled"] === true ||
+        parsed["x-autofilled"] === true ||
+        parsed["x-autofillled"] === true ||
+        (resolved && (resolved["x-autofilled"] === true || resolved["x-autofillled"] === true))
+      );
+      if (isAutofilled) return;
+
+      const isTechnical = Boolean(
+        parsed["x-technical"] === true || schemaObj["x-technical"] === true,
+      );
+
+      const entry = {
+        fieldKey,
+        schema: schemaObj,
+        required: required.includes(fieldKey),
+      };
+
+      if (isTechnical) {
+        technical.push(entry);
+      } else {
+        visible.push(entry);
+      }
+    });
+
+    return { visible, technical };
+  }, [inputSchema, nodeData.input_model]);
 
   const handleInputChange = (fieldKey: string, value: unknown) => {
     updateNodeInputs(nodeId, { [fieldKey]: value });
@@ -60,6 +110,8 @@ export const InputsTab: React.FC<InputsTabProps> = ({ nodeData, nodeId }) => {
     return "any";
   };
 
+  const totalFieldsCount = (inputFields.visible?.length ?? 0) + (inputFields.technical?.length ?? 0);
+
   return (
     <div className="space-y-6">
       <div className="rounded-3xl border border-slate-700 bg-slate-950/80 p-4 space-y-4">
@@ -73,11 +125,11 @@ export const InputsTab: React.FC<InputsTabProps> = ({ nodeData, nodeId }) => {
             </p>
           </div>
           <span className="text-xs text-slate-500">
-            {inputFields.length} field{inputFields.length === 1 ? "" : "s"}
+            {totalFieldsCount} field{totalFieldsCount === 1 ? "" : "s"}
           </span>
         </div>
 
-        {inputFields.length === 0 ? (
+        {totalFieldsCount === 0 ? (
           <div className="rounded border border-slate-700 bg-slate-900/80 p-4 text-sm text-slate-400">
             This node has no input schema defined.
           </div>
@@ -89,7 +141,7 @@ export const InputsTab: React.FC<InputsTabProps> = ({ nodeData, nodeId }) => {
               <div className="text-right">Required</div>
             </div>
             <div className="divide-y divide-slate-700">
-              {inputFields.map((field) => (
+              {inputFields.visible.map((field) => (
                 <div
                   key={field.fieldKey}
                   className="grid gap-3 lg:grid-cols-[1.5fr_1fr_auto] items-center px-4 py-3"
@@ -133,13 +185,13 @@ export const InputsTab: React.FC<InputsTabProps> = ({ nodeData, nodeId }) => {
           </p>
         </div>
 
-        {inputFields.length === 0 ? (
+        {inputFields.visible.length === 0 && inputFields.technical.length === 0 ? (
           <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4 text-sm text-slate-400">
             No editable inputs available for this node.
           </div>
         ) : (
           <div className="space-y-4">
-            {inputFields.map((field) => (
+            {inputFields.visible.map((field) => (
               <SchemaFieldRenderer
                 key={field.fieldKey}
                 fieldKey={field.fieldKey}
@@ -149,11 +201,56 @@ export const InputsTab: React.FC<InputsTabProps> = ({ nodeData, nodeId }) => {
                 onDropReference={(path) =>
                   handleInputChange(field.fieldKey, path)
                 }
+                rootSchema={nodeData.input_model ?? undefined}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* Technical input fields block */}
+      {inputFields.technical && inputFields.technical.length > 0 ? (
+        <div className="rounded-2xl border border-slate-700 bg-slate-950/80 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold text-foreground">
+                Technical configuration
+              </div>
+              <p className="text-xs text-slate-400">
+                Advanced options for technical users. These values are optional
+                and may be autofilled by the system.
+              </p>
+            </div>
+            <div className="text-sm">
+              <button
+                type="button"
+                onClick={() => setTechOpen((s) => !s)}
+                className="cursor-pointer px-2 py-1 rounded text-slate-400 hover:text-foreground bg-transparent border border-transparent hover:border-slate-700 transition-all"
+              >
+                {techOpen ? "Hide" : "Show"}
+              </button>
+            </div>
+          </div>
+
+          {techOpen && (
+            <div className="mt-3 space-y-3 px-4">
+              {inputFields.technical.map((field) => (
+                <SchemaFieldRenderer
+                  key={field.fieldKey}
+                  fieldKey={field.fieldKey}
+                  schema={field.schema}
+                  value={nodeData.inputs[field.fieldKey]}
+                  onChange={(value) => handleInputChange(field.fieldKey, value)}
+                  onDropReference={(path) =>
+                    handleInputChange(field.fieldKey, path)
+                  }
+                  rootSchema={nodeData.input_model ?? undefined}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
 
       <OutputReferencePanel precedingNodes={precedingNodes} />
     </div>

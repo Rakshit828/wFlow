@@ -165,15 +165,20 @@ export const resolveSchemaDeep = (schema: any, rootSchema: any): any => {
   if (typeof schema.$ref === "string" && schema.$ref.startsWith("#/")) {
     const path = schema.$ref.slice(2).split("/");
     let current = rootSchema || {};
+    let resolvedSuccessfully = true;
     for (const step of path) {
       if (current && typeof current === "object" && step in current) {
         current = current[step];
       } else {
-        current = schema; // fallback to original
+        resolvedSuccessfully = false;
         break;
       }
     }
-    return resolveSchemaDeep(current, rootSchema);
+    if (!resolvedSuccessfully) {
+      return schema; // Avoid infinite loop on unresolvable refs
+    }
+    const resolved = resolveSchemaDeep(current, rootSchema);
+    return { ...resolved, ...schema, $ref: undefined };
   }
 
   // Handle anyOf/oneOf/allOf early to simplify nullable patterns
