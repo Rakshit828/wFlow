@@ -20,6 +20,10 @@ export async function searchWorkflows(
   );
 }
 
+export async function fetchWorkflowById(workflowId: string): Promise<Workflow> {
+  return apiFetch(`/api/workflows/${workflowId}`);
+}
+
 export async function createWorkflow(
   workflow: Omit<Workflow, 'workflow_id' | 'stars' | 'created_by'>
 ): Promise<CreateWorkflowResponse> {

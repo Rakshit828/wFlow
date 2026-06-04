@@ -1,7 +1,7 @@
 import React from "react";
 import { HelpCircle } from "lucide-react";
 import { resolveSchemaDeep } from "./utils";
-import type { Node as WorkflowNode } from "../../../types/workflow";
+import type { NodeFullResponse as WorkflowNode } from "../../../types/workflow";
 
 interface OutputReferencePanelProps {
   precedingNodes: WorkflowNode[];

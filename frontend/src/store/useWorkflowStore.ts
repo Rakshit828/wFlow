@@ -10,13 +10,14 @@ import type {
 } from "@xyflow/react";
 import type {
   Node as wNode,
+  NodeFullResponse as wNodeFullResponse,
   Edge as wEdge,
   Workflow,
   NodesRegistryListItem,
 } from "../types/workflow";
 import type { WFlowNodeData, WFlowEdgeData } from "../types/flow";
 import { asNodeData, asEdgeData } from "../types/flow";
-import { createWorkflow } from "../api/workflows";
+import { createWorkflow, fetchWorkflowById } from "../api/workflows";
 
 // Standard displacement constants for automatic node layout
 const NODE_WIDTH = 250;
@@ -39,6 +40,11 @@ interface WorkflowState {
   isDirty: boolean;
   saveStatus: "idle" | "saving" | "saved" | "error";
   saveError: string | null;
+
+  // Loading/Error states for routing
+  isLoadingWorkflow: boolean;
+  workflowLoadError: string | null;
+  loadWorkflowById: (id: string) => Promise<void>;
 
   // Node Registry state for dynamic schemas
   nodeRegistry: Record<string, NodesRegistryListItem>;
@@ -75,7 +81,7 @@ interface WorkflowState {
   getWorkflowJson: () => Workflow;
 
   // Reference and autocomplete helper
-  getPrecedingNodes: (nodeId: string) => wNode[];
+  getPrecedingNodes: (nodeId: string) => wNodeFullResponse[];
 }
 
 // Minimal topological sorting helper to arrange loaded nodes beautifully
@@ -152,6 +158,78 @@ function computeAutomaticLayout(
   return positions;
 }
 
+function getInputsAndConfigDefaults(inputModel: Record<string, any> | null | undefined) {
+  const defaultInputs: Record<string, any> = {};
+  const defaultConfig: Record<string, any> = {};
+
+  if (!inputModel) {
+    return { defaultInputs, defaultConfig };
+  }
+
+  // 1. Inputs defaults (excluding 'config')
+  if (inputModel.properties) {
+    Object.entries(inputModel.properties).forEach(([pKey, pVal]: [string, any]) => {
+      if (pKey === "config") return;
+      if (pVal.default !== undefined) {
+        defaultInputs[pKey] = pVal.default;
+      } else {
+        if (pVal.type === "array") {
+          defaultInputs[pKey] = [];
+        } else if (pVal.type === "object") {
+          defaultInputs[pKey] = {};
+        } else if (pVal.type === "boolean") {
+          defaultInputs[pKey] = false;
+        } else if (pVal.type === "integer" || pVal.type === "number") {
+          defaultInputs[pKey] = 0;
+        } else {
+          defaultInputs[pKey] = "";
+        }
+      }
+    });
+  }
+
+  // 2. Config defaults
+  const rawConfigSchema = inputModel.config ?? inputModel.properties?.config ?? null;
+  let configSchema = rawConfigSchema;
+  if (rawConfigSchema && rawConfigSchema.$ref && inputModel) {
+    const ref = rawConfigSchema.$ref;
+    if (typeof ref === "string" && ref.startsWith("#/")) {
+      const path = ref.slice(2).split("/");
+      let current: any = inputModel;
+      for (const step of path) {
+        if (current && typeof current === "object" && step in current) {
+          current = current[step];
+        }
+      }
+      if (current && typeof current === "object") {
+        configSchema = current;
+      }
+    }
+  }
+
+  if (configSchema && configSchema.properties) {
+    Object.entries(configSchema.properties).forEach(([pKey, pVal]: [string, any]) => {
+      if (pVal.default !== undefined) {
+        defaultConfig[pKey] = pVal.default;
+      } else {
+        if (pVal.type === "array") {
+          defaultConfig[pKey] = [];
+        } else if (pVal.type === "object") {
+          defaultConfig[pKey] = {};
+        } else if (pVal.type === "boolean") {
+          defaultConfig[pKey] = false;
+        } else if (pVal.type === "integer" || pVal.type === "number") {
+          defaultConfig[pKey] = 0;
+        } else {
+          defaultConfig[pKey] = "";
+        }
+      }
+    });
+  }
+
+  return { defaultInputs, defaultConfig };
+}
+
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   workflowId: null,
   workflowName: "My AI Workflow",
@@ -165,6 +243,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
   isDirty: false,
   saveStatus: "idle",
   saveError: null,
+
+  isLoadingWorkflow: false,
+  workflowLoadError: null,
 
   nodeRegistry: {},
   addRegistryItems: (items) =>
@@ -302,28 +383,10 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         type = registrySpec.type;
         inputModel = registrySpec.input_model;
         outputModel = registrySpec.output_model;
-        if (registrySpec.input_model && registrySpec.input_model.properties) {
-          Object.entries(registrySpec.input_model.properties).forEach(
-            ([pKey, pVal]: [string, any]) => {
-              if (pKey === "config") return;
-              if (pVal.default !== undefined) {
-                defaultInputs[pKey] = pVal.default;
-              } else {
-                if (pVal.type === "array") {
-                  defaultInputs[pKey] = [];
-                } else if (pVal.type === "object") {
-                  defaultInputs[pKey] = {};
-                } else if (pVal.type === "boolean") {
-                  defaultInputs[pKey] = false;
-                } else if (pVal.type === "integer" || pVal.type === "number") {
-                  defaultInputs[pKey] = 0;
-                } else {
-                  defaultInputs[pKey] = "";
-                }
-              }
-            },
-          );
-        }
+        
+        const defaults = getInputsAndConfigDefaults(inputModel);
+        defaultInputs = defaults.defaultInputs;
+        defaultConfig = defaults.defaultConfig;
       }
 
       const nodeData: WFlowNodeData = {
@@ -468,18 +531,24 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         delete configClean._position;
 
         const spec = get().nodeRegistry[n.key];
+        const inputModel = n.input_model || spec?.input_model;
+        const outputModel =
+          n.output_model !== undefined ? n.output_model : spec?.output_model;
+
+        // Retrieve frontend-constructed defaults from the schema/spec
+        const defaults = getInputsAndConfigDefaults(inputModel);
 
         const data: WFlowNodeData = {
           label: spec ? spec.name : n.name,
           key: n.key,
           name: n.name,
           type: n.type,
-          inputs: (n.inputs || {}) as Record<string, unknown>,
-          config: (configClean || {}) as Record<string, unknown>,
+          // Merge frontend-constructed defaults with backend-saved inputs/config
+          inputs: { ...defaults.defaultInputs, ...(n.inputs || {}) } as Record<string, unknown>,
+          config: { ...defaults.defaultConfig, ...(configClean || {}) } as Record<string, unknown>,
           outputs: (n.outputs || {}) as Record<string, unknown>,
-          input_model: n.input_model || spec?.input_model,
-          output_model:
-            n.output_model !== undefined ? n.output_model : spec?.output_model,
+          input_model: inputModel,
+          output_model: outputModel,
         };
 
         return {
@@ -531,6 +600,26 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         saveError: null,
       };
     }),
+
+  loadWorkflowById: async (id: string) => {
+    const { isLoadingWorkflow, workflowId, isDirty } = get();
+
+    // Skip if already loading this workflow (double-mount guard)
+    if (isLoadingWorkflow) return;
+
+    // Skip if we already have this workflow loaded and no unsaved changes
+    if (workflowId === id && !isDirty) return;
+
+    set({ isLoadingWorkflow: true, workflowLoadError: null });
+    try {
+      const workflow = await fetchWorkflowById(id);
+      get().loadWorkflow(workflow);
+      set({ isLoadingWorkflow: false });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load workflow";
+      set({ workflowLoadError: message, isLoadingWorkflow: false });
+    }
+  },
 
   saveWorkflow: async () => {
     const { getWorkflowJson } = get();
@@ -674,7 +763,9 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
           inputs: data.inputs as Record<string, unknown>,
           config: data.config as Record<string, unknown>,
           outputs: data.outputs as Record<string, unknown>,
-        };
+          input_model: data.input_model,
+          output_model: data.output_model,
+        } as wNodeFullResponse;
       });
   },
 }));

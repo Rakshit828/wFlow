@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Save, Loader2, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useWorkflowStore } from '../../store/useWorkflowStore';
 
 interface SaveWorkflowDialogProps {
@@ -8,6 +9,7 @@ interface SaveWorkflowDialogProps {
 }
 
 export const SaveWorkflowDialog: React.FC<SaveWorkflowDialogProps> = ({ open, onClose }) => {
+  const navigate = useNavigate();
   const {
     workflowName,
     workflowDescription,
@@ -46,6 +48,10 @@ export const SaveWorkflowDialog: React.FC<SaveWorkflowDialogProps> = ({ open, on
 
     const ok = await saveWorkflow();
     if (ok) {
+      const newId = useWorkflowStore.getState().workflowId;
+      if (newId) {
+        navigate(`/workflow/${newId}`, { replace: true });
+      }
       onClose();
     }
   };

@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Search,
   Plus,
@@ -25,9 +26,7 @@ import {
 import type { WorkflowListItem, PaginationMeta } from "../../types/workflow";
 import { CreateDialog } from "./CreateDialog";
 
-interface DashboardProps {
-  onOpenEditor: () => void;
-}
+interface DashboardProps {}
 
 /* ─── Gradient Card Background Patterns ─── */
 const cardGradients = [
@@ -66,7 +65,8 @@ const accentColors = [
 
 type ViewMode = "grid" | "list";
 
-export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
+export const Dashboard: React.FC<DashboardProps> = () => {
+  const navigate = useNavigate();
   const [workflows, setWorkflows] = React.useState<WorkflowListItem[]>([]);
   const [pagination, setPagination] = React.useState<PaginationMeta | null>(
     null,
@@ -89,7 +89,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const loadData = React.useCallback(async () => {
+  // Ref guard: track last-fetched params to avoid duplicate requests
+  const lastFetchedRef = React.useRef<{ query: string; page: number } | null>(null);
+  const isFetchingRef = React.useRef(false);
+
+  const loadData = React.useCallback(async (force = false) => {
+    // Skip if already fetching (double-mount guard)
+    if (isFetchingRef.current) return;
+
+    // Skip if we already fetched the exact same params
+    if (
+      !force &&
+      lastFetchedRef.current &&
+      lastFetchedRef.current.query === debouncedQuery &&
+      lastFetchedRef.current.page === page
+    ) {
+      return;
+    }
+
+    isFetchingRef.current = true;
     setLoading(true);
     setError(null);
     setLoadError(null);
@@ -100,6 +118,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
         : await fetchWorkflows(page);
       setWorkflows(result.data);
       setPagination(result.pagination);
+      lastFetchedRef.current = { query: debouncedQuery, page };
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load workflows";
@@ -109,6 +128,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
       setError(message);
     } finally {
       setLoading(false);
+      isFetchingRef.current = false;
     }
   }, [page, debouncedQuery]);
 
@@ -120,8 +140,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
     setCreateOpen(true);
   };
 
-  const handleOpenWorkflow = (_workflow: WorkflowListItem) => {
-    onOpenEditor();
+  const handleOpenWorkflow = (workflow: WorkflowListItem) => {
+    navigate(`/workflow/${workflow.workflow_id}`);
   };
 
   const handleStar = async (e: React.MouseEvent | React.KeyboardEvent, workflowId: string) => {
@@ -222,7 +242,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
 
           {/* Refresh */}
           <button
-            onClick={loadData}
+            onClick={() => loadData(true)}
             disabled={loading}
             className="p-2.5 rounded-xl bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all disabled:opacity-50 shrink-0"
           >
@@ -489,7 +509,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onOpenEditor }) => {
       <CreateDialog
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreated={onOpenEditor}
+        onCreated={() => navigate("/workflow")}
       />
     </div>
   );

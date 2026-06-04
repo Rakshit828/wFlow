@@ -240,6 +240,21 @@ const PaginationBar: React.FC<{
   );
 };
 
+interface NodesCacheEntry {
+  data: NodesRegistryListItem[];
+  pagination: {
+    total_pages: number;
+    total: number;
+  };
+}
+
+// Module-level caches and promises to survive React Strict Mode mount/unmount/remount
+const allNodesCache = new Map<number, NodesCacheEntry>();
+const allNodesPromises = new Map<number, Promise<NodesCacheEntry>>();
+
+const exploreNodesCache = new Map<string, NodesCacheEntry>();
+const exploreNodesPromises = new Map<string, Promise<NodesCacheEntry>>();
+
 export const SidebarCatalog: React.FC<{
   sidebarWidth: number;
   onToggleCollapse: () => void;
@@ -287,17 +302,58 @@ export const SidebarCatalog: React.FC<{
     return () => clearTimeout(timer);
   }, [searchService]);
 
+  // Ref guards: track last-fetched params
+  const lastAllRef = React.useRef<{ page: number } | null>(null);
+  const lastExploreRef = React.useRef<{ type: string; service: string; page: number } | null>(null);
+
   const loadAllNodes = React.useCallback(
     async (page: number) => {
+      // 1. Check if cached
+      const cached = allNodesCache.get(page);
+      if (cached) {
+        setAllNodes(cached.data);
+        setAllTotalPages(cached.pagination.total_pages);
+        setAllTotal(cached.pagination.total);
+        addRegistryItems(cached.data);
+        setContentKey((k) => k + 1);
+        lastAllRef.current = { page };
+        return;
+      }
+
+      // 2. Check if a promise is already in flight for this page
+      let promise = allNodesPromises.get(page);
+      if (!promise) {
+        // Create the promise and cache it
+        promise = (async () => {
+          const res = await fetchRegisteredNodes(page, PAGE_SIZE);
+          const entry: NodesCacheEntry = {
+            data: res.data,
+            pagination: {
+              total_pages: res.pagination.total_pages,
+              total: res.pagination.total,
+            },
+          };
+          allNodesCache.set(page, entry);
+          return entry;
+        })();
+        allNodesPromises.set(page, promise);
+
+        // Clean up the promise map when it resolves or rejects
+        promise.finally(() => {
+          allNodesPromises.delete(page);
+        });
+      }
+
       setAllLoading(true);
       setAllError(null);
       try {
-        const res = await fetchRegisteredNodes(page, PAGE_SIZE);
+        const res = await promise;
         setAllNodes(res.data);
         setAllTotalPages(res.pagination.total_pages);
         setAllTotal(res.pagination.total);
         addRegistryItems(res.data);
         setContentKey((k) => k + 1);
+        lastAllRef.current = { page };
       } catch (err) {
         setAllError(
           err instanceof Error ? err.message : "Failed to fetch nodes",
@@ -311,20 +367,57 @@ export const SidebarCatalog: React.FC<{
 
   const loadExploreNodes = React.useCallback(
     async (type: string, service: string, page: number) => {
+      const cacheKey = `${type}:${service}:${page}`;
+
+      // 1. Check if cached
+      const cached = exploreNodesCache.get(cacheKey);
+      if (cached) {
+        setExploreNodes(cached.data);
+        setExploreTotalPages(cached.pagination.total_pages);
+        setExploreTotal(cached.pagination.total);
+        addRegistryItems(cached.data);
+        setContentKey((k) => k + 1);
+        lastExploreRef.current = { type, service, page };
+        return;
+      }
+
+      // 2. Check if a promise is already in flight for this key
+      let promise = exploreNodesPromises.get(cacheKey);
+      if (!promise) {
+        promise = (async () => {
+          const res = await searchRegisteredNodes(
+            type,
+            service || undefined,
+            page,
+            PAGE_SIZE,
+          );
+          const entry: NodesCacheEntry = {
+            data: res.data,
+            pagination: {
+              total_pages: res.pagination.total_pages,
+              total: res.pagination.total,
+            },
+          };
+          exploreNodesCache.set(cacheKey, entry);
+          return entry;
+        })();
+        exploreNodesPromises.set(cacheKey, promise);
+
+        promise.finally(() => {
+          exploreNodesPromises.delete(cacheKey);
+        });
+      }
+
       setExploreLoading(true);
       setExploreError(null);
       try {
-        const res = await searchRegisteredNodes(
-          type,
-          service || undefined,
-          page,
-          PAGE_SIZE,
-        );
+        const res = await promise;
         setExploreNodes(res.data);
         setExploreTotalPages(res.pagination.total_pages);
         setExploreTotal(res.pagination.total);
         addRegistryItems(res.data);
         setContentKey((k) => k + 1);
+        lastExploreRef.current = { type, service, page };
       } catch (err) {
         setExploreError(
           err instanceof Error ? err.message : "Failed to explore nodes",

@@ -7,7 +7,7 @@ import { SchemaFieldRenderer } from "./SchemaFieldRenderer";
 import { resolveSchemaDeep } from "./utils";
 import { JsonSchemaParser } from "../../../lib/jsonSchemaParser";
 import type { WFlowNodeData } from "../../../types/flow";
-import type { Node as WorkflowNode } from "../../../types/workflow";
+import type { NodeFullResponse as WorkflowNode } from "../../../types/workflow";
 
 interface InputsTabProps {
   nodeData: WFlowNodeData;

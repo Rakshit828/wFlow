@@ -1,5 +1,5 @@
 import React from "react";
-import type { Node as WorkflowNode } from "../../../types/workflow";
+import type { NodeFullResponse as WorkflowNode } from "../../../types/workflow";
 import { X, Plus, Zap, Copy, Check } from "lucide-react";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -187,7 +187,6 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({
   };
 
   const isEmpty = rows.length === 1 && !rows[0].key && !rows[0].value;
-  const expr = buildConditionString(rows);
 
   return (
     <div className="rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden">

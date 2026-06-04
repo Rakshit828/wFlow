@@ -8,6 +8,9 @@ export interface Node {
   inputs: Record<string, any>;
   config: Record<string, any>;
   outputs: Record<string, any>;
+}
+
+export interface NodeFullResponse extends Node {
   input_model?: Record<string, any>;
   output_model?: Record<string, any> | null;
 }
@@ -24,7 +27,7 @@ export interface Workflow {
   workflow_id?: string;
   name: string;
   description: string;
-  nodes: Node[];
+  nodes: NodeFullResponse[];
   edges: Edge[];
   visibility: 'public' | 'private';
   stars?: number;
