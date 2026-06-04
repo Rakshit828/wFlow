@@ -2,21 +2,20 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
-  Plus,
   Star,
   Globe,
   Lock,
   ChevronLeft,
   ChevronRight,
-  Workflow,
-  Zap,
-  Clock,
+  Compass,
   LayoutGrid,
   List,
   Loader2,
   RefreshCw,
   ArrowUpRight,
   AlertCircle,
+  Workflow,
+  User,
 } from "lucide-react";
 import {
   fetchWorkflows,
@@ -24,56 +23,51 @@ import {
   starWorkflow,
 } from "../../api/workflows";
 import type { WorkflowListItem, PaginationMeta } from "../../types/workflow";
-import { CreateDialog } from "./CreateDialog";
-
-interface DashboardProps {}
 
 /* ─── Gradient Card Background Patterns ─── */
 const cardGradients = [
-  "from-indigo-500/10 via-purple-500/5 to-transparent",
-  "from-emerald-500/10 via-teal-500/5 to-transparent",
-  "from-amber-500/10 via-orange-500/5 to-transparent",
-  "from-rose-500/10 via-pink-500/5 to-transparent",
-  "from-sky-500/10 via-cyan-500/5 to-transparent",
   "from-violet-500/10 via-fuchsia-500/5 to-transparent",
+  "from-sky-500/10 via-cyan-500/5 to-transparent",
+  "from-emerald-500/10 via-teal-500/5 to-transparent",
+  "from-rose-500/10 via-pink-500/5 to-transparent",
+  "from-amber-500/10 via-orange-500/5 to-transparent",
+  "from-indigo-500/10 via-purple-500/5 to-transparent",
 ];
 
 const accentColors = [
-  {
-    border: "border-indigo-500/20",
-    dot: "bg-indigo-500",
-    text: "text-indigo-400",
-  },
-  {
-    border: "border-emerald-500/20",
-    dot: "bg-emerald-500",
-    text: "text-emerald-400",
-  },
-  {
-    border: "border-amber-500/20",
-    dot: "bg-amber-500",
-    text: "text-amber-400",
-  },
-  { border: "border-rose-500/20", dot: "bg-rose-500", text: "text-rose-400" },
-  { border: "border-sky-500/20", dot: "bg-sky-500", text: "text-sky-400" },
   {
     border: "border-violet-500/20",
     dot: "bg-violet-500",
     text: "text-violet-400",
   },
+  { border: "border-sky-500/20", dot: "bg-sky-500", text: "text-sky-400" },
+  {
+    border: "border-emerald-500/20",
+    dot: "bg-emerald-500",
+    text: "text-emerald-400",
+  },
+  { border: "border-rose-500/20", dot: "bg-rose-500", text: "text-rose-400" },
+  {
+    border: "border-amber-500/20",
+    dot: "bg-amber-500",
+    text: "text-amber-400",
+  },
+  {
+    border: "border-indigo-500/20",
+    dot: "bg-indigo-500",
+    text: "text-indigo-400",
+  },
 ];
 
 type ViewMode = "grid" | "list";
 
-export const Dashboard: React.FC<DashboardProps> = () => {
+export const ExplorePage: React.FC = () => {
   const navigate = useNavigate();
   const [workflows, setWorkflows] = React.useState<WorkflowListItem[]>([]);
   const [pagination, setPagination] = React.useState<PaginationMeta | null>(
     null,
   );
   const [loading, setLoading] = React.useState(false);
-  const [, setError] = React.useState<string | null>(null);
-  const [createOpen, setCreateOpen] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState("");
   const [debouncedQuery, setDebouncedQuery] = React.useState("");
   const [page, setPage] = React.useState(1);
@@ -90,61 +84,61 @@ export const Dashboard: React.FC<DashboardProps> = () => {
   }, [searchQuery]);
 
   // Ref guard: track last-fetched params to avoid duplicate requests
-  const lastFetchedRef = React.useRef<{ query: string; page: number } | null>(null);
+  const lastFetchedRef = React.useRef<{ query: string; page: number } | null>(
+    null,
+  );
   const isFetchingRef = React.useRef(false);
 
-  const loadData = React.useCallback(async (force = false) => {
-    // Skip if already fetching (double-mount guard)
-    if (isFetchingRef.current) return;
+  const loadData = React.useCallback(
+    async (force = false) => {
+      if (isFetchingRef.current) return;
 
-    // Skip if we already fetched the exact same params
-    if (
-      !force &&
-      lastFetchedRef.current &&
-      lastFetchedRef.current.query === debouncedQuery &&
-      lastFetchedRef.current.page === page
-    ) {
-      return;
-    }
+      if (
+        !force &&
+        lastFetchedRef.current &&
+        lastFetchedRef.current.query === debouncedQuery &&
+        lastFetchedRef.current.page === page
+      ) {
+        return;
+      }
 
-    isFetchingRef.current = true;
-    setLoading(true);
-    setError(null);
-    setLoadError(null);
+      isFetchingRef.current = true;
+      setLoading(true);
+      setLoadError(null);
 
-    try {
-      const result = debouncedQuery
-        ? await searchWorkflows(debouncedQuery, page, 10, false)
-        : await fetchWorkflows(page, 10, false);
-      setWorkflows(result.data);
-      setPagination(result.pagination);
-      lastFetchedRef.current = { query: debouncedQuery, page };
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to load workflows";
-      setLoadError(message);
-      setWorkflows([]);
-      setPagination(null);
-      setError(message);
-    } finally {
-      setLoading(false);
-      isFetchingRef.current = false;
-    }
-  }, [page, debouncedQuery]);
+      try {
+        const result = debouncedQuery
+          ? await searchWorkflows(debouncedQuery, page, 10, true)
+          : await fetchWorkflows(page, 10, true);
+        setWorkflows(result.data);
+        setPagination(result.pagination);
+        lastFetchedRef.current = { query: debouncedQuery, page };
+      } catch (err) {
+        const message =
+          err instanceof Error ? err.message : "Failed to load workflows";
+        setLoadError(message);
+        setWorkflows([]);
+        setPagination(null);
+      } finally {
+        setLoading(false);
+        isFetchingRef.current = false;
+      }
+    },
+    [page, debouncedQuery],
+  );
 
   React.useEffect(() => {
     loadData();
   }, [loadData]);
 
-  const handleCreateNew = () => {
-    setCreateOpen(true);
-  };
-
   const handleOpenWorkflow = (workflow: WorkflowListItem) => {
     navigate(`/workflow/${workflow.workflow_id}`);
   };
 
-  const handleStar = async (e: React.MouseEvent | React.KeyboardEvent, workflowId: string) => {
+  const handleStar = async (
+    e: React.MouseEvent | React.KeyboardEvent,
+    workflowId: string,
+  ) => {
     e.stopPropagation();
     try {
       const result = await starWorkflow(workflowId);
@@ -160,37 +154,27 @@ export const Dashboard: React.FC<DashboardProps> = () => {
     <div className="h-full overflow-y-auto">
       {/* ─── Hero Section ─── */}
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-primary/5 via-transparent to-transparent pointer-events-none" />
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute top-10 right-1/4 w-72 h-72 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-violet-500/5 via-transparent to-transparent pointer-events-none" />
+        <div className="absolute top-0 left-1/3 w-96 h-96 bg-violet-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute top-10 right-1/3 w-72 h-72 bg-fuchsia-500/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative max-w-6xl mx-auto px-6 pt-12 pb-8">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div>
               <div className="flex items-center gap-3 mb-3">
-                <div className="p-2.5 rounded-xl bg-primary/10 border border-primary/20 shadow-lg shadow-primary/5">
-                  <Zap className="text-primary" size={22} />
+                <div className="p-2.5 rounded-xl bg-violet-500/10 border border-violet-500/20 shadow-lg shadow-violet-500/5">
+                  <Compass className="text-violet-400" size={22} />
                 </div>
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight">
-                    Your Workflows
+                    Explore Workflows
                   </h1>
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    Build, manage, and orchestrate AI-powered automation
-                    pipelines.
+                    Discover community-built AI automation pipelines. Star, fork,
+                    and learn from others.
                   </p>
                 </div>
               </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleCreateNew}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold transition-all shadow-lg shadow-primary/20 hover:shadow-primary/30 hover:scale-[1.02] active:scale-[0.98]"
-              >
-                <Plus size={16} />
-                New Workflow
-              </button>
             </div>
           </div>
         </div>
@@ -206,11 +190,12 @@ export const Dashboard: React.FC<DashboardProps> = () => {
               className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
             />
             <input
+              id="explore-search"
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search workflows by name..."
-              className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 focus:ring-2 focus:ring-primary/10 transition-all"
+              placeholder="Search all workflows..."
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/10 transition-all"
             />
           </div>
 
@@ -220,7 +205,7 @@ export const Dashboard: React.FC<DashboardProps> = () => {
               onClick={() => setViewMode("grid")}
               className={`p-2.5 transition-colors ${
                 viewMode === "grid"
-                  ? "bg-primary/10 text-primary"
+                  ? "bg-violet-500/10 text-violet-400"
                   : "text-muted-foreground hover:text-foreground"
               }`}
               title="Grid view"
@@ -231,7 +216,7 @@ export const Dashboard: React.FC<DashboardProps> = () => {
               onClick={() => setViewMode("list")}
               className={`p-2.5 transition-colors ${
                 viewMode === "list"
-                  ? "bg-primary/10 text-primary"
+                  ? "bg-violet-500/10 text-violet-400"
                   : "text-muted-foreground hover:text-foreground"
               }`}
               title="List view"
@@ -244,7 +229,7 @@ export const Dashboard: React.FC<DashboardProps> = () => {
           <button
             onClick={() => loadData(true)}
             disabled={loading}
-            className="p-2.5 rounded-xl bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/30 transition-all disabled:opacity-50 shrink-0"
+            className="p-2.5 rounded-xl bg-card border border-border text-muted-foreground hover:text-foreground hover:border-violet-500/30 transition-all disabled:opacity-50 shrink-0"
           >
             <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
           </button>
@@ -261,9 +246,9 @@ export const Dashboard: React.FC<DashboardProps> = () => {
         {loading && (
           <div className="flex items-center justify-center py-20">
             <div className="flex flex-col items-center gap-3">
-              <Loader2 className="text-primary animate-spin" size={28} />
+              <Loader2 className="text-violet-400 animate-spin" size={28} />
               <span className="text-sm text-muted-foreground">
-                Loading workflows…
+                Discovering workflows…
               </span>
             </div>
           </div>
@@ -279,7 +264,7 @@ export const Dashboard: React.FC<DashboardProps> = () => {
                 <button
                   key={w.workflow_id}
                   onClick={() => handleOpenWorkflow(w)}
-                  className={`group relative text-left p-5 rounded-2xl bg-card border ${accent.border} hover:border-primary/30 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5`}
+                  className={`group relative text-left p-5 rounded-2xl bg-card border ${accent.border} hover:border-violet-500/30 transition-all duration-300 hover:shadow-lg hover:shadow-violet-500/5 hover:-translate-y-0.5`}
                 >
                   {/* Gradient overlay */}
                   <div
@@ -293,13 +278,13 @@ export const Dashboard: React.FC<DashboardProps> = () => {
                         <div
                           className={`w-2 h-2 rounded-full ${accent.dot} shadow-sm`}
                         />
-                        <h3 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors leading-tight line-clamp-1">
+                        <h3 className="font-semibold text-sm text-foreground group-hover:text-violet-400 transition-colors leading-tight line-clamp-1">
                           {w.name}
                         </h3>
                       </div>
                       <ArrowUpRight
                         size={14}
-                        className="text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:text-primary transition-all -translate-x-1 group-hover:translate-x-0 shrink-0"
+                        className="text-muted-foreground opacity-0 group-hover:opacity-100 group-hover:text-violet-400 transition-all -translate-x-1 group-hover:translate-x-0 shrink-0"
                       />
                     </div>
 
@@ -323,7 +308,7 @@ export const Dashboard: React.FC<DashboardProps> = () => {
                           </span>
                         )}
                         <span className="flex items-center gap-1">
-                          <Clock size={10} />
+                          <User size={10} />
                           {w.created_by}
                         </span>
                       </div>
@@ -369,13 +354,13 @@ export const Dashboard: React.FC<DashboardProps> = () => {
                 <button
                   key={w.workflow_id}
                   onClick={() => handleOpenWorkflow(w)}
-                  className={`group w-full text-left flex items-center gap-4 p-4 rounded-xl bg-card border ${accent.border} hover:border-primary/30 transition-all hover:shadow-md hover:shadow-primary/5`}
+                  className={`group w-full text-left flex items-center gap-4 p-4 rounded-xl bg-card border ${accent.border} hover:border-violet-500/30 transition-all hover:shadow-md hover:shadow-violet-500/5`}
                 >
                   <div
                     className={`w-1.5 h-8 rounded-full ${accent.dot} shrink-0`}
                   />
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors truncate">
+                    <h3 className="font-semibold text-sm text-foreground group-hover:text-violet-400 transition-colors truncate">
                       {w.name}
                     </h3>
                     <p className="text-sm text-muted-foreground truncate mt-0.5">
@@ -394,7 +379,10 @@ export const Dashboard: React.FC<DashboardProps> = () => {
                         Private
                       </span>
                     )}
-                    <span>{w.created_by}</span>
+                    <span className="flex items-center gap-1">
+                      <User size={10} />
+                      {w.created_by}
+                    </span>
                     <span
                       role="button"
                       tabIndex={0}
@@ -421,7 +409,7 @@ export const Dashboard: React.FC<DashboardProps> = () => {
                     </span>
                     <ArrowUpRight
                       size={13}
-                      className="text-muted-foreground group-hover:text-primary transition-colors"
+                      className="text-muted-foreground group-hover:text-violet-400 transition-colors"
                     />
                   </div>
                 </button>
@@ -442,15 +430,8 @@ export const Dashboard: React.FC<DashboardProps> = () => {
             <p className="text-sm text-muted-foreground mb-6 max-w-md">
               {searchQuery
                 ? `No workflows match "${searchQuery}". Try a different search term.`
-                : "Get started by creating your first AI automation pipeline."}
+                : "No community workflows are available yet. Be the first to share one!"}
             </p>
-            <button
-              onClick={handleCreateNew}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-sm font-semibold transition-all shadow-lg shadow-primary/20"
-            >
-              <Plus size={16} />
-              Create Workflow
-            </button>
           </div>
         )}
 
@@ -476,7 +457,7 @@ export const Dashboard: React.FC<DashboardProps> = () => {
                       onClick={() => setPage(pageNum)}
                       className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${
                         page === pageNum
-                          ? "bg-primary text-primary-foreground shadow-md shadow-primary/20"
+                          ? "bg-violet-500 text-white shadow-md shadow-violet-500/20"
                           : "bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent"
                       }`}
                     >
@@ -505,14 +486,8 @@ export const Dashboard: React.FC<DashboardProps> = () => {
           </div>
         )}
       </div>
-
-      <CreateDialog
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onCreated={() => navigate("/workflow")}
-      />
     </div>
   );
 };
 
-export default Dashboard;
+export default ExplorePage;

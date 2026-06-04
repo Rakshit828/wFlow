@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from "react";
-import { Routes, Route, Navigate, useNavigate, useLocation, Outlet } from "react-router-dom";
+import { Routes, Route, Navigate, NavLink, useNavigate, useLocation, Outlet } from "react-router-dom";
 import {
   Moon,
   Sun,
@@ -8,8 +8,10 @@ import {
   ArrowLeft,
   FileJson,
   Loader2,
+  Compass,
 } from "lucide-react";
 import { Dashboard } from "./components/dashboard/Dashboard";
+import { ExplorePage } from "./components/explore/ExplorePage";
 import { LandingPage } from "./components/landing/LandingPage";
 import { SignInPage } from "./components/auth/SignInPage";
 import { WorkflowEditorPage } from "./components/canvas/WorkflowEditorPage";
@@ -81,6 +83,8 @@ const AppLayout: React.FC = () => {
     );
 
   const isEditor = location.pathname.startsWith("/workflow");
+  const isExplore = location.pathname === "/explore";
+  const pageSubtitle = isEditor ? "Editor" : isExplore ? "Explore" : "Dashboard";
 
   return (
     <div className="h-screen w-screen flex flex-col bg-background text-foreground overflow-hidden">
@@ -103,10 +107,43 @@ const AppLayout: React.FC = () => {
             <h1 className="text-base font-bold tracking-wide">
               wFlow
               <span className="text-[11px] ml-1.5 text-muted-foreground font-normal uppercase tracking-widest">
-                {isEditor ? "Editor" : "Dashboard"}
+                {pageSubtitle}
               </span>
             </h1>
           </div>
+
+          {/* Navigation links — hidden when inside the editor */}
+          {!isEditor && (
+            <nav className="hidden sm:flex items-center gap-1 ml-4 bg-card/60 rounded-lg border border-border p-0.5">
+              <NavLink
+                to="/dashboard"
+                className={({ isActive }) =>
+                  `flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                    isActive
+                      ? "bg-primary/10 text-primary shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                  }`
+                }
+              >
+                <Zap size={12} />
+                Dashboard
+              </NavLink>
+              <NavLink
+                to="/explore"
+                className={({ isActive }) =>
+                  `flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                    isActive
+                      ? "bg-violet-500/10 text-violet-400 shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                  }`
+                }
+              >
+                <Compass size={12} />
+                Explore
+              </NavLink>
+            </nav>
+          )}
+
           {user?.email && (
             <span className="hidden lg:inline text-xs text-muted-foreground truncate max-w-[180px]">
               {user.email}
@@ -222,6 +259,7 @@ function App() {
           }
         >
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/explore" element={<ExplorePage />} />
           <Route path="/workflow" element={<WorkflowEditorPage />} />
           <Route path="/workflow/:id" element={<WorkflowEditorPage />} />
         </Route>

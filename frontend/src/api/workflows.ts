@@ -5,18 +5,20 @@ import type { PaginatedNodesResponse } from '../types/workflow';
 
 export async function fetchWorkflows(
   page: number = 1,
-  pageSize: number = 10
+  pageSize: number = 10,
+  explore: boolean = false
 ): Promise<PaginatedWorkflowsResponse> {
-  return apiFetch(`/api/workflows/?page=${page}&page_size=${pageSize}`);
+  return apiFetch(`/api/workflows/?page=${page}&page_size=${pageSize}&explore=${explore}`);
 }
 
 export async function searchWorkflows(
   query: string,
   page: number = 1,
-  pageSize: number = 10
+  pageSize: number = 10,
+  explore: boolean = false
 ): Promise<PaginatedWorkflowsResponse> {
   return apiFetch(
-    `/api/workflows/search?query=${encodeURIComponent(query)}&page=${page}&page_size=${pageSize}`
+    `/api/workflows/search?query=${encodeURIComponent(query)}&page=${page}&page_size=${pageSize}&explore=${explore}`
   );
 }
 
