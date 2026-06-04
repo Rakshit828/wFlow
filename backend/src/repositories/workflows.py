@@ -90,3 +90,28 @@ class WorkflowRepository:
         logger.info(f"The workflows are : {workflows}")
         proj_workflows = [projection_model(**wf) for wf in workflows]
         return proj_workflows, total
+
+    async def search_nodes_by_type_and_service(
+        self,
+        node_type: NodesTypeEnum,
+        service: Optional[str] = None,
+        page: int = 1,
+        page_size: int = 10,
+    ) -> Tuple[List[NodesRegistry], int]:
+
+        skip = (page - 1) * page_size
+
+        if service is not None:
+            pattern = re.compile(service, re.IGNORECASE)
+
+        search_query = NodesRegistry.find(NodesRegistry.type == node_type)
+
+        if service is not None:
+            search_query = search_query.find(
+                NodesRegistry.service == pattern, Workflows.visibility == "public"
+            )
+
+        total = await search_query.count()
+        nodes = await search_query.skip(skip).limit(page_size).to_list()
+
+        return nodes, total
