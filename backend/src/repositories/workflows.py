@@ -49,6 +49,8 @@ class WorkflowRepository:
         match_filters = {"visibility": "public"}
         if user_id is not None:
             match_filters["created_by"] = ObjectId(user_id)
+            match_filters.pop("visibility")
+
         if query is not None:
             pattern = re.compile(query, re.IGNORECASE)
             match_filters["name"] = {"$regex": pattern}
