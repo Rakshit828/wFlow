@@ -1,6 +1,7 @@
 import React from "react";
 import { useWorkflowStore } from "../../../store/useWorkflowStore";
 import { OutputReferencePanel } from "./OutputReferencePanel";
+import { ConditionBuilder } from "./ConditionBuilder";
 
 import { SchemaFieldRenderer } from "./SchemaFieldRenderer";
 import { resolveSchemaDeep } from "./utils";
@@ -56,42 +57,46 @@ export const InputsTab: React.FC<InputsTabProps> = ({ nodeData, nodeId }) => {
       nodeData.input_model ?? inputSchema ?? {},
     );
 
-    Object.entries(inputSchema.properties).forEach(([fieldKey, fieldSchema]) => {
-      const schemaObj = fieldSchema as Record<string, any>;
-      const resolved = resolveSchemaDeep(
-        schemaObj,
-        nodeData.input_model ?? inputSchema ?? {},
-      );
-      const parsed = parser.parseField(schemaObj as any) as Record<
-        string,
-        any
-      >;
+    Object.entries(inputSchema.properties).forEach(
+      ([fieldKey, fieldSchema]) => {
+        const schemaObj = fieldSchema as Record<string, any>;
+        const resolved = resolveSchemaDeep(
+          schemaObj,
+          nodeData.input_model ?? inputSchema ?? {},
+        );
+        const parsed = parser.parseField(schemaObj as any) as Record<
+          string,
+          any
+        >;
 
-      const isAutofilled = Boolean(
-        schemaObj["x-autofilled"] === true ||
-        schemaObj["x-autofillled"] === true ||
-        parsed["x-autofilled"] === true ||
-        parsed["x-autofillled"] === true ||
-        (resolved && (resolved["x-autofilled"] === true || resolved["x-autofillled"] === true))
-      );
-      if (isAutofilled) return;
+        const isAutofilled = Boolean(
+          schemaObj["x-autofilled"] === true ||
+          schemaObj["x-autofillled"] === true ||
+          parsed["x-autofilled"] === true ||
+          parsed["x-autofillled"] === true ||
+          (resolved &&
+            (resolved["x-autofilled"] === true ||
+              resolved["x-autofillled"] === true)),
+        );
+        if (isAutofilled) return;
 
-      const isTechnical = Boolean(
-        parsed["x-technical"] === true || schemaObj["x-technical"] === true,
-      );
+        const isTechnical = Boolean(
+          parsed["x-technical"] === true || schemaObj["x-technical"] === true,
+        );
 
-      const entry = {
-        fieldKey,
-        schema: schemaObj,
-        required: required.includes(fieldKey),
-      };
+        const entry = {
+          fieldKey,
+          schema: schemaObj,
+          required: required.includes(fieldKey),
+        };
 
-      if (isTechnical) {
-        technical.push(entry);
-      } else {
-        visible.push(entry);
-      }
-    });
+        if (isTechnical) {
+          technical.push(entry);
+        } else {
+          visible.push(entry);
+        }
+      },
+    );
 
     return { visible, technical };
   }, [inputSchema, nodeData.input_model]);
@@ -110,7 +115,17 @@ export const InputsTab: React.FC<InputsTabProps> = ({ nodeData, nodeId }) => {
     return "any";
   };
 
-  const totalFieldsCount = (inputFields.visible?.length ?? 0) + (inputFields.technical?.length ?? 0);
+  const isIfNode = nodeData.key === "if_node";
+  const conditionField = inputFields.visible.find(
+    (field) => field.fieldKey === "condition",
+  );
+  const visibleValueFields =
+    isIfNode && conditionField
+      ? inputFields.visible.filter((field) => field.fieldKey !== "condition")
+      : inputFields.visible;
+
+  const totalFieldsCount =
+    (inputFields.visible?.length ?? 0) + (inputFields.technical?.length ?? 0);
 
   return (
     <div className="space-y-6">
@@ -185,13 +200,21 @@ export const InputsTab: React.FC<InputsTabProps> = ({ nodeData, nodeId }) => {
           </p>
         </div>
 
-        {inputFields.visible.length === 0 && inputFields.technical.length === 0 ? (
+        {inputFields.visible.length === 0 &&
+        inputFields.technical.length === 0 ? (
           <div className="rounded-2xl border border-slate-700 bg-slate-900/80 p-4 text-sm text-slate-400">
             No editable inputs available for this node.
           </div>
         ) : (
           <div className="space-y-4">
-            {inputFields.visible.map((field) => (
+            {isIfNode && conditionField ? (
+              <ConditionBuilder
+                current={String(nodeData.inputs.condition ?? "")}
+                precedingNodes={precedingNodes}
+                onChange={(value) => handleInputChange("condition", value)}
+              />
+            ) : null}
+            {visibleValueFields.map((field) => (
               <SchemaFieldRenderer
                 key={field.fieldKey}
                 fieldKey={field.fieldKey}
