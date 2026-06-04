@@ -14,7 +14,7 @@ class WorkflowRepository:
         return await Workflows.get(workflow_id)
 
     async def get_all_workflows(
-        self, page: int = 1, page_size: int = 10
+        self, page: int = 1, page_size: int = 10, user_id: str | None = None
     ) -> Tuple[List[Workflows], int]:
         """
         Fetch all workflows with pagination.
@@ -22,7 +22,10 @@ class WorkflowRepository:
         skip = (page - 1) * page_size
 
         # 1. Initialize the find operation expression once
-        query = Workflows.find()
+        query = Workflows.find(Workflows.visibility == "public")
+
+        if user_id is not None:
+            query.find(Workflows.created_by == PydanticObjectId(user_id))
 
         # 2. Extract total count and paginated List efficiently
         total = await query.count()
@@ -31,7 +34,7 @@ class WorkflowRepository:
         return workflows, total
 
     async def search_workflows_by_name(
-        self, query: str, page: int = 1, page_size: int = 10
+        self, query: str, page: int = 1, page_size: int = 10, user_id: str | None = None
     ) -> Tuple[List[Workflows], int]:
         """
         Search workflows by name using case-insensitive regex search.
@@ -42,7 +45,12 @@ class WorkflowRepository:
         pattern = re.compile(query, re.IGNORECASE)
 
         # 1. Initialize the search query expression
-        search_query = Workflows.find(Workflows.name == pattern)
+        search_query = Workflows.find(
+            Workflows.name == pattern, Workflows.visibility == "public"
+        )
+
+        if user_id is not None:
+            search_query.find(Workflows.created_by == PydanticObjectId(user_id))
 
         # 2. Resolve both values reusing the same expression object
         total = await search_query.count()
@@ -66,7 +74,9 @@ class WorkflowRepository:
         search_query = NodesRegistry.find(NodesRegistry.type == node_type)
 
         if service is not None:
-            search_query = search_query.find(NodesRegistry.service == pattern)
+            search_query = search_query.find(
+                NodesRegistry.service == pattern, Workflows.visibility == "public"
+            )
 
         total = await search_query.count()
         nodes = await search_query.skip(skip).limit(page_size).to_list()

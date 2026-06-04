@@ -55,9 +55,11 @@ async def get_all_nodes_by_type_and_service(
 
 @workflow_router.get("/", response_model=PaginatedWorkflowsResponse)
 async def get_all_workflows(
+    explore: bool = Query(False, description="Explore = True means exploring the workflows created in application. explore=False means exploring user created workflows."),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     workflow_service: WorkflowService = Depends(WorkflowService),
+    decoded_token: dict[str, str] = Depends(AccessTokenBearer())
 ) -> PaginatedWorkflowsResponse:
     """
     Fetch all workflows with pagination.
@@ -66,15 +68,21 @@ async def get_all_workflows(
     - page: Page number (default: 1)
     - page_size: Number of items per page, max 100 (default: 10)
     """
-    return await workflow_service.get_all_workflows(page=page, page_size=page_size)
+    user_id: str | None = None
+    if not explore:
+        user_id = decoded_token["sub"]
+
+    return await workflow_service.get_all_workflows(page=page, page_size=page_size, user_id=user_id)
 
 
 @workflow_router.get("/search", response_model=PaginatedWorkflowsResponse)
 async def search_workflows(
-    query: str = Query(..., min_length=1, description="Search query for workflow name"),
+    explore: bool = Query(False, description="Explore = True means exploring the workflows created in application. explore=False means exploring user created workflows."),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
+    query: str = Query(..., min_length=1, description="Search query for workflow name"),
     page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     workflow_service: WorkflowService = Depends(WorkflowService),
+    decoded_token: dict[str, str] = Depends(AccessTokenBearer())
 ) -> PaginatedWorkflowsResponse:
     """
     Search workflows by name with pagination (case-insensitive).
@@ -84,15 +92,19 @@ async def search_workflows(
     - page: Page number (default: 1)
     - page_size: Number of items per page, max 100 (default: 10)
     """
+    user_id: str | None = None
+    if not explore:
+        user_id = decoded_token["sub"]
+
     return await workflow_service.search_workflows(
-        query=query, page=page, page_size=page_size
+        query=query, page=page, page_size=page_size, user_id=user_id
     )
 
 
 @workflow_router.post("/create", response_model=WorkflowResponseModel)
 async def create_new_workflow(
     workflow_data: CreateNewWorkflowModel,
-    decoded_token: str = Depends(AccessTokenBearer()),
+    decoded_token: dict[str, str] = Depends(AccessTokenBearer()),
     workflow_service: WorkflowService = Depends(WorkflowService),
 ) -> WorkflowResponseModel:
     user_id: str = decoded_token["sub"]
@@ -117,7 +129,7 @@ async def create_new_workflow(
 async def star_workflow(
     workflow_id: str,
     workflow_service: WorkflowService = Depends(WorkflowService),
-    decoded_token: str = Depends(AccessTokenBearer()),
+    decoded_token: dict[str, str] = Depends(AccessTokenBearer()),
 ) -> StarWorkflowResponseModel:
     user_id: str = decoded_token["sub"]
     workflow = await workflow_service.star_workflow(

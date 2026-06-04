@@ -8,8 +8,6 @@ from typing import Any
 
 class IfNodeInput(BaseModel):
     condition: str
-    values: dict
-
 
 class IfNodeOutput(BaseModel):
     decision: bool

@@ -127,7 +127,7 @@ class WorkflowService:
         )
 
     async def get_all_workflows(
-        self, page: int = 1, page_size: int = 10
+        self, page: int = 1, page_size: int = 10, user_id: str | None = None
     ) -> PaginatedWorkflowsResponse:
         """
         Fetch all workflows with pagination.
@@ -145,7 +145,7 @@ class WorkflowService:
             page_size = 10
 
         workflows, total = await self._workflow_repo.get_all_workflows(
-            page=page, page_size=page_size
+            page=page, page_size=page_size, user_id=user_id
         )
 
         formatted_workflows = [self._format_workflow_list_item(wf) for wf in workflows]
@@ -156,7 +156,7 @@ class WorkflowService:
         )
 
     async def search_workflows(
-        self, query: str, page: int = 1, page_size: int = 10
+        self, query: str, page: int = 1, page_size: int = 10, user_id: str | None = None
     ) -> PaginatedWorkflowsResponse:
         """
         Search workflows by name with pagination.
@@ -180,7 +180,7 @@ class WorkflowService:
             )
 
         workflows, total = await self._workflow_repo.search_workflows_by_name(
-            query=query.strip(), page=page, page_size=page_size
+            query=query.strip(), page=page, page_size=page_size, user_id=user_id
         )
 
         formatted_workflows = [self._format_workflow_list_item(wf) for wf in workflows]
