@@ -1,25 +1,11 @@
 from fastapi import Request, Depends
 from fastapi.security import APIKeyCookie
+import jwt
 
 from src.core.security import decode_jwt_tokens
 from src.core.response import AppError
 from src.domains.users.repository import UserRepository, Users
-from src.domains.users.serivce import UserService
-from src.domains.app_integrations.service import (
-    GoogleIntegrationService,
-    GitHubIntegrationService,
-)
-
-
-def get_google_integration_service() -> GoogleIntegrationService:
-    return GoogleIntegrationService()
-
-def get_github_integration_service() -> GitHubIntegrationService:
-    return GitHubIntegrationService()
-
-
-def get_user_service() -> UserService:
-    return UserService()
+from .exceptions import JwtTokenExpiredError, InvalidJwtTokenError
 
 
 class RefreshTokenBearer(APIKeyCookie):
@@ -29,8 +15,14 @@ class RefreshTokenBearer(APIKeyCookie):
     async def __call__(self, request: Request):
         refresh_token = await super().__call__(request=request)
         if refresh_token is None:
-            raise AppError()
-        decoded_token = decode_jwt_tokens(jwt_token=refresh_token)
+            raise AppError(InvalidJwtTokenError(data=None))
+        try:
+            decoded_token = decode_jwt_tokens(jwt_token=refresh_token)
+        except jwt.ExpiredSignatureError:
+            raise AppError(JwtTokenExpiredError(data=None))
+        except jwt.InvalidJwtTokenError:
+            raise AppError(InvalidJwtTokenError(data=None))
+
         return decoded_token
 
 
@@ -41,8 +33,13 @@ class AccessTokenBearer(APIKeyCookie):
     async def __call__(self, request: Request):
         access_token = await super().__call__(request=request)
         if access_token is None:
-            raise AppError()
-        decoded_token = decode_jwt_tokens(jwt_token=access_token)
+            raise AppError(InvalidJwtTokenError(data=None))
+        try:
+            decoded_token = decode_jwt_tokens(jwt_token=access_token)
+        except jwt.ExpiredSignatureError:
+            raise AppError(JwtTokenExpiredError(data=None))
+        except jwt.InvalidJwtTokenError:
+            raise AppError(InvalidJwtTokenError(data=None))
         return decoded_token
 
 

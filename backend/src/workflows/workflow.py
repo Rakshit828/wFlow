@@ -26,7 +26,7 @@ with Tworkflow.unsafe.imports_passed_through():
     )
     from src.workflows.nodes import NODES_MAP
     from src.workflows.utils import resolve_configs, resolve_inputs, ResolutionResult
-    from src.services.streaming import (
+    from src.services.workflow_streaming import (
         StreamingChannels,
         NodeResultType,
         WorkflowStatusResultType,

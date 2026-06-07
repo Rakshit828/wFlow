@@ -4,8 +4,8 @@ from contextlib import asynccontextmanager
 
 from src.config import CONFIG
 from src.db.mongo_db import MongoClient
-from src.api.routes.auth_routes import auth_router
-from src.api.routes.app_integration_routes import integration_router
+from src.domains.users.routes import auth_router
+from src.domains.app_integrations.routes import integration_router
 from src.domains.workflows.routes import workflow_router
 from src.core.response import AppError
 from loguru import logger

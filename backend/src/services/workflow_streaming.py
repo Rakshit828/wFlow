@@ -73,12 +73,10 @@ async def workflow_listener(
 
             yield f"data: {data}\n\n"
 
-
-
         return
     finally:
         for t in tasks:
             t.cancel()
-        
+
         lock = None
         queue = None

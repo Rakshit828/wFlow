@@ -1,10 +1,8 @@
-import uuid
 from loguru import logger
-from typing import Literal
-from fastapi import APIRouter, Depends, Query, UploadFile, File, Form
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
-from src.api.dependencies import AccessTokenBearer
+from src.domains._shared.dependencies import AccessTokenBearer
 from src.config import CONFIG
 from src.utils.file_uploads import AsyncLocalStorageClient
 from src.domains.workflows.schema import (
@@ -21,7 +19,7 @@ from src.services.temporal_client import TemporalClientManager
 from src.workflows.types import WorkflowInput
 from temporalio import client
 from src.utils.runner import safely_run
-from src.services.streaming import workflow_listener, NodeResultType
+from src.services.workflow_streaming import workflow_listener
 
 workflow_router = APIRouter()
 

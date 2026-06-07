@@ -85,12 +85,10 @@ def decode_jwt_tokens(jwt_token: str) -> str:
         )
         return decoded_jwt
 
-    except jwt.ExpiredSignatureError:
-        logger.error("JWT Signature expired.")
-        pass
-    except jwt.InvalidTokenError:
-        logger.error("Invalid JWT Error.")
-        pass
+    except jwt.ExpiredSignatureError as e:
+        raise e
+    except jwt.InvalidTokenError as e:
+        raise e
 
 
 

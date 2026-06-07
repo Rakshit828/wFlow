@@ -4,10 +4,8 @@ from typing import Literal
 from loguru import logger
 
 from src.db.redis import Redis, get_redis
-from src.api.dependencies import (
-    AccessTokenBearer,
-    get_google_integration_service,
-)
+from src.domains._shared.dependencies import AccessTokenBearer
+from src.domains.app_integrations.dependency import get_google_integration_service
 from src.domains.app_integrations.service import GoogleIntegrationService
 
 integration_router = APIRouter()

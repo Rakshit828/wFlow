@@ -8,7 +8,7 @@ from src.db.redis import Redis, get_redis
 from src.db.models import Users
 from src.integrations.googlecloud.oauth2 import GoogleOAuthInterface
 from src.domains.users.schemas import UserSessionResponse
-from src.api.dependencies import get_user_service, get_current_user
+from src.domains.users.dependency import get_user_service, get_current_user
 from src.domains.users.serivce import UserService
 
 auth_router = APIRouter()
