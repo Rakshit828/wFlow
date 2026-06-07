@@ -20,6 +20,7 @@ from src.workflows.types import WorkflowInput
 from temporalio import client
 from src.utils.runner import safely_run
 from src.services.workflow_streaming import workflow_listener
+from src.core.response import SuccessResponse
 
 workflow_router = APIRouter()
 
@@ -36,29 +37,36 @@ async def update_node_registry(
     return {"status": "success", "message": "Node registry updated successfully"}
 
 
-@workflow_router.get("/all-nodes", response_model=PaginatedNodesResponse)
+@workflow_router.get(
+    "/all-nodes", response_model=SuccessResponse[PaginatedNodesResponse]
+)
 async def get_all_nodes(
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     workflow_service: WorkflowService = Depends(WorkflowService),
-) -> PaginatedNodesResponse:
-    return await workflow_service.get_all_nodes(page=page, page_size=page_size)
+) -> SuccessResponse[PaginatedNodesResponse]:
+    nodes_data = await workflow_service.get_all_nodes(page=page, page_size=page_size)
+
+    return SuccessResponse[PaginatedNodesResponse](data=nodes_data)
 
 
-@workflow_router.get("/nodes/{node_type}", response_model=PaginatedNodesResponse)
+@workflow_router.get(
+    "/nodes/{node_type}", response_model=SuccessResponse[PaginatedNodesResponse]
+)
 async def get_all_nodes_by_type_and_service(
     node_type: NodesTypeEnum,
     service: str = Query(None),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     workflow_service: WorkflowService = Depends(WorkflowService),
-):
-    return await workflow_service.get_nodes_by_type_and_service(
+) -> SuccessResponse[PaginatedNodesResponse]:
+    nodes_data = await workflow_service.get_nodes_by_type_and_service(
         node_type=node_type, service=service, page=page, page_size=page_size
     )
+    return SuccessResponse[PaginatedNodesResponse](data=nodes_data)
 
 
-@workflow_router.get("/", response_model=PaginatedWorkflowsResponse)
+@workflow_router.get("/", response_model=SuccessResponse[PaginatedWorkflowsResponse])
 async def get_all_workflows(
     explore: bool = Query(
         False,
@@ -68,7 +76,7 @@ async def get_all_workflows(
     page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     workflow_service: WorkflowService = Depends(WorkflowService),
     decoded_token: dict[str, str] = Depends(AccessTokenBearer()),
-) -> PaginatedWorkflowsResponse:
+) -> SuccessResponse[PaginatedWorkflowsResponse]:
     """
     Fetch all workflows with pagination.
 
@@ -80,12 +88,15 @@ async def get_all_workflows(
     if not explore:
         user_id = decoded_token["sub"]
 
-    return await workflow_service.get_all_workflows(
+    workflows = await workflow_service.get_all_workflows(
         page=page, page_size=page_size, user_id=user_id
     )
+    return SuccessResponse[PaginatedNodesResponse](data=workflows)
 
 
-@workflow_router.get("/search", response_model=PaginatedWorkflowsResponse)
+@workflow_router.get(
+    "/search", response_model=SuccessResponse[PaginatedWorkflowsResponse]
+)
 async def search_workflows(
     explore: bool = Query(
         False,
@@ -96,7 +107,7 @@ async def search_workflows(
     page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     workflow_service: WorkflowService = Depends(WorkflowService),
     decoded_token: dict[str, str] = Depends(AccessTokenBearer()),
-) -> PaginatedWorkflowsResponse:
+) -> SuccessResponse[PaginatedWorkflowsResponse]:
     """
     Search workflows by name with pagination (case-insensitive).
 
@@ -109,17 +120,18 @@ async def search_workflows(
     if not explore:
         user_id = decoded_token["sub"]
 
-    return await workflow_service.search_workflows(
+    workflows = await workflow_service.search_workflows(
         query=query, page=page, page_size=page_size, user_id=user_id
     )
+    return SuccessResponse[PaginatedNodesResponse](data=workflows)
 
 
-@workflow_router.post("/create", response_model=WorkflowResponseModel)
+@workflow_router.post("/create", response_model=SuccessResponse[WorkflowResponseModel])
 async def create_new_workflow(
     workflow_data: CreateNewWorkflowModel,
     decoded_token: dict[str, str] = Depends(AccessTokenBearer()),
     workflow_service: WorkflowService = Depends(WorkflowService),
-) -> WorkflowResponseModel:
+) -> SuccessResponse[WorkflowResponseModel]:
     user_id: str = decoded_token["sub"]
     workflow = await workflow_service.create_new_workflow(
         workflow=workflow_data, user_id=user_id
@@ -134,36 +146,44 @@ async def create_new_workflow(
         "visibility": workflow.visibility,
         "created_by": str(workflow.created_by),
     }
-    return workflow_response_data
+    return SuccessResponse[WorkflowResponseModel](
+        message="Workflow Created Successfully.", data=workflow_response_data
+    )
 
 
-@workflow_router.get("/{workflow_id}", response_model=SingleWorkflowResponseModel)
+@workflow_router.get(
+    "/{workflow_id}", response_model=SuccessResponse[SingleWorkflowResponseModel]
+)
 async def get_workflow_by_id(
     workflow_id: str,
     decoded_token: dict[str, str] = Depends(AccessTokenBearer()),
     workflow_service: WorkflowService = Depends(WorkflowService),
-) -> SingleWorkflowResponseModel:
+) -> SuccessResponse[SingleWorkflowResponseModel]:
     user_id: str = decoded_token["sub"]
     workflow = await workflow_service.get_workflow_data(
         workflow_id=workflow_id, user_id=user_id
     )
-    return workflow
+    return SuccessResponse[SingleWorkflowResponseModel](
+        message="Workflow Returned Successfully.", data=workflow
+    )
 
 
-@workflow_router.post("/star/{workflow_id}", response_model=StarWorkflowResponseModel)
+@workflow_router.post(
+    "/star/{workflow_id}", response_model=SuccessResponse[StarWorkflowResponseModel]
+)
 async def star_workflow(
     workflow_id: str,
     workflow_service: WorkflowService = Depends(WorkflowService),
     decoded_token: dict[str, str] = Depends(AccessTokenBearer()),
-) -> StarWorkflowResponseModel:
+) -> SuccessResponse[StarWorkflowResponseModel]:
     user_id: str = decoded_token["sub"]
     workflow = await workflow_service.star_workflow(
         workflow_id=workflow_id, user_id=user_id
     )
     data = {"workflow_id": str(workflow.id), "stars": workflow.stars}
-
-    logger.info(f"Data is {data}")
-    return data
+    return SuccessResponse[StarWorkflowResponseModel](
+        data=data, message="Workflow starred successfully."
+    )
 
 
 @workflow_router.get("/run/{workflow_id}")
@@ -172,7 +192,7 @@ async def run_pipeline(
     worflow_service: WorkflowService = Depends(WorkflowService),
     decoded_token: dict[str, str] = Depends(AccessTokenBearer()),
     temporal_client: client.Client = Depends(TemporalClientManager.get_client),
-):
+) -> StreamingResponse:
     user_id: str = decoded_token["sub"]
     coro = worflow_service.create_new_workflow_run(
         workflow_id=workflow_id, user_id=user_id
