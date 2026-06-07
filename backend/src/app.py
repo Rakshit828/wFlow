@@ -1,21 +1,13 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from contextlib import asynccontextmanager
 
 from src.config import CONFIG
-from src.db.models import (
-    Users,
-    AppIntegrations,
-    OAuthAccounts,
-    Workflows,
-    WorkflowsStars,
-    NodesRegistry,
-)
 from src.db.mongo_db import MongoClient
 from src.api.routes.auth_routes import auth_router
 from src.api.routes.app_integration_routes import integration_router
 from src.api.routes.workflows import workflow_router
-from src.core.exceptions import AppError
+from src.core.response import AppError
 from loguru import logger
 
 
@@ -24,12 +16,9 @@ async def lifespan(app: FastAPI):
     mongo_db = MongoClient(CONFIG.MONGO_DB_URI)
     app.state.mongo_db = mongo_db
     await mongo_db.get_database(CONFIG.DATABASE_NAME)
-    await mongo_db.init_beanie_odm(
-        models=[Users, AppIntegrations, OAuthAccounts, Workflows, WorkflowsStars, NodesRegistry]
-    )
+    await mongo_db.init_beanie_odm()
 
     yield
-
 
 app = FastAPI(
     title="wFlow ---- AI Workflow Automation Tool",
@@ -44,17 +33,7 @@ app.include_router(
 app.include_router(workflow_router, prefix="/api/workflows", tags=["Workflows"])
 
 
-@app.exception_handler(AppError)
-async def handle_app_error(req: Request, exc: AppError):
-    logger.error(
-        f"Error occurred, {exc.detail.error} with status {exc.detail.status_code}, at {req.base_url}"
-    )
-    return JSONResponse(
-        status_code=exc.detail.status_code,
-        content={
-            "status_code": exc.detail.status_code,
-            "message": exc.detail.message,
-            "data": exc.data,
-            "error": exc.detail.error,
-        },
-    )
+from src.core.exc_handlers import app_error_handler, validation_exception_handler
+
+app.add_exception_handler(AppError, app_error_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler) 

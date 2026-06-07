@@ -7,17 +7,14 @@ from loguru import logger
 from typing import TypeVar, Optional, Union, Type
 from pydantic import BaseModel
 
-from src.db.models import AppIntegrations, Users
-from src.repositories.auth_repository import UserRepository
+from src.db.models import AppIntegrations
 from src.core.security import encrypt_token
-from src.schemas.mongo_projections import CredentialsAndDataForApiClient
+from src.domains.app_integrations.schemas import CredentialsAndDataForApiClient
 
 ProjectionModelT = TypeVar("ProjectionModelT", bound=BaseModel)
 
 
 class AppIntegrationsRepository:
-    def __init__(self):
-        self.__user_repo: UserRepository = UserRepository()
 
     async def find_app_integration_by_id(
         self,

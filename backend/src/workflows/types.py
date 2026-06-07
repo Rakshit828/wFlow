@@ -49,7 +49,7 @@ class Node(BaseModel):
     type: NodesTypeEnum
     inputs: Dict[str, Any] = {}
     config: Dict[str, Any] = {}
-    outputs: Dict[str, Any] = {} 
+    outputs: Dict[str, Any] = {}
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -74,10 +74,9 @@ class Workflow(BaseModel):
     nodes: List[Node]
     edges: List[Edge]
 
-    context: Dict[str, Any] = {} # Holds the runtime or user created variables
+    context: Dict[str, Any] = {}  # Holds the runtime or user created variables
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
-
 
 
 class ParsedNodeData(BaseModel):
@@ -151,8 +150,6 @@ class ExecutionPlan(BaseModel):
 
 
 # ─── Workflow input ────────────────────────────────────────────────────────────
-
-
 class WorkflowInput(BaseModel):
-    workflow_str: str
-    configs: Optional[Dict[str, Any]] = None # Workflow Level Configs
+    workflow: Workflow
+    configs: Optional[Dict[str, Any]] = None  # For workflows which are not simple

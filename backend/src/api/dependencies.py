@@ -3,9 +3,9 @@ from fastapi.security import APIKeyCookie
 
 from src.core.security import decode_jwt_tokens
 from src.core.exceptions import AppError, AuthErrors
-from src.repositories.auth_repository import UserRepository, Users
-from src.services.user_service import UserService
-from src.services.app_integration_service import (
+from src.domains.users.repository import UserRepository, Users
+from src.domains.users.serivce import UserService
+from src.domains.app_integrations.service import (
     GoogleIntegrationService,
     GitHubIntegrationService,
 )

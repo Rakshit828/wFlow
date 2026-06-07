@@ -8,7 +8,7 @@ from src.api.dependencies import (
     AccessTokenBearer,
     get_google_integration_service,
 )
-from src.services.app_integration_service import GoogleIntegrationService
+from src.domains.app_integrations.service import GoogleIntegrationService
 
 integration_router = APIRouter()
 

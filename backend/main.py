@@ -88,7 +88,9 @@ if __name__ == "__main__":
                 "key": "llm.groq",
                 "name": "groq_llm_node1",
                 "type": "LLM",
-                "inputs": {"prompt": "Generate me very very short essay on Social Media."},
+                "inputs": {
+                    "prompt": "Generate me very very short essay on Social Media."
+                },
                 "config": {
                     "response_model": {
                         "type": "object",

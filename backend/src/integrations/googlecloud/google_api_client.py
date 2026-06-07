@@ -9,7 +9,7 @@ from src.integrations.googlecloud import (
     SERVICE_THAT_SHOULD_BE_REPLACED_BY_IN_BASE_URL,
 )
 from src.integrations.googlecloud import GoogleErrorStatus, GoogleApiErrorResponse
-from src.repositories.app_integrations import AppIntegrationsRepository
+from src.domains.app_integrations.repository import AppIntegrationsRepository
 
 
 class GoogleAPIClient:

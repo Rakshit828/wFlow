@@ -6,6 +6,7 @@ class Config(BaseSettings):
     ENVIRONMENT: str
     MONGO_DB_URI: str
     DATABASE_NAME: str
+    TEMPORAL_URL: str 
 
     GROQ_API_KEY: str
     GEMINI_API_KEY: str

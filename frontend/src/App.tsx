@@ -118,10 +118,9 @@ const AppLayout: React.FC = () => {
               <NavLink
                 to="/dashboard"
                 className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                    isActive
-                      ? "bg-primary/10 text-primary shadow-sm"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                  `flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${isActive
+                    ? "bg-primary/10 text-primary shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                   }`
                 }
               >
@@ -131,10 +130,9 @@ const AppLayout: React.FC = () => {
               <NavLink
                 to="/explore"
                 className={({ isActive }) =>
-                  `flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-                    isActive
-                      ? "bg-violet-500/10 text-violet-400 shadow-sm"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                  `flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${isActive
+                    ? "bg-violet-500/10 text-violet-400 shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                   }`
                 }
               >
@@ -156,11 +154,10 @@ const AppLayout: React.FC = () => {
             <button
               type="button"
               onClick={() => setJsonOpen(!jsonOpen)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-semibold transition-all border ${
-                jsonOpen
-                  ? "bg-primary/10 text-primary border-primary/30"
-                  : "bg-card text-muted-foreground border-border hover:text-foreground"
-              }`}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-semibold transition-all border ${jsonOpen
+                ? "bg-primary/10 text-primary border-primary/30"
+                : "bg-card text-muted-foreground border-border hover:text-foreground"
+                }`}
             >
               <FileJson size={14} />
               JSON

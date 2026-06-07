@@ -7,9 +7,9 @@ from loguru import logger
 from src.db.redis import Redis, get_redis
 from src.db.models import Users
 from src.integrations.googlecloud.oauth2 import GoogleOAuthInterface
-from src.schemas.auth_schemas import UserSessionResponse
+from src.domains.users.schemas import UserSessionResponse
 from src.api.dependencies import get_user_service, get_current_user
-from src.services.user_service import UserService
+from src.domains.users.serivce import UserService
 
 auth_router = APIRouter()
 

@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 from src.integrations.googlecloud.google_api_client import GoogleAPIClient
 from src.integrations.googlecloud.g_types import CredentialsModel
-from src.repositories.app_integrations import AppIntegrationsRepository
+from src.domains.app_integrations.repository import AppIntegrationsRepository
 
 
 class CommonBaseModel(BaseModel):

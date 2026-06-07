@@ -2,20 +2,25 @@ import uuid
 from loguru import logger
 from typing import Literal
 from fastapi import APIRouter, Depends, Query, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 
 from src.api.dependencies import AccessTokenBearer
 from src.config import CONFIG
 from src.utils.file_uploads import AsyncLocalStorageClient
-from src.schemas.workflow import (
+from src.domains.workflows.schema import (
     CreateNewWorkflowModel,
     WorkflowResponseModel,
     StarWorkflowResponseModel,
     PaginatedWorkflowsResponse,
     PaginatedNodesResponse,
-    SingleWorkflowResponseModel
+    SingleWorkflowResponseModel,
+    WorkflowInputModel,
 )
 from src.workflows.types import NodesTypeEnum
-from src.services.workflow_service import WorkflowService
+from src.domains.workflows.service import WorkflowService
+from src.services.temporal_client import TemporalClientManager
+from src.workflows.types import WorkflowInput
+from temporalio import client
 
 workflow_router = APIRouter()
 
@@ -56,11 +61,14 @@ async def get_all_nodes_by_type_and_service(
 
 @workflow_router.get("/", response_model=PaginatedWorkflowsResponse)
 async def get_all_workflows(
-    explore: bool = Query(False, description="Explore = True means exploring the workflows created in application. explore=False means exploring user created workflows."),
+    explore: bool = Query(
+        False,
+        description="Explore = True means exploring the workflows created in application. explore=False means exploring user created workflows.",
+    ),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     workflow_service: WorkflowService = Depends(WorkflowService),
-    decoded_token: dict[str, str] = Depends(AccessTokenBearer())
+    decoded_token: dict[str, str] = Depends(AccessTokenBearer()),
 ) -> PaginatedWorkflowsResponse:
     """
     Fetch all workflows with pagination.
@@ -73,17 +81,22 @@ async def get_all_workflows(
     if not explore:
         user_id = decoded_token["sub"]
 
-    return await workflow_service.get_all_workflows(page=page, page_size=page_size, user_id=user_id)
+    return await workflow_service.get_all_workflows(
+        page=page, page_size=page_size, user_id=user_id
+    )
 
 
 @workflow_router.get("/search", response_model=PaginatedWorkflowsResponse)
 async def search_workflows(
-    explore: bool = Query(False, description="Explore = True means exploring the workflows created in application. explore=False means exploring user created workflows."),
+    explore: bool = Query(
+        False,
+        description="Explore = True means exploring the workflows created in application. explore=False means exploring user created workflows.",
+    ),
     page: int = Query(1, ge=1, description="Page number (1-indexed)"),
     query: str = Query(..., min_length=1, description="Search query for workflow name"),
     page_size: int = Query(10, ge=1, le=100, description="Number of items per page"),
     workflow_service: WorkflowService = Depends(WorkflowService),
-    decoded_token: dict[str, str] = Depends(AccessTokenBearer())
+    decoded_token: dict[str, str] = Depends(AccessTokenBearer()),
 ) -> PaginatedWorkflowsResponse:
     """
     Search workflows by name with pagination (case-insensitive).
@@ -154,28 +167,25 @@ async def star_workflow(
     return data
 
 
+@workflow_router.post("/run/{workflow_id}")
+async def run_pipeline(
+    workflow_id: str,
+    worflow_service: WorkflowService = Depends(WorkflowService),
+    decoded_token: dict[str, str] = Depends(AccessTokenBearer()),
+    temporal_client: client.Client = Depends(TemporalClientManager.get_client),
+):
+    # Will implement SSE here.
+    user_id: str = decoded_token["sub"]
+    workflow_run = await worflow_service.create_new_wf_run(
+        workflow_id=workflow_id, user_id=user_id
+    )
+    workflow_handler = await temporal_client.start_workflow(
+        "DynamicWorkflow",
+        WorkflowInput(
+            workflow=workflow, configs={"user_id": f"{user_id}"}
+        ),
+        id=f"dynamic-workflow-{uuid.uuid4()}",
+        task_queue="default",
+    )
 
-
-@workflow_router.post("/upload-file")
-async def run_pipeline(user_file: UploadFile = File(None)):  # Optional user upload file
-    context_injections = {}
-
-    if user_file:
-        file_id = f"file_{uuid.uuid4().hex}"  # Generate unpredictable, distinct key
-        file_bytes = await user_file.read()
-
-        await internal_storage_client.upload(
-            file_id=file_id, file_bytes=file_bytes, content_type=user_file.content_type
-        )
-
-        # Bind file reference key into global metadata context maps
-        context_injections["user_uploaded_file"] = file_id
-
-    # 3. Inject this reference context key directly into your Pipeline Model
-    # pipeline_obj = Pipeline.model_validate_json(pipeline_json)
-    # pipeline_obj.context.update(context_injections)
-
-    # 4. Kick-off to Temporal Workflow engine...
-    # await temporal_client.start_workflow(..., args=[pipeline_obj])
-
-    return {"status": "queued", "staged_files": context_injections}
+    return StreamingResponse()

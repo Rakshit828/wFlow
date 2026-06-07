@@ -1,18 +1,24 @@
 from loguru import logger
 from datetime import datetime, timedelta, timezone
 
-from src.db.models import AppIntegrations, Users
-from src.integrations.googlecloud.scopes import GOOGLE_SERVICES, GOOGLE_SCOPES
-from src.core.exceptions import GeneralIntegrationErrors, AppError, AuthErrors
-from src.repositories.app_integrations import AppIntegrationsRepository
-from src.repositories.auth_repository import UserRepository
-from src.integrations.googlecloud import GoogleOAuthInterface, GoogleNewScopeResponse
-from src.integrations.github.oauth2 import GitHubOAuthInterface
-from src.db.redis import Redis
-from src.integrations.googlecloud.scopes import (
-    GOOGLE_EMAIL_ONLY_OPENID_SCOPE,
-    get_scopes,
+from src.domains.app_integrations.models import AppIntegrations
+from src.domains.app_integrations.repository import AppIntegrationsRepository
+from src.domains.users.repository import UserRepository
+from src.domains.users.models import Users
+from src.domains.app_integrations.exceptions import (
+    InvalidServiceRequestedError,
+    RequestedMultipleServicesScopesError,
+    UserNotFoundWhenUpdatingScopesError,
 )
+
+from src.integrations.googlecloud import GoogleOAuthInterface, GoogleNewScopeResponse
+from src.integrations.googlecloud.scopes import GOOGLE_SERVICES, GOOGLE_SCOPES
+from src.integrations.googlecloud.scopes import GOOGLE_EMAIL_ONLY_OPENID_SCOPE
+from src.integrations.github.oauth2 import GitHubOAuthInterface
+
+from src.db.redis import Redis
+
+from src.core.response import AppError
 
 
 class GoogleIntegrationService:
@@ -33,16 +39,12 @@ class GoogleIntegrationService:
             for scope in scopes:
                 service_requested.add(scope.split(".")[0])
             service: set[str] = service_requested.intersection(GOOGLE_SERVICES)
+
             if not service:
-                raise AppError(
-                    data=None,
-                    detail=GeneralIntegrationErrors.INVALID_SERVICE_REQUESTED_ERROR.value,
-                )
+                raise AppError(InvalidServiceRequestedError(data=None))
+
             if len(service) > 1:
-                raise AppError(
-                    data=None,
-                    detail=GeneralIntegrationErrors.REQUESTED_MULTIPLE_SERVICE_SCOPE_ERROR.value,
-                )
+                raise AppError(RequestedMultipleServicesScopesError(data=None))
 
             # This means one service is surely requested.
             service = list(service)[0].lower()
@@ -96,9 +98,7 @@ class GoogleIntegrationService:
         user: Users | None = await self.user_repo.get_user_by_id(user_id=user_id)
 
         if not user:
-            raise AppError(
-                AuthErrors.USER_NOT_FOUND_WHEN_UPDATING_SCOPE.value, data=None
-            )
+            raise AppError(UserNotFoundWhenUpdatingScopesError(data=None))
 
         tokens: dict[str, str] = (
             await self.google_oauth.exchange_for_code_new_authorization(

@@ -1,8 +1,5 @@
-
-from loguru import logger
 from beanie import PydanticObjectId
-
-from src.db.models import Users, OAuthAccounts
+from src.domains.users.models import Users, OAuthAccounts
 
 
 class UserRepository:

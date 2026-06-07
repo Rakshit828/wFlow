@@ -1,6 +1,5 @@
 from pydantic import BaseModel
 from beanie import PydanticObjectId
-from uuid import UUID
 from datetime import datetime
 
 

@@ -1,11 +1,13 @@
 import re
 from typing import Tuple, Optional, List, Type, TypeVar
-from bson import ObjectId
-from src.db.models import Workflows, NodesRegistry
+from beanie import PydanticObjectId
 from loguru import logger
-from src.schemas.workflow import WorkflowListItemModel
-from src.workflows.types import NodesTypeEnum
+from bson import ObjectId
 from pydantic import BaseModel
+
+from src.domains.workflows.models import Workflows, NodesRegistry, WorkflowRuns
+from src.workflows.types import ApplicationNode, NodesTypeEnum
+
 
 ProjectionModelT = TypeVar("ProjectionModelT", bound=BaseModel)
 
@@ -13,6 +15,12 @@ ProjectionModelT = TypeVar("ProjectionModelT", bound=BaseModel)
 class WorkflowRepository:
     def __init__(self):
         pass
+
+    async def create_worflow_run(self, workflow_id: str, user_id: str) -> WorkflowRuns | None:
+        doc = WorkflowRuns(
+            workflow_id=PydanticObjectId(workflow_id), user_id=PydanticObjectId(user_id)
+        )
+        await WorkflowRuns.insert_one(doc)
 
     async def get_workflow_by_id(self, workflow_id: str) -> Workflows | None:
         # Beanie automatically handles string-to-ObjectId conversion if you pass a string to .get()
@@ -117,3 +125,45 @@ class WorkflowRepository:
         nodes = await search_query.skip(skip).limit(page_size).to_list()
 
         return nodes, total
+
+
+class NodeRegistryRepository:
+    async def delete_all(self):
+        await NodesRegistry.find_all().delete()
+        return None
+
+    async def create_new_node(self, node: ApplicationNode) -> NodesRegistry | None:
+        node: NodesRegistry | None = await NodesRegistry.insert_one(
+            NodesRegistry(
+                name=node.name,
+                description=node.description,
+                type=node.type,
+                fn_key=node.key,
+                input_model=node.node_input_model.model_json_schema(),
+                output_model=node.node_output_model.model_json_schema(),
+            )
+        )
+        return node
+
+    async def create_nodes(self, nodes: List[ApplicationNode]) -> None:
+        nodes_to_register: List[NodesRegistry] = [
+            NodesRegistry(
+                name=node.name,
+                description=node.description,
+                type=node.type,
+                service=node.service,
+                valid_permissions=node.valid_permissions,
+                fn_key=node.key,
+                input_model=node.node_input_model.model_json_schema(),
+                output_model=node.node_output_model.model_json_schema(),
+            )
+            for node in nodes
+        ]
+        await NodesRegistry.insert_many(nodes_to_register)
+        return None
+
+    async def get_all_nodes(self) -> List[NodesRegistry] | None:
+        nodes: List[NodesRegistry] = await NodesRegistry.find_all().to_list()
+        return nodes
+
+

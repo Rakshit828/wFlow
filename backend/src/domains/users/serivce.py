@@ -1,16 +1,16 @@
-from src.repositories.auth_repository import UserRepository, OAuthAccountRepository
+from src.domains.users.repository import UserRepository, OAuthAccountRepository
+from src.domains.users.models import Users, OAuthAccounts
+from src.domains.users.schemas import LoginResponse
 from src.integrations.googlecloud import GoogleOAuthInterface, GoogleAuthResponse
-from src.db.models import Users, OAuthAccounts
-from src.core.exceptions import AppError
 from src.core.security import create_jwt_tokens
+from src.core.security import encrypt_token
 from src.utils.utils import set_cookies
 from src.db.redis import Redis
-from src.schemas.auth_schemas import LoginResponse
-from fastapi import Response
-from fastapi.responses import RedirectResponse
-from src.core.security import encrypt_token
+from src.core.response import AppError
+
 from datetime import timedelta, datetime, timezone
 from loguru import logger
+from fastapi import Response
 
 
 class UserService:

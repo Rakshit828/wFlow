@@ -43,11 +43,6 @@ _NODE_TIMEOUT = timedelta(seconds=300)
 _CONFIG_TIMEOUT = timedelta(seconds=60)
 
 
-# ═══════════════════════════════════════════════════════════════════════════════
-# Activities
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
 @activity.defn
 async def resolve_configs_activity(inputs: WorkflowInput) -> Dict[str, Any]:
     """Resolve per-node service credentials / configs before execution starts."""
@@ -57,10 +52,6 @@ async def resolve_configs_activity(inputs: WorkflowInput) -> Dict[str, Any]:
     activity.logger.info("Configs resolved for %d nodes", len(resolved))
     return resolved
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Workflow
-# ═══════════════════════════════════════════════════════════════════════════════
 
 @Tworkflow.defn
 class DynamicWorkflow:
@@ -72,11 +63,15 @@ class DynamicWorkflow:
     workflow.execute_activity() with a fully-constructed Pydantic input model.
     """
 
+    @Tworkflow.init
+    def __init__(self, inputs: WorkflowInput):
+        pass  
+
     @Tworkflow.run
     async def run(self, inputs: WorkflowInput) -> Dict[str, Any]:
         Tworkflow.logger.info("DynamicWorkflow started")
 
-        workflow: Workflow = Workflow(**json.loads(inputs.workflow_str))
+        workflow: Workflow = inputs.workflow
 
         # ── 1. Resolve service configs ─────────────────────────────────────────
         resolved_configs: Dict[str, Any] = await Tworkflow.execute_activity(
@@ -105,135 +100,7 @@ class DynamicWorkflow:
             "outputs": outputs,
             "resolved_configs": resolved_configs,
         }
-
-    # ═══════════════════════════════════════════════════════════════════════════
-    # Plan walker
-    # ═══════════════════════════════════════════════════════════════════════════
-
-    async def _execute_plan(
-        self,
-        plan: ExecutionPlan,
-        workflow: Workflow,
-        resolved_configs: Dict[str, Any],
-        outputs: Dict[str, Any],
-    ) -> None:
-        for step in plan.steps:
-            await self._execute_step(step, workflow, resolved_configs, outputs)
-
-    async def _execute_step(
-        self,
-        step: ExecutionStep,
-        workflow: Workflow,
-        resolved_configs: Dict[str, Any],
-        outputs: Dict[str, Any],
-    ) -> None:
-
-        # ── RUN ───────────────────────────────────────────────────────────────
-        if step.kind == ExecutionStepKind.RUN:
-            if len(step.nodes) == 1:
-                await self._run_node(step.nodes[0], workflow, resolved_configs, outputs)
-            else:
-                # Parallel fan-out: schedule all activities then await together.
-                # asyncio.gather is correct here — each _run_node internally
-                # calls workflow.execute_activity which returns a coroutine;
-                # Temporal schedules them all before the first one is awaited.
-                await asyncio.gather(
-                    *[
-                        self._run_node(name, workflow, resolved_configs, outputs)
-                        for name in step.nodes
-                    ]
-                )
-
-        # ── MERGE ─────────────────────────────────────────────────────────────
-        elif step.kind == ExecutionStepKind.MERGE:
-            # Semantic checkpoint — all listed nodes must already be in outputs.
-            missing = [n for n in step.nodes if n not in outputs]
-            if missing:
-                raise RuntimeError(
-                    f"MERGE checkpoint failed: nodes not yet completed: {missing}"
-                )
-            Tworkflow.logger.info("MERGE checkpoint passed: %s", step.nodes)
-
-        # ── IF ────────────────────────────────────────────────────────────────
-        elif step.kind == ExecutionStepKind.IF:
-            await self._execute_if(step, workflow, resolved_configs, outputs)
-
-        # ── SWITCH ────────────────────────────────────────────────────────────
-        elif step.kind == ExecutionStepKind.SWITCH:
-            await self._execute_switch(step, workflow, resolved_configs, outputs)
-
-
-    # ─── IF ───────────────────────────────────────────────────────────────────
-
-    async def _execute_if(
-        self,
-        step: ExecutionStep,
-        workflow: Workflow,
-        resolved_configs: Dict[str, Any],
-        outputs: Dict[str, Any],
-    ) -> None:
-        """
-        The if_node was already executed in the preceding RUN step.
-        Read its `decision` output and execute the matching sub-plan.
-        """
-        if_node_name = step.nodes[0]
-        decision = self._read_output(if_node_name, outputs, "decision")
-
-        if not isinstance(decision, bool):
-            raise ValueError(
-                f"if_node '{if_node_name}' must output a bool 'decision', "
-                f"got {type(decision).__name__}: {decision!r}"
-            )
-
-        Tworkflow.logger.info("IF '%s' → decision=%s", if_node_name, decision)
-
-        chosen_plan = step.true_plan if decision else step.false_plan
-        if chosen_plan:
-            await self._execute_plan(chosen_plan, workflow, resolved_configs, outputs)
-
-    # ─── SWITCH ───────────────────────────────────────────────────────────────
-
-    async def _execute_switch(
-        self,
-        step: ExecutionStep,
-        workflow: Workflow,
-        resolved_configs: Dict[str, Any],
-        outputs: Dict[str, Any],
-    ) -> None:
-        """
-        The switch_node was already executed in the preceding RUN step.
-        Read its `case` output and execute the matching sub-plan.
-        Falls back to default_case if no exact match is found.
-        """
-        switch_node_name = step.nodes[0]
-        case_value = self._read_output(switch_node_name, outputs, "case")
-
-        Tworkflow.logger.info("SWITCH '%s' → case='%s'", switch_node_name, case_value)
-
-        case_plans = step.case_plans or {}
-        chosen_plan = case_plans.get(case_value)
-
-        if chosen_plan is None and step.default_case:
-            Tworkflow.logger.warning(
-                "SWITCH '%s': no plan for case '%s', falling back to default '%s'",
-                switch_node_name,
-                case_value,
-                step.default_case,
-            )
-            chosen_plan = case_plans.get(step.default_case)
-
-        if chosen_plan is None:
-            Tworkflow.logger.warning(
-                "SWITCH '%s': no plan for case '%s' and no default — skipping.",
-                switch_node_name,
-                case_value,
-            )
-            return
-
-        await self._execute_plan(chosen_plan, workflow, resolved_configs, outputs)
-
-    # ─── Single node execution ────────────────────────────────────────────────────────
-
+    
     async def _run_node(
         self,
         node_name: str,
@@ -315,7 +182,123 @@ class DynamicWorkflow:
             list(node_output.keys()),
         )
 
-    # ─── Helpers ──────────────────────────────────────────────────────────────
+    async def _execute_plan(
+        self,
+        plan: ExecutionPlan,
+        workflow: Workflow,
+        resolved_configs: Dict[str, Any],
+        outputs: Dict[str, Any],
+    ) -> None:
+        for step in plan.steps:
+            await self._execute_step(step, workflow, resolved_configs, outputs)
+
+    async def _execute_step(
+        self,
+        step: ExecutionStep,
+        workflow: Workflow,
+        resolved_configs: Dict[str, Any],
+        outputs: Dict[str, Any],
+    ) -> None:
+
+        # ── RUN ───────────────────────────────────────────────────────────────
+        if step.kind == ExecutionStepKind.RUN:
+            if len(step.nodes) == 1:
+                await self._run_node(step.nodes[0], workflow, resolved_configs, outputs)
+            else:
+                # Parallel fan-out: schedule all activities then await together.
+                # asyncio.gather is correct here — each _run_node internally
+                # calls workflow.execute_activity which returns a coroutine;
+                # Temporal schedules them all before the first one is awaited.
+                await asyncio.gather(
+                    *[
+                        self._run_node(name, workflow, resolved_configs, outputs)
+                        for name in step.nodes
+                    ]
+                )
+
+        # ── MERGE ─────────────────────────────────────────────────────────────
+        elif step.kind == ExecutionStepKind.MERGE:
+            # Semantic checkpoint — all listed nodes must already be in outputs.
+            missing = [n for n in step.nodes if n not in outputs]
+            if missing:
+                raise RuntimeError(
+                    f"MERGE checkpoint failed: nodes not yet completed: {missing}"
+                )
+            Tworkflow.logger.info("MERGE checkpoint passed: %s", step.nodes)
+
+        # ── IF ────────────────────────────────────────────────────────────────
+        elif step.kind == ExecutionStepKind.IF:
+            await self._execute_if(step, workflow, resolved_configs, outputs)
+
+        # ── SWITCH ────────────────────────────────────────────────────────────
+        elif step.kind == ExecutionStepKind.SWITCH:
+            await self._execute_switch(step, workflow, resolved_configs, outputs)
+
+    async def _execute_if(
+        self,
+        step: ExecutionStep,
+        workflow: Workflow,
+        resolved_configs: Dict[str, Any],
+        outputs: Dict[str, Any],
+    ) -> None:
+        """
+        The if_node was already executed in the preceding RUN step.
+        Read its `decision` output and execute the matching sub-plan.
+        """
+        if_node_name = step.nodes[0]
+        decision = self._read_output(if_node_name, outputs, "decision")
+
+        if not isinstance(decision, bool):
+            raise ValueError(
+                f"if_node '{if_node_name}' must output a bool 'decision', "
+                f"got {type(decision).__name__}: {decision!r}"
+            )
+
+        Tworkflow.logger.info("IF '%s' → decision=%s", if_node_name, decision)
+
+        chosen_plan = step.true_plan if decision else step.false_plan
+        if chosen_plan:
+            await self._execute_plan(chosen_plan, workflow, resolved_configs, outputs)
+
+    async def _execute_switch(
+        self,
+        step: ExecutionStep,
+        workflow: Workflow,
+        resolved_configs: Dict[str, Any],
+        outputs: Dict[str, Any],
+    ) -> None:
+        """
+        The switch_node was already executed in the preceding RUN step.
+        Read its `case` output and execute the matching sub-plan.
+        Falls back to default_case if no exact match is found.
+        """
+        switch_node_name = step.nodes[0]
+        case_value = self._read_output(switch_node_name, outputs, "case")
+
+        Tworkflow.logger.info("SWITCH '%s' → case='%s'", switch_node_name, case_value)
+
+        case_plans = step.case_plans or {}
+        chosen_plan = case_plans.get(case_value)
+
+        if chosen_plan is None and step.default_case:
+            Tworkflow.logger.warning(
+                "SWITCH '%s': no plan for case '%s', falling back to default '%s'",
+                switch_node_name,
+                case_value,
+                step.default_case,
+            )
+            chosen_plan = case_plans.get(step.default_case)
+
+        if chosen_plan is None:
+            Tworkflow.logger.warning(
+                "SWITCH '%s': no plan for case '%s' and no default — skipping.",
+                switch_node_name,
+                case_value,
+            )
+            return
+
+        await self._execute_plan(chosen_plan, workflow, resolved_configs, outputs)
+
 
     @staticmethod
     def _read_output(node_name: str, outputs: Dict[str, Any], key: str) -> Any:

@@ -1,7 +1,6 @@
-from src.repositories.workflows import WorkflowRepository
-from src.repositories.auth_repository import UserRepository
-from src.repositories.node_registry_repository import NodeRegistryRepository
-from src.schemas.workflow import (
+from src.domains.workflows.repository import WorkflowRepository, NodeRegistryRepository
+from src.domains.users.repository import UserRepository
+from src.domains.workflows.schema import (
     CreateNewWorkflowModel,
     WorkflowListItemModel,
     PaginationMetadata,
@@ -11,8 +10,10 @@ from src.schemas.workflow import (
     SingleWorkflowResponseModel,
     NodeFullResponse,
 )
-from src.db.models import Users, Workflows, WorkflowsStars, NodesRegistry
-from beanie.odm.operators.update.general import Set
+from src.domains.workflows.models import Workflows, WorkflowsStars, NodesRegistry, WorkflowRuns
+from src.workflows.types import NodesTypeEnum
+from src.workflows.nodes import NODES_MAP
+
 from beanie.operators import Inc
 from loguru import logger
 from beanie.odm.queries.update import UpdateResponse
@@ -20,8 +21,7 @@ from pymongo.results import UpdateResult
 from beanie import PydanticObjectId
 from fastapi import HTTPException, status
 from typing import Optional
-from src.workflows.types import NodesTypeEnum, ApplicationNode
-from src.workflows.nodes import NODES_MAP
+
 
 
 class WorkflowService:
@@ -33,6 +33,27 @@ class WorkflowService:
     async def update_node_registry(self):
         await self._node_registry_repo.delete_all()
         await self._node_registry_repo.create_nodes(NODES_MAP.values())
+
+    async def create_new_wf_run(
+        self, workflow_id: str, user_id: str
+    ) -> WorkflowRuns | None:
+        
+        try:
+            workflow = await self._workflow_repo.get_workflow_by_id(workflow_id)
+            if workflow is None:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Workflow donot exists."
+            )
+            workflow_run: WorkflowRuns | None = await WorkflowRuns.insert_one(
+                WorkflowRuns(**{"workflow_id": workflow_id, "user_id": user_id})
+            )
+            return workflow_run
+        except Exception as e:
+            if isinstance(e, HTTPException):
+                raise e
+            logger.error(f"Exception occurred: {e}")
+            return None
 
     async def star_workflow(self, workflow_id: str, user_id: str) -> Workflows | None:
         wf_id_obj = PydanticObjectId(workflow_id)
@@ -237,7 +258,6 @@ class WorkflowService:
         )
         pagination = self._create_pagination_metadata(total, page, page_size)
         return PaginatedWorkflowsResponse(data=workflows, pagination=pagination)
-    
 
     async def get_all_nodes(self, page: int, page_size: int):
         if page < 1:

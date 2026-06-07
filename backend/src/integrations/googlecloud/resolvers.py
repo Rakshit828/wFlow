@@ -1,6 +1,6 @@
 from src.integrations.googlecloud import GoogleAPIClient, CredentialsModel
-from src.repositories.app_integrations import AppIntegrationsRepository
-from src.schemas.mongo_projections import CredentialsAndDataForApiClient
+from src.domains.app_integrations.repository import AppIntegrationsRepository
+from src.domains.app_integrations.schemas import CredentialsAndDataForApiClient
 from src.workflows.nodes import NODES_MAP
 from typing import Type
 from pydantic import BaseModel

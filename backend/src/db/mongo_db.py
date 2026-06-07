@@ -5,7 +5,15 @@ import asyncio as aio
 import beanie
 from typing import Sequence
 
-from src.db.models import Users, AppIntegrations, OAuthAccounts, NodesRegistry
+from src.db.models import (
+    Users,
+    AppIntegrations,
+    OAuthAccounts,
+    NodesRegistry,
+    WorkflowRuns,
+    Workflows,
+    WorkflowsStars,
+)
 
 
 class MongoClient:
@@ -33,7 +41,15 @@ class MongoClient:
         self, models: Sequence[beanie.Document] | None = None
     ) -> None:
         if models is None:
-            models = [Users, AppIntegrations, OAuthAccounts, NodesRegistry]
+            models = [
+                Users,
+                AppIntegrations,
+                OAuthAccounts,
+                NodesRegistry,
+                WorkflowRuns,
+                Workflows,
+                WorkflowsStars,
+            ]
         await beanie.init_beanie(database=self.db, document_models=models)
         return
 
