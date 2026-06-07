@@ -13,7 +13,7 @@ class GroqModelEnum(str, Enum):
 class GroqModelConfig(BaseModel):
     response_model: dict
     model: GroqModelEnum = GroqModelEnum.GPT_OSS_120B
-    max_tokens: int = Field(default=None, json_schema_extra={"x-technical": True})
+    max_tokens: int | None = Field(default=None, json_schema_extra={"x-technical": True})
     # reasoning_effort: Literal["low", "medium", "high", "none", "default"] = "default"
     system_prompt: str = Field(
         default="You are a helpful AI Assistant.",

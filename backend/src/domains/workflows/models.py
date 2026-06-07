@@ -2,8 +2,15 @@ from beanie import Document, PydanticObjectId, Indexed
 from typing import Optional, Dict, Annotated, Literal, List, Any
 from pydantic import Field
 from datetime import datetime, timezone
-
+from enum import  StrEnum
 from src.workflows.types import Node, Edge
+
+
+class WorkflowRunStatus(StrEnum):
+    STARTED = "STARTED"
+    RUNNING = "RUNNING"
+    WAITING = "WAITING"
+    COMPLETED = "COMPLETED"
 
 
 class NodesRegistry(Document):
@@ -38,5 +45,7 @@ class WorkflowsStars(Document):
 class WorkflowRuns(Document):
     user_id: Annotated[PydanticObjectId, Indexed()]
     workflow_id: Annotated[PydanticObjectId, Indexed()]
-    outputs: Optional[Dict[str, Any]] = None 
+    status: WorkflowRunStatus = Field(default=WorkflowRunStatus.STARTED)
+    outputs: Optional[Dict[str, Any]] = None
+
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

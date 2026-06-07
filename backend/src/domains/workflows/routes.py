@@ -21,8 +21,7 @@ from src.services.temporal_client import TemporalClientManager
 from src.workflows.types import WorkflowInput
 from temporalio import client
 from src.utils.runner import safely_run
-from src.core.response import AppError
-from src.core.exceptions import UnexpectedServerError
+from src.services.streaming import workflow_listener, NodeResultType
 
 workflow_router = APIRouter()
 
@@ -169,7 +168,7 @@ async def star_workflow(
     return data
 
 
-@workflow_router.post("/run/{workflow_id}")
+@workflow_router.get("/run/{workflow_id}")
 async def run_pipeline(
     workflow_id: str,
     worflow_service: WorkflowService = Depends(WorkflowService),
@@ -196,6 +195,11 @@ async def run_pipeline(
         task_queue="default",
     )
 
-    return {
-        "message": f"Workflow Started Successfully. {await workflow_handler.describe()}"
-    }
+    return StreamingResponse(
+        workflow_listener(temporal_client=temporal_client, workflow_id=temporal_wf_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "close",
+        },
+    )

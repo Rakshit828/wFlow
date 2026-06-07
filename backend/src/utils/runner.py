@@ -4,8 +4,8 @@ from loguru import logger
 from src.core.response import AppError
 from src.core.exceptions import UnexpectedDatabaseError
 
-
 T = TypeVar("T")
+
 
 async def safely_run(coroutine: Awaitable[T]) -> T:
     try:

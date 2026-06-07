@@ -1,16 +1,5 @@
 """
 workflow.py — Temporal DynamicWorkflow backed by the ExecutionPlan engine.
-
-Key design points
-─────────────────
-• node_def.fn is already a @activity.defn — passed directly to
-  workflow.execute_activity(node_def.fn, input_model_instance).
-
-• Parallel fan-out: multiple nodes in one RUN step → asyncio.gather().
-  (workflow.gather does not exist in the Temporal Python SDK; asyncio.gather
-  is correct here because execute_activity returns an awaitable future and
-  Temporal schedules all of them concurrently before any is awaited.)
-
 """
 
 from __future__ import annotations
@@ -22,6 +11,7 @@ from datetime import timedelta
 from typing import Any, Dict, List, Optional
 
 from temporalio import activity, workflow as Tworkflow
+from temporalio.contrib.workflow_streams import WorkflowStream, WorkflowStreamClient
 
 with Tworkflow.unsafe.imports_passed_through():
     from src.workflows.parser import parse_workflow
@@ -36,6 +26,12 @@ with Tworkflow.unsafe.imports_passed_through():
     )
     from src.workflows.nodes import NODES_MAP
     from src.workflows.utils import resolve_configs, resolve_inputs, ResolutionResult
+    from src.services.streaming import (
+        StreamingChannels,
+        NodeResultType,
+        WorkflowStatusResultType,
+        WorkflowRunStatus,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -46,14 +42,14 @@ _CONFIG_TIMEOUT = timedelta(seconds=60)
 @activity.defn
 async def resolve_configs_activity(inputs: WorkflowInput) -> Dict[str, Any]:
     """Resolve per-node service credentials / configs before execution starts."""
-    workflow = Workflow(**json.loads(inputs.workflow_str))
+    workflow = inputs.workflow
     user_id = (inputs.configs or {}).get("user_id")
     resolved = await resolve_configs(workflow, user_id)
     activity.logger.info("Configs resolved for %d nodes", len(resolved))
     return resolved
 
 
-@Tworkflow.defn
+@Tworkflow.defn(name="DynamicWorkflow")
 class DynamicWorkflow:
     """
     Executes an arbitrary workflow defined by WorkflowInput.
@@ -65,13 +61,27 @@ class DynamicWorkflow:
 
     @Tworkflow.init
     def __init__(self, inputs: WorkflowInput):
-        pass  
+        self._stream = WorkflowStream()
+        self.node_result = self._stream.topic(
+            StreamingChannels.NODE_RESULT_CHANNEL, type=NodeResultType
+        )
+        self.workflow_status = self._stream.topic(
+            StreamingChannels.WORKFLOW_STATUS_CHANNEL, type=WorkflowStatusResultType
+        )
+
+    def publish_into_node_result(self, node_name: str, node_outputs: Any):
+        self.node_result.publish({node_name: node_outputs})
+
+    def publish_into_workflow_status(self, status: WorkflowRunStatus):
+        self.workflow_status.publish({"status": status})
 
     @Tworkflow.run
     async def run(self, inputs: WorkflowInput) -> Dict[str, Any]:
         Tworkflow.logger.info("DynamicWorkflow started")
 
         workflow: Workflow = inputs.workflow
+
+        self.publish_into_workflow_status(WorkflowRunStatus.STARTED)
 
         # ── 1. Resolve service configs ─────────────────────────────────────────
         resolved_configs: Dict[str, Any] = await Tworkflow.execute_activity(
@@ -96,11 +106,13 @@ class DynamicWorkflow:
         Tworkflow.logger.info(
             "DynamicWorkflow completed. Nodes run: %s", list(outputs.keys())
         )
+
+        self.publish_into_workflow_status(WorkflowRunStatus.COMPLETED)
         return {
             "outputs": outputs,
             "resolved_configs": resolved_configs,
         }
-    
+
     async def _run_node(
         self,
         node_name: str,
@@ -174,6 +186,14 @@ class DynamicWorkflow:
             node_output = node_output.model_dump()
         elif not isinstance(node_output, dict):
             node_output = {"output": node_output}
+
+        # Publishing when
+        Tworkflow.logger.info("Publishing %s", node_name)
+        self.publish_into_node_result(
+            node_name=node_name,
+            node_outputs=node_output,
+        )
+        Tworkflow.logger.info("Published %s", node_name)
 
         outputs[node_name] = node_output
         Tworkflow.logger.info(
@@ -298,7 +318,6 @@ class DynamicWorkflow:
             return
 
         await self._execute_plan(chosen_plan, workflow, resolved_configs, outputs)
-
 
     @staticmethod
     def _read_output(node_name: str, outputs: Dict[str, Any], key: str) -> Any:
