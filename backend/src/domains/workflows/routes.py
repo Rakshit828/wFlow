@@ -14,13 +14,15 @@ from src.domains.workflows.schema import (
     PaginatedWorkflowsResponse,
     PaginatedNodesResponse,
     SingleWorkflowResponseModel,
-    WorkflowInputModel,
 )
-from src.workflows.types import NodesTypeEnum
+from src.workflows.types import NodesTypeEnum, Workflow
 from src.domains.workflows.service import WorkflowService
 from src.services.temporal_client import TemporalClientManager
 from src.workflows.types import WorkflowInput
 from temporalio import client
+from src.utils.runner import safely_run
+from src.core.response import AppError
+from src.core.exceptions import UnexpectedServerError
 
 workflow_router = APIRouter()
 
@@ -174,18 +176,26 @@ async def run_pipeline(
     decoded_token: dict[str, str] = Depends(AccessTokenBearer()),
     temporal_client: client.Client = Depends(TemporalClientManager.get_client),
 ):
-    # Will implement SSE here.
     user_id: str = decoded_token["sub"]
-    workflow_run = await worflow_service.create_new_wf_run(
+    coro = worflow_service.create_new_workflow_run(
         workflow_id=workflow_id, user_id=user_id
     )
+    workflow, workflow_run = await safely_run(coro)
+
+    workflow_input = WorkflowInput(
+        workflow=Workflow(nodes=workflow.nodes, edges=workflow.edges),
+        configs={"user_id": f"{user_id}"},
+    )
+
+    temporal_wf_id: str = f"{user_id}-{workflow_id}-{str(workflow_run.id)}"
+
     workflow_handler = await temporal_client.start_workflow(
         "DynamicWorkflow",
-        WorkflowInput(
-            workflow=workflow, configs={"user_id": f"{user_id}"}
-        ),
-        id=f"dynamic-workflow-{uuid.uuid4()}",
+        workflow_input,
+        id=temporal_wf_id,
         task_queue="default",
     )
 
-    return StreamingResponse()
+    return {
+        "message": f"Workflow Started Successfully. {await workflow_handler.describe()}"
+    }

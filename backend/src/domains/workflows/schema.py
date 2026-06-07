@@ -1,11 +1,8 @@
 from pydantic import BaseModel, Field, field_validator
 from bson import ObjectId
 from typing import List, Optional, Literal, Dict, Any
-from src.workflows.types import Node, Edge, NodesTypeEnum, WorkflowInput
+from src.workflows.types import Node, Edge, NodesTypeEnum
 
-
-class WorkflowInputModel(WorkflowInput):
-    workflow_id: str 
 
 
 class CreateNewWorkflowModel(BaseModel):

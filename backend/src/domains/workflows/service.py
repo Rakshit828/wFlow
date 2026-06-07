@@ -10,9 +10,16 @@ from src.domains.workflows.schema import (
     SingleWorkflowResponseModel,
     NodeFullResponse,
 )
-from src.domains.workflows.models import Workflows, WorkflowsStars, NodesRegistry, WorkflowRuns
+from src.domains.workflows.models import (
+    Workflows,
+    WorkflowsStars,
+    NodesRegistry,
+    WorkflowRuns,
+)
 from src.workflows.types import NodesTypeEnum
 from src.workflows.nodes import NODES_MAP
+from src.core.response import AppError
+from src.domains.workflows.exceptions import WorkflowNotFoundError
 
 from beanie.operators import Inc
 from loguru import logger
@@ -20,8 +27,8 @@ from beanie.odm.queries.update import UpdateResponse
 from pymongo.results import UpdateResult
 from beanie import PydanticObjectId
 from fastapi import HTTPException, status
-from typing import Optional
-
+from typing import Optional, Tuple
+from pymongo.errors import PyMongoError, DuplicateKeyError
 
 
 class WorkflowService:
@@ -34,26 +41,24 @@ class WorkflowService:
         await self._node_registry_repo.delete_all()
         await self._node_registry_repo.create_nodes(NODES_MAP.values())
 
-    async def create_new_wf_run(
+    async def create_new_workflow_run(
         self, workflow_id: str, user_id: str
-    ) -> WorkflowRuns | None:
-        
-        try:
-            workflow = await self._workflow_repo.get_workflow_by_id(workflow_id)
-            if workflow is None:
-                raise HTTPException(
-                    status_code=404,
-                    detail="Workflow donot exists."
+    ) -> Tuple[Workflows, WorkflowRuns]:
+
+        workflow = await self._workflow_repo.get_workflow_by_id(workflow_id)
+        if workflow is None:
+            raise AppError(WorkflowNotFoundError(data=None))
+
+        workflow_run: WorkflowRuns | None = (
+            await self._workflow_repo.create_worflow_run(
+                workflow_id=workflow_id, user_id=user_id
             )
-            workflow_run: WorkflowRuns | None = await WorkflowRuns.insert_one(
-                WorkflowRuns(**{"workflow_id": workflow_id, "user_id": user_id})
-            )
-            return workflow_run
-        except Exception as e:
-            if isinstance(e, HTTPException):
-                raise e
-            logger.error(f"Exception occurred: {e}")
-            return None
+        )
+
+        if workflow_run is None:
+            raise PyMongoError("Result None during normal insert_one operation.")
+
+        return workflow, workflow_run
 
     async def star_workflow(self, workflow_id: str, user_id: str) -> Workflows | None:
         wf_id_obj = PydanticObjectId(workflow_id)

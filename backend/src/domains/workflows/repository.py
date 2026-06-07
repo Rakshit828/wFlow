@@ -20,7 +20,7 @@ class WorkflowRepository:
         doc = WorkflowRuns(
             workflow_id=PydanticObjectId(workflow_id), user_id=PydanticObjectId(user_id)
         )
-        await WorkflowRuns.insert_one(doc)
+        return await WorkflowRuns.insert_one(doc)
 
     async def get_workflow_by_id(self, workflow_id: str) -> Workflows | None:
         # Beanie automatically handles string-to-ObjectId conversion if you pass a string to .get()
