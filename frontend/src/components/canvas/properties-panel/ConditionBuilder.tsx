@@ -189,18 +189,18 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({
   const isEmpty = rows.length === 1 && !rows[0].key && !rows[0].value;
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-950 shadow-2xl overflow-hidden">
+    <div className="rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800/80">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/10">
         <div className="flex items-center gap-2.5">
-          <span className="flex items-center justify-center w-6 h-6 rounded-md bg-indigo-500/15 border border-indigo-500/25">
-            <Zap size={12} className="text-indigo-400" strokeWidth={2.5} />
+          <span className="flex items-center justify-center w-6 h-6 rounded-md bg-primary/10 border border-primary/20">
+            <Zap size={12} className="text-primary" strokeWidth={2.5} />
           </span>
           <div>
-            <p className="text-[13px] font-semibold text-slate-100 leading-none">
+            <p className="text-[13px] font-semibold text-foreground leading-none">
               Condition builder
             </p>
-            <p className="text-[11px] text-slate-500 mt-0.5 leading-none">
+            <p className="text-[11px] text-muted-foreground mt-0.5 leading-none">
               Build expressions · drag node outputs into fields
             </p>
           </div>
@@ -210,11 +210,11 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({
           onClick={addRow}
           className="
             flex items-center gap-1.5
-            rounded-lg border border-slate-700 bg-slate-900
+            rounded-lg border border-border bg-muted/50
             px-2.5 py-1.5
-            text-[11px] font-medium text-slate-300
-            hover:bg-slate-800 hover:border-slate-600 hover:text-slate-100
-            active:scale-95 transition-all duration-100
+            text-[11px] font-medium text-foreground
+            hover:bg-accent hover:border-muted-foreground hover:text-foreground
+            active:scale-95 transition-all duration-100 cursor-pointer
           "
         >
           <Plus size={11} strokeWidth={2.5} />
@@ -246,21 +246,21 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({
       </div>
 
       {/* ── Expression preview ──────────────────────────────────────────────── */}
-      <div className="mx-3 mt-2 mb-3 rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
-        <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-800/60">
-          <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500">
+      <div className="mx-3 mt-2 mb-3 rounded-xl border border-border bg-muted/20 overflow-hidden">
+        <div className="flex items-center justify-between px-3 py-1.5 border-b border-border">
+          <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
             Expression
           </span>
           <button
             type="button"
             onClick={copyExpr}
             disabled={isEmpty}
-            className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-200 disabled:opacity-30 disabled:pointer-events-none transition-colors"
+            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition-colors cursor-pointer"
           >
             {copied ? (
               <>
-                <Check size={10} className="text-emerald-400" />
-                <span className="text-emerald-400">Copied</span>
+                <Check size={10} className="text-emerald-500" />
+                <span className="text-emerald-500">Copied</span>
               </>
             ) : (
               <>
@@ -272,7 +272,7 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({
         </div>
         <div className="px-3 py-2 font-mono text-[11px] leading-relaxed min-h-[32px] break-all">
           {isEmpty ? (
-            <span className="text-slate-700 italic">No conditions yet…</span>
+            <span className="text-muted-foreground/60 italic">No conditions yet…</span>
           ) : (
             <ExprTokens rows={rows} />
           )}
@@ -281,12 +281,12 @@ export const ConditionBuilder: React.FC<ConditionBuilderProps> = ({
 
       {/* ── Preceding node outputs ──────────────────────────────────────────── */}
       {precedingNodes.length > 0 && (
-        <div className="mx-3 mb-3 rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
-          <div className="px-3 py-1.5 border-b border-slate-800/60">
-            <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-slate-500">
+        <div className="mx-3 mb-3 rounded-xl border border-border bg-muted/20 overflow-hidden">
+          <div className="px-3 py-1.5 border-b border-border">
+            <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
               Node outputs
             </span>
-            <span className="ml-2 text-[10px] text-slate-600">
+            <span className="ml-2 text-[10px] text-muted-foreground">
               drag into any field
             </span>
           </div>
@@ -329,17 +329,17 @@ const ConditionRowCard: React.FC<ConditionRowCardProps> = ({
   const inputCls = (field: "key" | "value") =>
     [
       "w-full rounded-lg px-2.5 py-[7px]",
-      "border bg-slate-900 text-[12px] text-slate-100",
-      "font-mono placeholder:text-slate-700",
+      "border bg-background text-[12px] text-foreground",
+      "font-mono placeholder:text-muted-foreground",
       "outline-none transition-all duration-100",
       "focus:ring-1",
       dropField === field
-        ? "border-indigo-500/70 ring-indigo-500/20 bg-indigo-500/5"
-        : "border-slate-700/70 hover:border-slate-600 focus:border-indigo-500/60 focus:ring-indigo-500/15",
+        ? "border-primary/70 ring-primary/20 bg-primary/5"
+        : "border-border hover:border-muted-foreground focus:border-primary focus:ring-primary/15",
     ].join(" ");
 
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 px-2 py-2 rounded-xl bg-slate-900/40 hover:bg-slate-900/60 transition-colors group">
+    <div className="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2 px-2 py-2 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors group">
       {/* Field */}
       <input
         value={row.key}
@@ -364,11 +364,11 @@ const ConditionRowCard: React.FC<ConditionRowCardProps> = ({
         value={row.operator}
         onChange={(e) => onPatch({ operator: e.target.value })}
         className="
-          rounded-lg border border-slate-700/70 bg-slate-900
-          px-2 py-[7px] text-[11px] font-semibold text-violet-400
+          rounded-lg border border-border bg-background
+          px-2 py-[7px] text-[11px] font-semibold text-primary
           outline-none cursor-pointer
-          hover:border-slate-600 focus:border-indigo-500/60
-          focus:ring-1 focus:ring-indigo-500/15
+          hover:border-muted-foreground focus:border-primary
+          focus:ring-1 focus:ring-primary/15
           transition-all duration-100
         "
       >
@@ -407,10 +407,10 @@ const ConditionRowCard: React.FC<ConditionRowCardProps> = ({
         className="
           flex items-center justify-center w-7 h-7 rounded-lg
           border border-transparent text-transparent
-          group-hover:border-slate-700/60 group-hover:text-slate-600
-          hover:!border-red-500/40 hover:!bg-red-500/10 hover:!text-red-400
+          group-hover:border-border group-hover:text-muted-foreground
+          hover:!border-destructive/40 hover:!bg-destructive/10 hover:!text-destructive
           disabled:!opacity-0 disabled:pointer-events-none
-          active:scale-90 transition-all duration-100
+          active:scale-90 transition-all duration-100 cursor-pointer
         "
       >
         <X size={12} strokeWidth={2.5} />
@@ -426,8 +426,8 @@ const JoinerBar: React.FC<{
   onChange: (v: ConditionJoiner) => void;
 }> = ({ value, onChange }) => (
   <div className="flex items-center gap-2 pl-4 py-[3px]">
-    <div className="w-px h-4 bg-slate-700" />
-    <div className="flex rounded-md border border-slate-800 bg-slate-900 p-[2px] gap-[2px]">
+    <div className="w-px h-4 bg-border" />
+    <div className="flex rounded-md border border-border bg-background p-[2px] gap-[2px]">
       {(["and", "or"] as ConditionJoiner[]).map((opt) => {
         const active = value === opt;
         return (
@@ -436,13 +436,13 @@ const JoinerBar: React.FC<{
             type="button"
             onClick={() => onChange(opt)}
             className={[
-              "rounded px-2.5 py-[2px] text-[10px] font-bold tracking-widest uppercase",
+              "rounded px-2.5 py-[2px] text-[10px] font-bold tracking-widest uppercase cursor-pointer",
               "border transition-all duration-100",
               active && opt === "and"
-                ? "bg-indigo-500/15 text-indigo-300 border-indigo-500/25"
+                ? "bg-primary/15 text-primary border-primary/25"
                 : active && opt === "or"
-                  ? "bg-amber-500/15 text-amber-300 border-amber-500/25"
-                  : "text-slate-600 border-transparent hover:text-slate-400",
+                  ? "bg-amber-500/15 text-amber-600 border-amber-500/25 dark:text-amber-300"
+                  : "text-muted-foreground border-transparent hover:text-foreground",
             ].join(" ")}
           >
             {opt}
@@ -486,14 +486,14 @@ const NodeChip: React.FC<{ name: string }> = ({ name }) => (
     }
     className="
       flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg
-      border border-slate-700/60 bg-slate-900/80
-      text-[11px] font-mono text-slate-400
+      border border-border bg-muted/60
+      text-[11px] font-mono text-foreground/80
       cursor-grab active:cursor-grabbing
-      hover:border-indigo-500/35 hover:bg-indigo-500/8 hover:text-slate-200
+      hover:border-primary/35 hover:bg-primary/5 hover:text-primary
       select-none transition-all duration-100
     "
   >
-    <span className="text-[9px] text-slate-600 leading-none">⠿</span>
+    <span className="text-[9px] text-muted-foreground leading-none">⠿</span>
     {name}
   </div>
 );

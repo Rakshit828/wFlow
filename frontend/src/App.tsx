@@ -89,23 +89,23 @@ const AppLayout: React.FC = () => {
   return (
     <div className="h-screen w-screen flex flex-col bg-background text-foreground overflow-hidden">
       <header className="h-14 flex items-center justify-between px-4 border-b border-border bg-card/80 backdrop-blur-md z-50 shrink-0">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0">
           {isEditor && (
             <button
               type="button"
               onClick={() => navigate("/dashboard")}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mr-2"
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mr-2 shrink-0 cursor-pointer"
             >
               <ArrowLeft size={16} />
               <span className="hidden sm:inline">Dashboard</span>
             </button>
           )}
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 shrink-0">
               <Zap className="text-primary" size={16} />
             </div>
-            <h1 className="text-base font-bold tracking-wide">
-              wFlow
+            <h1 className="text-base font-bold tracking-wide truncate">
+              <span className={isEditor ? "hidden sm:inline" : ""}>wFlow</span>
               <span className="text-[11px] ml-1.5 text-muted-foreground font-normal uppercase tracking-widest">
                 {pageSubtitle}
               </span>
@@ -114,7 +114,7 @@ const AppLayout: React.FC = () => {
 
           {/* Navigation links — hidden when inside the editor */}
           {!isEditor && (
-            <nav className="hidden sm:flex items-center gap-1 ml-4 bg-card/60 rounded-lg border border-border p-0.5">
+            <nav className="hidden sm:flex items-center gap-1 ml-4 bg-card/60 rounded-lg border border-border p-0.5 shrink-0">
               <NavLink
                 to="/dashboard"
                 className={({ isActive }) =>
@@ -149,24 +149,24 @@ const AppLayout: React.FC = () => {
           )}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {isEditor && (
             <button
               type="button"
               onClick={() => setJsonOpen(!jsonOpen)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-semibold transition-all border ${jsonOpen
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-sm font-semibold transition-all border cursor-pointer ${jsonOpen
                 ? "bg-primary/10 text-primary border-primary/30"
                 : "bg-card text-muted-foreground border-border hover:text-foreground"
                 }`}
             >
               <FileJson size={14} />
-              JSON
+              <span className="hidden sm:inline">JSON</span>
             </button>
           )}
           <button
             type="button"
             onClick={cycleTheme}
-            className="p-2 rounded-lg bg-card text-muted-foreground hover:text-foreground border border-border hover:border-primary/30 transition-all"
+            className="p-2 rounded-lg bg-card text-muted-foreground hover:text-foreground border border-border hover:border-primary/30 transition-all cursor-pointer"
             title={`Theme: ${theme}`}
           >
             {themeIcon}

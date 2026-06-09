@@ -38,6 +38,56 @@ export const WorkflowEditorPage: React.FC = () => {
   const jsonOpen = context ? context.jsonOpen : localJsonOpen;
   const setJsonOpen = context ? context.setJsonOpen : setLocalJsonOpen;
 
+  // Responsive layout state
+  const [isMobile, setIsMobile] = React.useState(false);
+  const [activeMobileTab, setActiveMobileTab] = React.useState<"catalog" | "canvas" | "properties">("canvas");
+
+  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+  const catalogRef = React.useRef<HTMLDivElement>(null);
+  const canvasRef = React.useRef<HTMLDivElement>(null);
+  const propertiesRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const scrollToTab = React.useCallback((tab: "catalog" | "canvas" | "properties") => {
+    setActiveMobileTab(tab);
+    if (!scrollContainerRef.current) return;
+
+    // Give browser a tick to render columns if they were just opened
+    setTimeout(() => {
+      if (tab === "catalog") {
+        catalogRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+      } else if (tab === "canvas") {
+        canvasRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+      } else if (tab === "properties") {
+        propertiesRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "start" });
+      }
+    }, 50);
+  }, []);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (!isMobile) return;
+    const scrollLeft = e.currentTarget.scrollLeft;
+    const width = e.currentTarget.clientWidth;
+    if (width <= 0) return;
+
+    const pageIndex = Math.round(scrollLeft / width);
+    if (pageIndex === 0) {
+      setActiveMobileTab("catalog");
+    } else if (pageIndex === 1) {
+      setActiveMobileTab("canvas");
+    } else if (pageIndex === 2) {
+      setActiveMobileTab("properties");
+    }
+  };
+
   // Load or reset workflow depending on id parameter
   React.useEffect(() => {
     if (id) {
@@ -105,6 +155,16 @@ export const WorkflowEditorPage: React.FC = () => {
       document.body.style.cursor = "auto";
     };
   }, [isResizing]);
+
+  React.useEffect(() => {
+    if (isMobile) {
+      if ((activeNodeId || activeEdgeId) && !propertiesCollapsed) {
+        scrollToTab("properties");
+      } else {
+        scrollToTab("canvas");
+      }
+    }
+  }, [activeNodeId, activeEdgeId, propertiesCollapsed, isMobile, scrollToTab]);
 
   const handleDividerMouseDown = (e: React.MouseEvent) => {
     startXRef.current = e.clientX;
@@ -200,98 +260,177 @@ export const WorkflowEditorPage: React.FC = () => {
 
   return (
     <ReactFlowProvider>
-      <div className="flex h-full w-full relative overflow-hidden">
-        {sidebarCollapsed ? (
-          <div className="flex h-full items-center justify-center border-r border-border bg-card px-1 z-10 shrink-0">
+      <div className="flex h-full w-full flex-col overflow-hidden">
+        {/* Mobile Tabs Header */}
+        {isMobile && (
+          <div className="h-11 flex border-b border-border bg-card shrink-0 select-none z-30">
             <button
               type="button"
-              onClick={() => setSidebarCollapsed(false)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background/80 text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-all"
-              title="Show sidebar"
+              onClick={() => scrollToTab("catalog")}
+              className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${activeMobileTab === "catalog"
+                ? "border-primary text-primary bg-primary/5"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
             >
-              <ChevronRight size={18} />
+              Catalog
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollToTab("canvas")}
+              className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${activeMobileTab === "canvas"
+                ? "border-primary text-primary bg-primary/5"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+            >
+              Canvas
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if ((activeNodeId || activeEdgeId) && !propertiesCollapsed) {
+                  scrollToTab("properties");
+                }
+              }}
+              disabled={!(activeNodeId || activeEdgeId) || propertiesCollapsed}
+              className={`flex-1 flex items-center justify-center gap-1.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-all disabled:opacity-40 disabled:cursor-not-allowed ${activeMobileTab === "properties"
+                ? "border-primary text-primary bg-primary/5"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+            >
+              Properties
             </button>
           </div>
-        ) : (
-          <>
-            <div
-              ref={sidebarRef}
-              style={{
-                width: `${sidebarWidth}px`,
-                minWidth: `${sidebarWidth}px`,
-              }}
-              className="flex h-full relative shrink-0 z-10"
-            >
-              <SidebarCatalog
-                sidebarWidth={sidebarWidth}
-                onToggleCollapse={() => setSidebarCollapsed(true)}
-              />
-            </div>
-            <div
-              onMouseDown={handleDividerMouseDown}
-              className={`w-1.5 hover:w-2 bg-border hover:bg-primary/50 cursor-col-resize transition-all z-20 shrink-0 ${
-                isResizing ? "bg-primary w-2" : ""
-              }`}
-            />
-          </>
         )}
 
+        {/* Scroll Container / Workspace */}
         <div
-          className="flex-1 h-full flex flex-col relative"
-          style={{
-            marginRight:
-              (activeEdgeId || activeNodeId) && !propertiesCollapsed
-                ? propertiesWidth
-                : 0,
-          }}
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className={`flex-1 flex w-full relative ${isMobile
+            ? "overflow-x-auto snap-x snap-mandatory scroll-smooth"
+            : "overflow-hidden"
+            }`}
         >
-          <FlowCanvas />
-          {jsonOpen && <JsonTracker onClose={() => setJsonOpen(false)} />}
-        </div>
-
-        {activeEdgeId || activeNodeId ? (
-          propertiesCollapsed ? (
-            <button
-              type="button"
-              onClick={() => setPropertiesCollapsed(false)}
-              className="fixed right-0 top-28 z-30 m-2 flex h-11 w-11 items-center justify-center rounded-l-2xl border border-border bg-card text-muted-foreground shadow-lg shadow-black/10 hover:text-foreground hover:bg-primary/10 transition-all"
-              title="Open properties panel"
-            >
-              <ChevronLeft size={18} />
-            </button>
-          ) : (
+          {/* CATALOG PANEL */}
+          {isMobile ? (
             <div
-              ref={panelRef}
-              style={{
-                width: `${propertiesWidth}px`,
-                minWidth: `${propertiesWidth}px`,
-              }}
-              className="fixed right-0 top-14 bottom-0 z-20 flex h-[calc(100vh-3.5rem)] shrink-0 flex-col overflow-hidden bg-slate-950 border-l border-slate-700"
+              ref={catalogRef}
+              className="w-[100vw] h-full shrink-0 snap-start relative"
             >
-              <div
-                onMouseDown={handlePanelDividerMouseDown}
-                className={`absolute left-0 top-0 h-full cursor-col-resize bg-border transition-all z-30 ${
-                  isPanelResizing ? "w-2 bg-primary" : "w-1.5"
-                }`}
+              <SidebarCatalog
+                sidebarWidth={window.innerWidth}
+                onToggleCollapse={() => { }}
               />
-              <div className="absolute right-14 top-4 z-10">
+            </div>
+          ) : sidebarCollapsed ? (
+            <div className="flex h-full items-center justify-center border-r border-border bg-card px-1 z-10 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed(false)}
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background/80 text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-all"
+                title="Show sidebar"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+          ) : (
+            <>
+              <div
+                ref={sidebarRef}
+                style={{
+                  width: `${sidebarWidth}px`,
+                  minWidth: `${sidebarWidth}px`,
+                }}
+                className="flex h-full relative shrink-0 z-10"
+              >
+                <SidebarCatalog
+                  sidebarWidth={sidebarWidth}
+                  onToggleCollapse={() => setSidebarCollapsed(true)}
+                />
+              </div>
+              <div
+                onMouseDown={handleDividerMouseDown}
+                className={`w-1.5 hover:w-2 bg-border hover:bg-primary/50 cursor-col-resize transition-all z-20 shrink-0 ${isResizing ? "bg-primary w-2" : ""
+                  }`}
+              />
+            </>
+          )}
+
+          {/* CANVAS AREA */}
+          <div
+            ref={canvasRef}
+            className={`h-full flex flex-col relative ${isMobile ? "w-[100vw] shrink-0 snap-center" : "flex-1"
+              }`}
+            style={{
+              marginRight:
+                !isMobile && (activeEdgeId || activeNodeId) && !propertiesCollapsed
+                  ? propertiesWidth
+                  : 0,
+            }}
+          >
+            <FlowCanvas />
+            {jsonOpen && <JsonTracker onClose={() => setJsonOpen(false)} />}
+          </div>
+
+          {/* PROPERTIES PANEL */}
+          {activeEdgeId || activeNodeId ? (
+            propertiesCollapsed ? (
+              !isMobile && (
                 <button
                   type="button"
-                  onClick={() => setPropertiesCollapsed(true)}
-                  className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background/90 text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-all"
-                  title="Collapse panel"
+                  onClick={() => setPropertiesCollapsed(false)}
+                  className="fixed right-0 top-28 z-30 m-2 flex h-11 w-11 items-center justify-center rounded-l-2xl border border-border bg-card text-muted-foreground shadow-lg shadow-black/10 hover:text-foreground hover:bg-primary/10 transition-all"
+                  title="Open properties panel"
                 >
-                  <ChevronRight size={16} />
+                  <ChevronLeft size={18} />
                 </button>
+              )
+            ) : isMobile ? (
+              <div
+                ref={propertiesRef}
+                className="w-[100vw] h-full shrink-0 snap-end relative border-l border-border bg-card flex flex-col overflow-hidden z-20"
+              >
+                <div className="absolute right-4 top-4 z-10">
+                  <button
+                    type="button"
+                    onClick={() => setPropertiesCollapsed(true)}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background/90 text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-all"
+                    title="Collapse panel"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+                {activeEdgeId ? <EdgePropertiesPanel /> : <PropertiesPanel />}
               </div>
-              {activeEdgeId ? (
-                <EdgePropertiesPanel />
-              ) : (
-                <PropertiesPanel />
-              )}
-            </div>
-          )
-        ) : null}
+            ) : (
+              <div
+                ref={panelRef}
+                style={{
+                  width: `${propertiesWidth}px`,
+                  minWidth: `${propertiesWidth}px`,
+                }}
+                className="fixed right-0 top-14 bottom-0 z-20 flex h-[calc(100vh-3.5rem)] shrink-0 flex-col overflow-hidden bg-card border-l border-border"
+              >
+                <div
+                  onMouseDown={handlePanelDividerMouseDown}
+                  className={`absolute left-0 top-0 h-full cursor-col-resize bg-border transition-all z-30 ${isPanelResizing ? "w-2 bg-primary" : "w-1.5"
+                    }`}
+                />
+                <div className="absolute right-14 top-4 z-10">
+                  <button
+                    type="button"
+                    onClick={() => setPropertiesCollapsed(true)}
+                    className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-background/90 text-muted-foreground hover:text-foreground hover:bg-primary/10 transition-all"
+                    title="Collapse panel"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+                {activeEdgeId ? <EdgePropertiesPanel /> : <PropertiesPanel />}
+              </div>
+            )
+          ) : null}
+        </div>
       </div>
     </ReactFlowProvider>
   );

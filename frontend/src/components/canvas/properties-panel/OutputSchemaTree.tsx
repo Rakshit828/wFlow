@@ -34,29 +34,29 @@ const SchemaTreeNode: React.FC<{
         draggable
         onDragStart={handleDragStart}
         onClick={() => hasChildren && setExpanded(!expanded)}
-        className={`flex items-center gap-1 px-2 py-1 rounded cursor-${hasChildren ? "pointer" : "default"} ${hasChildren ? "hover:bg-slate-800" : ""} select-none`}
+        className={`flex items-center gap-1 px-2 py-1 rounded cursor-${hasChildren ? "pointer" : "default"} ${hasChildren ? "hover:bg-accent" : ""} select-none`}
       >
         {hasChildren ? (
           expanded ? (
-            <ChevronDown size={14} className="text-slate-500" />
+            <ChevronDown size={14} className="text-muted-foreground" />
           ) : (
-            <ChevronRight size={14} className="text-slate-500" />
+            <ChevronRight size={14} className="text-muted-foreground" />
           )
         ) : (
           <div className="w-[14px]" />
         )}
         <span
           onClick={handleCopy}
-          className="text-slate-300 hover:text-indigo-300 transition-colors"
+          className="text-foreground/80 hover:text-primary transition-colors cursor-pointer"
         >
           {name}
         </span>
-        <span className="text-slate-600 ml-auto text-[10px]">
+        <span className="text-muted-foreground ml-auto text-[10px]">
           {schema.type}
         </span>
       </div>
       {expanded && hasChildren && (
-        <div className="ml-4 border-l border-slate-700 space-y-px">
+        <div className="ml-4 border-l border-border space-y-px">
           {Object.entries(schema.properties).map(([key, propSchema]) => (
             <SchemaTreeNode
               key={key}
@@ -76,7 +76,7 @@ export const OutputSchemaTree: React.FC<OutputSchemaTreeProps> = ({
   basePath,
 }) => {
   return (
-    <div className="rounded-2xl border border-slate-700 bg-slate-900/50 p-3 space-y-1 text-slate-300">
+    <div className="rounded-xl border border-border bg-muted/30 p-3 space-y-1 text-foreground/80">
       {schema.properties ? (
         Object.entries(schema.properties).map(([key, propSchema]) => (
           <SchemaTreeNode
@@ -87,7 +87,7 @@ export const OutputSchemaTree: React.FC<OutputSchemaTreeProps> = ({
           />
         ))
       ) : (
-        <div className="text-[11px] text-slate-500 italic">
+        <div className="text-[11px] text-muted-foreground italic">
           No schema properties available
         </div>
       )}

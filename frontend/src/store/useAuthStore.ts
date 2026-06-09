@@ -33,7 +33,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     _checkSessionPromise = (async () => {
       set({ status: 'loading' });
       try {
-        const user = await fetchCurrentUser();
+        const user = (await fetchCurrentUser()).data;
         set({ user, status: 'authenticated' });
       } catch {
         set({ user: null, status: 'unauthenticated' });

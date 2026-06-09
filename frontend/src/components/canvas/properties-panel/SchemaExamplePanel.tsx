@@ -129,24 +129,24 @@ export const SchemaExamplePanel: React.FC<SchemaExamplePanelProps> = ({
   };
 
   return (
-    <div className="rounded-3xl border border-slate-700 bg-slate-950/80 p-4 space-y-3">
+    <div className="rounded-2xl border border-border bg-card/50 p-4 space-y-3">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-foreground">{title}</div>
           {description && (
-            <p className="text-xs text-slate-400 mt-1">{description}</p>
+            <p className="text-xs text-muted-foreground mt-1">{description}</p>
           )}
         </div>
         <button
           type="button"
           onClick={handleCopy}
-          className="inline-flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-900/90 px-3 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-800 transition-all"
+          className="inline-flex items-center gap-2 rounded-2xl border border-border bg-muted px-3 py-2 text-xs font-semibold text-foreground hover:bg-accent transition-all cursor-pointer"
         >
           {copied ? <Check size={14} /> : <Copy size={14} />}
           {copied ? "Copied" : "Copy JSON"}
         </button>
       </div>
-      <div className="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-900/90 p-3 text-xs text-slate-200 font-mono leading-relaxed">
+      <div className="overflow-x-auto rounded-xl border border-border bg-muted/30 p-3 text-xs text-foreground font-mono leading-relaxed">
         <pre className="whitespace-pre-wrap wrap-break-word">{sampleJson}</pre>
       </div>
     </div>

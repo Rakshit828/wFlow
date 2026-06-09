@@ -85,11 +85,11 @@ export const OutputReferencePanel: React.FC<OutputReferencePanelProps> = ({
 
   if (totalReferencesCount === 0) {
     return (
-      <div className="rounded-3xl border border-slate-700 bg-slate-950/80 p-4 text-sm text-slate-400">
+      <div className="rounded-2xl border border-border bg-card/50 p-4 text-sm text-muted-foreground">
         <div className="flex items-start gap-2">
           <HelpCircle size={16} className="mt-0.5 shrink-0" />
           <div>
-            <div className="font-semibold text-slate-300 mb-1">
+            <div className="font-semibold text-foreground mb-1">
               Available outputs
             </div>
             No preceding nodes have outputs available yet. Connect nodes to
@@ -109,12 +109,12 @@ export const OutputReferencePanel: React.FC<OutputReferencePanelProps> = ({
   };
 
   return (
-    <div className="rounded-3xl border border-slate-700 bg-slate-950/80 p-4 space-y-4">
+    <div className="rounded-2xl border border-border bg-card/50 p-4 space-y-4">
       <div>
         <div className="text-sm font-semibold text-foreground mb-1">
           Available outputs
         </div>
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-muted-foreground">
           Drag any output reference into an input field to wire them together.
         </p>
       </div>
@@ -122,21 +122,21 @@ export const OutputReferencePanel: React.FC<OutputReferencePanelProps> = ({
       <div className="space-y-4">
         {Array.from(nodeGroups.entries()).map(([nodeName, refs]) => (
           <div key={nodeName} className="space-y-2">
-            <div className="text-[11px] font-semibold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5 px-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+            <div className="text-[11px] font-semibold text-primary uppercase tracking-wider flex items-center gap-1.5 px-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
               {nodeName}
             </div>
-            <div className="grid gap-2 pl-3 border-l border-slate-800/80 ml-1.5">
+            <div className="grid gap-2 pl-3 border-l border-border ml-1.5">
               {refs.map((ref) => (
                 <div
                   key={ref.path}
                   draggable
                   onDragStart={(e) => handleDragStart(e, ref.path)}
-                  className="rounded-xl border border-slate-700/60 bg-slate-900/40 px-3 py-2 text-xs text-slate-300 font-mono hover:bg-slate-800 hover:border-indigo-500 hover:text-white cursor-move transition-all flex justify-between items-center group/item"
+                  className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-xs text-foreground font-mono hover:bg-accent hover:border-primary hover:text-foreground cursor-move transition-all flex justify-between items-center group/item"
                   title={ref.path}
                 >
                   <span className="truncate">{ref.label.replace(`${nodeName}.`, "")}</span>
-                  <span className="text-[9px] text-indigo-400 opacity-0 group-hover/item:opacity-100 transition-opacity font-sans select-none pointer-events-none">
+                  <span className="text-[9px] text-primary opacity-0 group-hover/item:opacity-100 transition-opacity font-sans select-none pointer-events-none">
                     Drag me
                   </span>
                 </div>

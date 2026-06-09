@@ -110,8 +110,8 @@ export const ExplorePage: React.FC = () => {
         const result = debouncedQuery
           ? await searchWorkflows(debouncedQuery, page, 10, true)
           : await fetchWorkflows(page, 10, true);
-        setWorkflows(result.data);
-        setPagination(result.pagination);
+        setWorkflows(result.data.data);
+        setPagination(result.data.pagination);
         lastFetchedRef.current = { query: debouncedQuery, page };
       } catch (err) {
         const message =
@@ -144,10 +144,10 @@ export const ExplorePage: React.FC = () => {
       const result = await starWorkflow(workflowId);
       setWorkflows((prev) =>
         prev.map((w) =>
-          w.workflow_id === workflowId ? { ...w, stars: result.stars } : w,
+          w.workflow_id === workflowId ? { ...w, stars: result.data.stars } : w,
         ),
       );
-    } catch {}
+    } catch { }
   };
 
   return (
@@ -203,22 +203,20 @@ export const ExplorePage: React.FC = () => {
           <div className="flex bg-card rounded-xl border border-border overflow-hidden shrink-0">
             <button
               onClick={() => setViewMode("grid")}
-              className={`p-2.5 transition-colors ${
-                viewMode === "grid"
+              className={`p-2.5 transition-colors ${viewMode === "grid"
                   ? "bg-violet-500/10 text-violet-400"
                   : "text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
               title="Grid view"
             >
               <LayoutGrid size={15} />
             </button>
             <button
               onClick={() => setViewMode("list")}
-              className={`p-2.5 transition-colors ${
-                viewMode === "list"
+              className={`p-2.5 transition-colors ${viewMode === "list"
                   ? "bg-violet-500/10 text-violet-400"
                   : "text-muted-foreground hover:text-foreground"
-              }`}
+                }`}
               title="List view"
             >
               <List size={15} />
@@ -455,11 +453,10 @@ export const ExplorePage: React.FC = () => {
                     <button
                       key={pageNum}
                       onClick={() => setPage(pageNum)}
-                      className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${
-                        page === pageNum
+                      className={`w-9 h-9 rounded-lg text-sm font-medium transition-all ${page === pageNum
                           ? "bg-violet-500 text-white shadow-md shadow-violet-500/20"
                           : "bg-card border border-border text-muted-foreground hover:text-foreground hover:bg-accent"
-                      }`}
+                        }`}
                     >
                       {pageNum}
                     </button>

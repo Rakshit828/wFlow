@@ -116,8 +116,8 @@ export const Dashboard: React.FC<DashboardProps> = () => {
       const result = debouncedQuery
         ? await searchWorkflows(debouncedQuery, page, 10, false)
         : await fetchWorkflows(page, 10, false);
-      setWorkflows(result.data);
-      setPagination(result.pagination);
+      setWorkflows(result.data.data);
+      setPagination(result.data.pagination);
       lastFetchedRef.current = { query: debouncedQuery, page };
     } catch (err) {
       const message =
@@ -150,7 +150,7 @@ export const Dashboard: React.FC<DashboardProps> = () => {
       const result = await starWorkflow(workflowId);
       setWorkflows((prev) =>
         prev.map((w) =>
-          w.workflow_id === workflowId ? { ...w, stars: result.stars } : w,
+          w.workflow_id === workflowId ? { ...w, stars: result.data.stars } : w,
         ),
       );
     } catch {}

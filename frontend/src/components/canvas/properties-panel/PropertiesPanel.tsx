@@ -24,7 +24,7 @@ export const PropertiesPanel: React.FC = () => {
   const nodeData = asNodeData(activeNode.data) as WFlowNodeData;
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 border-l border-slate-700">
+    <div className="flex flex-col h-full bg-card">
       {/* Header */}
       <NodeHeader nodeData={nodeData} />
 
@@ -42,7 +42,7 @@ export const PropertiesPanel: React.FC = () => {
       </div>
 
       {/* Delete Button */}
-      <div className="border-t border-slate-700 p-4">
+      <div className="border-t border-border p-4">
         <button
           type="button"
           onClick={() => {

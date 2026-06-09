@@ -15,7 +15,7 @@ interface SchemaFieldRendererProps {
 }
 
 const DEFAULT_FIELD_STYLES =
-  "w-full rounded-lg bg-background border border-border px-3 py-2 text-sm text-foreground focus:outline-none focus:border-indigo-500 transition-colors";
+  "w-full rounded-lg bg-background border border-border px-3 py-2 text-sm text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all";
 
 const titleForField = (schema: Record<string, any>, fieldKey: string) => {
   if (schema.title) return schema.title;
@@ -37,6 +37,7 @@ const getRepresentativeText = (value: unknown) => {
     return String(value);
   }
 };
+
 
 const buildDefaultValue = (
   schema: Record<string, any>,
@@ -123,9 +124,9 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
 
   const isAutofilled = Boolean(
     schema["x-autofilled"] === true ||
-      schema["x-autofillled"] === true ||
-      (parsed as any)["x-autofilled"] === true ||
-      (parsed as any)["x-autofillled"] === true,
+    schema["x-autofillled"] === true ||
+    (parsed as any)["x-autofilled"] === true ||
+    (parsed as any)["x-autofillled"] === true,
   );
 
   // Early return if autofilled - completely avoid in frontend
@@ -140,12 +141,12 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
   );
   const isReadOnly = Boolean(
     disabled ||
-      schema.readOnly === true ||
-      (parsed as any).readOnly === true
+    schema.readOnly === true ||
+    (parsed as any).readOnly === true
   );
   const isDeprecated = Boolean(
     schema.deprecated === true ||
-      (parsed as any).deprecated === true
+    (parsed as any).deprecated === true
   );
 
   const displayDescription = description || schema["x-comment"];
@@ -194,7 +195,7 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
       styles += " border-rose-500/50 focus:border-rose-500 bg-rose-500/5";
     }
     if (isReadOnly) {
-      styles += " bg-slate-900 cursor-not-allowed opacity-60";
+      styles += " bg-muted cursor-not-allowed opacity-60";
     }
     return styles.trim();
   };
@@ -259,7 +260,7 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
           type="text"
           value={String(parsed.constValue ?? "")}
           readOnly
-          className={getFieldStyles("bg-slate-900 cursor-not-allowed")}
+          className={getFieldStyles("bg-muted cursor-not-allowed")}
         />
       );
     }
@@ -368,7 +369,7 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
             value={value == null ? "#000000" : String(value)}
             disabled={isReadOnly}
             onChange={(e) => onChange(e.target.value)}
-            className="w-10 h-8 rounded border border-slate-700 bg-transparent p-0.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-10 h-8 rounded border border-border bg-transparent p-0.5 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
           />
           <input
             type="text"
@@ -431,7 +432,7 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
     }
 
     return (
-      <div className="space-y-4 rounded-2xl border border-slate-700 bg-slate-950/80 p-4">
+      <div className="space-y-4 rounded-2xl border border-border bg-muted/20 p-4">
         {Object.entries(properties).map(([propKey, propSchema]) => {
           let parsedSub: any = undefined;
           try {
@@ -496,7 +497,7 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
         {listValue.map((item, index) => (
           <div
             key={index}
-            className="rounded-2xl border border-slate-700 bg-slate-900/70 p-3"
+            className="rounded-2xl border border-border bg-card/60 p-3"
           >
             <div className="flex items-center justify-between gap-3 mb-3">
               <div className="text-sm font-semibold text-foreground">
@@ -506,7 +507,7 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
                 type="button"
                 onClick={() => removeItem(index)}
                 disabled={isReadOnly}
-                className="rounded-xl px-2 py-1 text-xs font-semibold text-rose-300 hover:text-rose-100 hover:bg-rose-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                className="rounded-xl px-2 py-1 text-xs font-semibold text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent"
               >
                 Remove
               </button>
@@ -535,7 +536,7 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
             ])
           }
           disabled={isReadOnly}
-          className="rounded-2xl border border-slate-700 bg-slate-900/80 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          className="rounded-2xl border border-border bg-muted px-3 py-2 text-sm font-semibold text-foreground hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
         >
           Add item
         </button>
@@ -554,7 +555,7 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
     return (
       <div className="space-y-3">
         <div className="grid gap-2 sm:grid-cols-[1fr_auto] items-center">
-          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Variant
           </label>
           <select
@@ -595,7 +596,7 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
         {options.map((option, index) => (
           <div
             key={index}
-            className="rounded-2xl border border-slate-700 bg-slate-900/70 p-3"
+            className="rounded-2xl border border-border bg-card/60 p-3"
           >
             <SchemaFieldRenderer
               fieldKey={`${fieldKey} (part ${index + 1})`}
@@ -631,11 +632,11 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
       <div className="flex items-center justify-between gap-3">
         <div className="flex flex-col w-full">
           <div className="flex items-center flex-wrap gap-1">
-            <label className={`text-sm font-semibold text-foreground ${isDeprecated ? "line-through text-slate-500 decoration-amber-500/30" : ""}`}>
+            <label className={`text-sm font-semibold text-foreground ${isDeprecated ? "line-through text-muted-foreground decoration-amber-500/30" : ""}`}>
               {title}
             </label>
             {required ? (
-              <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-400 border border-amber-500/20">
+              <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-500 border border-amber-500/20">
                 Required
               </span>
             ) : null}
@@ -645,17 +646,17 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
               </span>
             ) : null}
             {isDeprecated ? (
-              <span className="rounded bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-400 border border-rose-500/20 animate-pulse">
+              <span className="rounded bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-500 border border-rose-500/20 animate-pulse">
                 Deprecated
               </span>
             ) : null}
             {isReadOnly ? (
-              <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 border border-slate-700">
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground border border-border">
                 Read-only
               </span>
             ) : null}
             {hasRange && (
-              <span className="text-[10px] text-slate-500 font-mono">
+              <span className="text-[10px] text-muted-foreground font-mono">
                 ({minVal !== undefined ? `min: ${minVal}` : ""}
                 {minVal !== undefined && maxVal !== undefined ? ", " : ""}
                 {maxVal !== undefined ? `max: ${maxVal}` : ""})
@@ -665,7 +666,7 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
               <button
                 type="button"
                 onClick={() => onChange(defaultValue)}
-                className="text-[10px] text-indigo-400 hover:text-indigo-300 font-semibold hover:underline transition-all cursor-pointer border border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/10 px-1.5 py-0.2 rounded ml-1"
+                className="text-[10px] text-primary hover:underline transition-all cursor-pointer border border-primary/20 bg-primary/5 hover:bg-primary/10 px-1.5 py-0.2 rounded ml-1"
                 title={`Reset to default: ${serializeInputValue(defaultValue)}`}
               >
                 Reset
@@ -673,17 +674,17 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
             )}
           </div>
           {displayDescription ? (
-            <p className="text-xs text-slate-400 mt-1">{displayDescription}</p>
+            <p className="text-xs text-muted-foreground mt-1">{displayDescription}</p>
           ) : null}
           {examples && examples.length > 0 && !isReadOnly && (
-            <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-xs text-slate-400">
-              <span className="text-[10px] text-slate-500">Pills:</span>
+            <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-xs text-muted-foreground">
+              <span className="text-[10px] text-muted-foreground">Pills:</span>
               {examples.map((ex: any, idx: number) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => onChange(ex)}
-                  className="px-1.5 py-0.5 rounded bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700 text-[10px] cursor-pointer hover:border-slate-500 transition-all"
+                  className="px-1.5 py-0.5 rounded bg-muted hover:bg-accent text-foreground border border-border text-[10px] cursor-pointer hover:border-muted-foreground transition-all"
                 >
                   {typeof ex === "object" ? JSON.stringify(ex) : String(ex)}
                 </button>
@@ -694,12 +695,12 @@ export const SchemaFieldRenderer: React.FC<SchemaFieldRendererProps> = ({
       </div>
       {renderField()}
       {schema.maxLength && typeof value === "string" && (
-        <div className="text-[10px] text-right text-slate-500 mt-0.5 pr-1">
+        <div className="text-[10px] text-right text-muted-foreground mt-0.5 pr-1">
           {value.length} / {schema.maxLength} characters
         </div>
       )}
       {isPatternInvalid && (
-        <p className="text-[11px] text-rose-400 mt-1 font-mono pl-1">
+        <p className="text-[11px] text-destructive mt-1 font-mono pl-1">
           Must match regex pattern: {patternStr}
         </p>
       )}

@@ -16,6 +16,7 @@ import {
   GripVertical,
   X,
   Package,
+  Plus,
 } from "lucide-react";
 import { useWorkflowStore } from "../../store/useWorkflowStore";
 import {
@@ -122,6 +123,7 @@ const NodeCard: React.FC<{
   onDragStart: (e: React.DragEvent, key: string) => void;
 }> = ({ node, index, fontScale, onDragStart }) => {
   const [isDragging, setIsDragging] = React.useState(false);
+  const { addNode } = useWorkflowStore();
 
   // Derive pixel sizes from fontScale so all text in the card scales together.
   // Base sizes (at fontScale=1): name=14px, description=11px, badge=9px, service=10px
@@ -138,11 +140,15 @@ const NodeCard: React.FC<{
         onDragStart(e, node.fn_key);
       }}
       onDragEnd={() => setIsDragging(false)}
-      className={`animate-catalog-card group flex flex-col p-3 rounded-xl border bg-background/50 cursor-grab active:cursor-grabbing transition-all duration-200 ${
-        isDragging
+      onClick={() => {
+        if (window.innerWidth < 768) {
+          addNode(node.fn_key);
+        }
+      }}
+      className={`animate-catalog-card group flex flex-col p-3 rounded-xl border bg-background/50 cursor-grab active:cursor-grabbing transition-all duration-200 ${isDragging
           ? "drag-active border-primary/40 bg-primary/5 scale-[0.98] opacity-80"
           : "border-border hover:bg-accent/40 hover:border-primary/20 hover:shadow-lg hover:shadow-black/10"
-      }`}
+        }`}
       style={{ animationDelay: `${index * 50}ms` }}
     >
       <div className="flex items-center justify-between gap-2">
@@ -159,16 +165,27 @@ const NodeCard: React.FC<{
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           <span
             className="px-1.5 py-0.5 rounded-md bg-slate-800/80 text-slate-400 font-medium border border-slate-700/50"
             style={{ fontSize: `${serviceSize}px` }}
           >
             {node.service}
           </span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              addNode(node.fn_key);
+            }}
+            className="p-1 rounded-md bg-primary/10 text-primary border border-primary/20 hover:bg-primary hover:text-primary-foreground transition-all duration-200 cursor-pointer shrink-0"
+            title="Add to canvas"
+          >
+            <Plus size={11} />
+          </button>
           <GripVertical
             size={12}
-            className="text-muted-foreground/40 group-hover:text-muted-foreground transition-colors"
+            className="text-muted-foreground/40 group-hover:text-muted-foreground transition-colors cursor-grab"
           />
         </div>
       </div>
@@ -327,10 +344,10 @@ export const SidebarCatalog: React.FC<{
         promise = (async () => {
           const res = await fetchRegisteredNodes(page, PAGE_SIZE);
           const entry: NodesCacheEntry = {
-            data: res.data,
+            data: res.data.data,
             pagination: {
-              total_pages: res.pagination.total_pages,
-              total: res.pagination.total,
+              total_pages: res.data.pagination.total_pages,
+              total: res.data.pagination.total,
             },
           };
           allNodesCache.set(page, entry);
@@ -392,10 +409,10 @@ export const SidebarCatalog: React.FC<{
             PAGE_SIZE,
           );
           const entry: NodesCacheEntry = {
-            data: res.data,
+            data: res.data.data,
             pagination: {
-              total_pages: res.pagination.total_pages,
-              total: res.pagination.total,
+              total_pages: res.data.pagination.total_pages,
+              total: res.data.pagination.total,
             },
           };
           exploreNodesCache.set(cacheKey, entry);
@@ -512,21 +529,19 @@ export const SidebarCatalog: React.FC<{
       <div className="flex border-b border-border text-xs font-bold bg-muted/10 shrink-0 relative">
         <button
           onClick={() => setActiveTab("all")}
-          className={`flex-1 py-3 text-center uppercase tracking-wider transition-all border-b-2 tab-indicator ${
-            activeTab === "all"
+          className={`flex-1 py-3 text-center uppercase tracking-wider transition-all border-b-2 tab-indicator ${activeTab === "all"
               ? "text-primary border-primary bg-background/20"
               : "text-muted-foreground border-transparent hover:text-foreground"
-          }`}
+            }`}
         >
           All Nodes
         </button>
         <button
           onClick={() => setActiveTab("explore")}
-          className={`flex-1 py-3 text-center uppercase tracking-wider transition-all border-b-2 tab-indicator ${
-            activeTab === "explore"
+          className={`flex-1 py-3 text-center uppercase tracking-wider transition-all border-b-2 tab-indicator ${activeTab === "explore"
               ? "text-primary border-primary bg-background/20"
               : "text-muted-foreground border-transparent hover:text-foreground"
-          }`}
+            }`}
         >
           Explore
         </button>

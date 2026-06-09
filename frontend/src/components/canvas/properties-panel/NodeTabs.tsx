@@ -7,14 +7,14 @@ interface NodeTabsProps {
 
 export const NodeTabs: React.FC<NodeTabsProps> = ({ activeTab, onTabChange }) => {
   return (
-    <div className="flex border-b border-slate-700 px-4">
+    <div className="flex border-b border-border px-4">
       <button
         type="button"
         onClick={() => onTabChange("inputs")}
         className={`px-4 py-3 text-sm font-semibold transition-all border-b-2 ${
           activeTab === "inputs"
-            ? "border-indigo-500 text-indigo-400"
-            : "border-transparent text-slate-400 hover:text-slate-300"
+            ? "border-primary text-primary"
+            : "border-transparent text-muted-foreground hover:text-foreground"
         }`}
       >
         Inputs
@@ -24,8 +24,8 @@ export const NodeTabs: React.FC<NodeTabsProps> = ({ activeTab, onTabChange }) =>
         onClick={() => onTabChange("config")}
         className={`px-4 py-3 text-sm font-semibold transition-all border-b-2 ${
           activeTab === "config"
-            ? "border-indigo-500 text-indigo-400"
-            : "border-transparent text-slate-400 hover:text-slate-300"
+            ? "border-primary text-primary"
+            : "border-transparent text-muted-foreground hover:text-foreground"
         }`}
       >
         Config
