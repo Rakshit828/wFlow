@@ -1,90 +1,43 @@
+import json
 from loguru import logger
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
+from typing import Literal
+from sqlalchemy.ext.asyncio.session import AsyncSession
 
-from src.domains.app_integrations.models import AppIntegrations
-from src.domains.app_integrations.repository import AppIntegrationsRepository
+from src.domains.app_integrations.repository import UsersIntegrationsRepository
 from src.domains.users.repository import UserRepository
-from src.domains.users.models import Users
-from src.domains.app_integrations.exceptions import (
-    InvalidServiceRequestedError,
-    RequestedMultipleServicesScopesError,
-    UserNotFoundWhenUpdatingScopesError,
+
+from src.integrations.services.Google import (
+    GoogleOAuthInterface,
+    GoogleNewScopeResponse,
 )
-
-from src.integrations.googlecloud import GoogleOAuthInterface, GoogleNewScopeResponse
-from src.integrations.googlecloud.scopes import GOOGLE_SERVICES, GOOGLE_SCOPES
-from src.integrations.googlecloud.scopes import GOOGLE_EMAIL_ONLY_OPENID_SCOPE
-from src.integrations.github.oauth2 import GitHubOAuthInterface
-
+from src.integrations.services.Google.scopes import (
+    INITIAL_SCOPES_FOR_SERVICE,
+    GOOGLE_EMAIL_ONLY_OPENID_SCOPE,
+)
+from src.core.security import encrypt_payload
 from src.db.redis import Redis
-
-from src.core.response import AppError
+from src.db.postgres.schemas import (
+    UsersIntegrations,
+    CredentialsTypeEnum,
+)
 
 
 class GoogleIntegrationService:
     def __init__(self):
-        self.integration_repo = AppIntegrationsRepository()
+        self.integration_repo = UsersIntegrationsRepository()
         self.user_repo = UserRepository()
         self.google_oauth = GoogleOAuthInterface()
 
-    async def create_authz_url_for_new_scope_google(
-        self, user_id: str, email: str, scopes: list[str], redis: Redis
+    @property
+    def credentials_type(self):
+        return CredentialsTypeEnum.OAUTH2
+
+    async def create_authz_url_for_service_scopes_google(
+        self, user_id: str, service: Literal["gmail", "drive", "sheets"], redis: Redis
     ) -> str:
-        logger.info(
-            f"Scope is being requested for account: {email} of user id: {user_id}"
-        )
-
-        if scopes:
-            service_requested = set()
-            for scope in scopes:
-                service_requested.add(scope.split(".")[0])
-            service: set[str] = service_requested.intersection(GOOGLE_SERVICES)
-
-            if not service:
-                raise AppError(InvalidServiceRequestedError(data=None))
-
-            if len(service) > 1:
-                raise AppError(RequestedMultipleServicesScopesError(data=None))
-
-            # This means one service is surely requested.
-            service = list(service)[0].lower()
-            logger.info(f"Service requested is : {service}")
-
-        integrations: list[AppIntegrations] | None = (
-            await self.integration_repo.find_app_integration(
-                user_id=user_id, provider="google", service=service
-            )
-        )
-        # Google integration will have email in metadata.
-        required_integration = [
-            integration
-            for integration in integrations
-            if integration.metadata["email"] == email
-        ]
-
-        if len(required_integration) > 1:
-            raise AppError(
-                data=None
-            )  # This is impossible event considering data is not redundant.
-
-        if required_integration:
-            logger.info(f"Required integration is : {required_integration}")
-            existing_scopes: list[str] = required_integration[0].scopes
-            for scope in scopes:
-                if GOOGLE_SCOPES[scope] not in existing_scopes:
-                    existing_scopes.append(GOOGLE_SCOPES[scope])
-
-            scopes = existing_scopes
-
-        else:
-            logger.info(
-                f"Same user is requesting the same service with different email."
-            )
-            new_scopes: list[str] = GOOGLE_EMAIL_ONLY_OPENID_SCOPE.split(" ")
-            for scope in scopes:
-                new_scopes.append(GOOGLE_SCOPES[scope])
-
-            scopes = new_scopes
+        logger.info(f"Scope is being requested for {service} by user: {user_id}")
+        scopes = GOOGLE_EMAIL_ONLY_OPENID_SCOPE + INITIAL_SCOPES_FOR_SERVICE[service]
 
         url: str = await self.google_oauth.create_authorization_url(
             db=redis, scopes_requested=scopes, login_redirect=False
@@ -93,13 +46,8 @@ class GoogleIntegrationService:
         return url
 
     async def grant_new_scope_callback_google(
-        self, user_id: str, code: str, state: str, redis: Redis
-    ):
-        user: Users | None = await self.user_repo.get_user_by_id(user_id=user_id)
-
-        if not user:
-            raise AppError(UserNotFoundWhenUpdatingScopesError(data=None))
-
+        self, session: AsyncSession, user_id: str, code: str, state: str, redis: Redis
+    ) -> UsersIntegrations:
         tokens: dict[str, str] = (
             await self.google_oauth.exchange_for_code_new_authorization(
                 db=redis, code=code, state=state
@@ -108,46 +56,41 @@ class GoogleIntegrationService:
         new_scope_response: GoogleNewScopeResponse = (
             await self.google_oauth.get_openid_payload_new_authorization(tokens)
         )
-
         now = datetime.now(timezone.utc)
-        is_updated: bool = await self.integration_repo.update_google_app_integration(
-            user_id=user.id,
-            provider="google",
+
+        # Search app integrations by, user_id, service and email(metadata)
+        credentials_payload = {
+            "access_token": new_scope_response.access_token,
+            "refresh_token": new_scope_response.refresh_token,
+            "access_token_expiry": new_scope_response.expires_in,
+            "refresh_token_expiry": new_scope_response.refresh_token_expires_in,
+        }
+        encrypted_payload = encrypt_payload(json.dumps(credentials_payload))
+        updated = await self.integration_repo.update_integration(
+            session=session,
+            user_id=user_id,
             service=new_scope_response.service,
-            email=new_scope_response.decoded_id_token.email,
-            scopes=new_scope_response.scopes,
-            access_token=new_scope_response.access_token,
-            refresh_token=new_scope_response.refresh_token,
-            access_token_expiry=now + timedelta(seconds=new_scope_response.expires_in),
-            refresh_token_expiry=now
-            + timedelta(seconds=new_scope_response.refresh_token_expires_in),
+            update_values={"credentials": encrypted_payload},
+            metadata_filters={
+                "email": {
+                    "criteria": "eq",
+                    "value": new_scope_response.decoded_id_token.email,
+                }
+            },
         )
-        logger.info(f"Update status is: {is_updated}")
-        if not is_updated:
-            logger.info("Creating new integration. ")
-            await self.integration_repo.add_new_integration(
-                user_id=user.id,
-                provider="google",
-                service=new_scope_response.service,
-                scopes=new_scope_response.scopes,
-                access_token=new_scope_response.access_token,
-                refresh_token=new_scope_response.refresh_token,
-                access_token_expiry=now
-                + timedelta(seconds=new_scope_response.expires_in),
-                refresh_token_expiry=now
-                + timedelta(seconds=new_scope_response.refresh_token_expires_in),
-                metadata={
-                    "email": new_scope_response.decoded_id_token.email,
-                    "is_verified": new_scope_response.decoded_id_token.email_verified,
-                    "sub": new_scope_response.decoded_id_token.sub,
-                },
-            )
 
-        return {"message": "Service integrated successfully."}
+        if updated:
+            return updated
 
+        integration = UsersIntegrations(
+            user_id=user_id,
+            service=new_scope_response.service,
+            credentials_type=self.credentials_type,
+            credentials=encrypted_payload,
+            meta={"email": new_scope_response.decoded_id_token.email},
+        )
+        new_integration = self.integration_repo.create_new_integration(
+            session=session, integration=integration
+        )
 
-class GitHubIntegrationService:
-    def __init__(self):
-        self.integration_repo = AppIntegrationsRepository()
-        self.user_repo = UserRepository()
-        self.github_oauth = GitHubOAuthInterface()
+        return new_integration

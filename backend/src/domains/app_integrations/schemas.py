@@ -1,12 +1,36 @@
 from pydantic import BaseModel, ConfigDict, computed_field, Field, model_validator
-from src.core.security import decrypt_token
-from beanie import PydanticObjectId
-from typing import Any
 from datetime import datetime
+from pydantic import BaseModel
+from typing import Optional, Literal, TypedDict
+from datetime import datetime
+from enum import Enum
+
+from src.core.security import decrypt_payload
+
+
+class MetadataFiltersOptions(TypedDict):
+    criteria: Literal["eq", "lt", "lte", "gt", "gte", "neq"]
+    value: str | int | float
+
+
+class CredentialsTypeEnum(str, Enum):
+    OAUTH2 = "OAUTH2"
+    API_KEY = "API_KEY"
+
+
+class OAuth2CredentialsPayload(BaseModel):
+    access_token: str
+    access_token_expiry: datetime
+    refresh_token: Optional[str] = None
+    refresh_token_expiry: Optional[datetime] = None
+
+
+class ApiKeyPayload(BaseModel):
+    api_key: str
 
 
 class CredentialsAndDataForApiClient(BaseModel):
-    id: PydanticObjectId = Field(alias="_id")
+    id: str = Field(alias="_id")
     service: str
     user_id: str
     access_token_enc: str
@@ -16,17 +40,6 @@ class CredentialsAndDataForApiClient(BaseModel):
     scopes: list[str]
     metadata: dict | None = None
 
-    @model_validator(mode="before")
-    @classmethod
-    def convert_user_id_to_str(cls, data: dict):
-        if not isinstance(data, dict):
-            return data
-
-        if "user_id" in data and data["user_id"] is not None:
-            data["user_id"] = str(data["user_id"])
-
-        return data
-
     @computed_field
     @property
     def integration_id(self) -> str:
@@ -35,11 +48,11 @@ class CredentialsAndDataForApiClient(BaseModel):
     @computed_field
     @property
     def access_token(self) -> str:
-        return decrypt_token(self.access_token_enc)
+        return decrypt_payload(self.access_token_enc)
 
     @computed_field
     @property
     def refresh_token(self) -> str:
-        return decrypt_token(self.refresh_token_enc)
+        return decrypt_payload(self.refresh_token_enc)
 
     model_config = ConfigDict(extra="ignore")

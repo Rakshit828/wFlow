@@ -3,11 +3,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import func, UniqueConstraint, ForeignKey, Index
 import sqlalchemy.dialects.postgresql as pg
 from uuid import uuid4, UUID
-from typing import Dict, List
+from typing import Dict, List, Any, Tuple
 from enum import Enum
 
 from .main import Base
-from src.workflows.types import Node, Edge
+from src.workflows.types import Node, Edge, NodesTypeEnum
 
 
 class LoginProvidersEnum(str, Enum):
@@ -33,6 +33,8 @@ class Users(Base):
     )
     email: Mapped[str] = mapped_column(pg.TEXT, unique=True, index=True)
     email_verified: Mapped[bool] = mapped_column(pg.BOOLEAN, default=False)
+    username: Mapped[str] = mapped_column(pg.TEXT, unique=True)
+
     password_hash: Mapped[str | None]
     full_name: Mapped[str | None]
     avatar_url: Mapped[str | None]
@@ -86,7 +88,7 @@ class Session(Base):
     token_hash: Mapped[str] = mapped_column(pg.TEXT, unique=True, index=True)
     user_agent: Mapped[str | None]
     ip_address: Mapped[str | None]
-    expires_at: Mapped[datetime]
+    expires_at: Mapped[datetime] = mapped_column(pg.TIMESTAMP(timezone=True))
 
     created_at: Mapped[datetime] = mapped_column(
         pg.TIMESTAMP(timezone=True), server_default=func.now()
@@ -108,23 +110,6 @@ class UsersIntegrations(Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     service: Mapped[str] = mapped_column(pg.TEXT, index=True)
-
-    created_at: Mapped[datetime] = mapped_column(
-        pg.TIMESTAMP(timezone=True), server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        pg.TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
-    )
-
-
-class IntegrationsCredentials(Base):
-    __tablename__ = "integrations_credentials"
-    id: Mapped[UUID] = mapped_column(
-        pg.UUID(as_uuid=True), primary_key=True, default=uuid4
-    )
-    integration_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users_integrations.id", ondelete="CASCADE"), index=True
-    )
     credentials_type: Mapped[CredentialsTypeEnum] = mapped_column(
         pg.ENUM(CredentialsTypeEnum, name="credentials_type_enum")
     )
@@ -137,6 +122,10 @@ class IntegrationsCredentials(Base):
     updated_at: Mapped[datetime] = mapped_column(
         pg.TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+    # The service: str will be in the form of google.gmail, google.drive or simply discord
+    def get_provider_and_service(self) -> Tuple[str, str]:
+        return self.service.split(".")
 
 
 class Workflows(Base):
@@ -175,3 +164,19 @@ class WorkflowsStars(Base):
     # 2. It optimizes the searching with only user_id because of leftmost rule of composite
     #    indexes. However, we cannot efficiently search with only workflow_id.
     #    If we have a usecase for searching with workflow_id, we can apply single index on that column.
+
+
+class NodesRegistry(Base):
+    __tablename__ = "nodes_registry"
+    fn_key: Mapped[str] = mapped_column(pg.TEXT, nullable=False, primary_key=True)
+    name: Mapped[str] = mapped_column(pg.TEXT, nullable=False)
+    description: Mapped[str] = mapped_column(pg.TEXT, nullable=False)
+    type: Mapped[NodesTypeEnum] = mapped_column(
+        pg.ENUM(NodesTypeEnum, name="nodes_type_enum"), index=True
+    )
+    service: Mapped[str] = mapped_column(pg.TEXT, nullable=False, index=True)
+    valid_permissions: Mapped[list[str] | None] = mapped_column(
+        pg.ARRAY(pg.TEXT), nullable=True
+    )
+    input_model: Mapped[Dict[str, Any]] = mapped_column(pg.JSONB, nullable=False)
+    output_model: Mapped[Dict[str, Any]] = mapped_column(pg.JSONB, nullable=False)

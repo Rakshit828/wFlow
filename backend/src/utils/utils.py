@@ -5,6 +5,7 @@ from loguru import logger
 import time
 import functools
 
+
 def timer(func):
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
@@ -13,8 +14,8 @@ def timer(func):
         end = time.perf_counter()
         print(f"{func.__name__} executed in {end - start:.6f} seconds")
         return result
-    return wrapper
 
+    return wrapper
 
 
 def _parse_expiry(raw: str) -> timedelta:
@@ -33,36 +34,17 @@ def _parse_expiry(raw: str) -> timedelta:
     return timedelta(**{mapping[unit]: value})
 
 
-
-ACCESS_TOKEN_EXPIRY = _parse_expiry(CONFIG.ACCESS_TOKEN_EXPIRY)
-REFRESH_TOKEN_EXPIRY = _parse_expiry(CONFIG.REFRESH_TOKEN_EXPIRY)
-
-
-def set_cookies(response: Response, tokens: dict[str, str]):
+def set_cookie(response: Response, key: str, value: str, expiry: timedelta):
     """Set JWT tokens as HTTP-only cookies in the response."""
-    
-    # Set access token cookie
-    if "access_token" in tokens:
-        response.set_cookie(
-            key="access_token",
-            value=tokens["access_token"],
-            max_age=int(ACCESS_TOKEN_EXPIRY.total_seconds()),
-            httponly=True,
-            secure=CONFIG.ENVIRONMENT == "production",
-            samesite="lax",
-            path="/",
-        )
-    
-    # Set refresh token cookie if present
-    if "refresh_token" in tokens:
-        response.set_cookie(
-            key="refresh_token",
-            value=tokens["refresh_token"],
-            max_age=int(REFRESH_TOKEN_EXPIRY.total_seconds()),
-            httponly=True,
-            secure=CONFIG.ENVIRONMENT == "production",
-            samesite="lax",
-            path="/",
-        )
-
-    logger.info(f"Cookies set are : {response.headers}")
+    response.set_cookie(
+        key=key,
+        value=value,
+        max_age=int(expiry.total_seconds()),
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        path="/",
+    )
+    # httponly=True,
+    # secure=True,
+    # samesite="none",

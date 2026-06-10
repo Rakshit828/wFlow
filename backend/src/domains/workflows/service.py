@@ -10,25 +10,20 @@ from src.domains.workflows.schema import (
     SingleWorkflowResponseModel,
     NodeFullResponse,
 )
-from src.domains.workflows.models import (
-    Workflows,
-    WorkflowsStars,
-    NodesRegistry,
-    WorkflowRuns,
-)
+from src.db.postgres.schemas import Workflows, WorkflowsStars, NodesRegistry
 from src.workflows.types import NodesTypeEnum
 from src.workflows.nodes import NODES_MAP
 from src.core.response import AppError
-from src.domains.workflows.exceptions import WorkflowNotFoundError
+from src.domains.workflows.exceptions import (
+    WorkflowNotFoundError,
+    WorkflowAlreadyStarredError,
+    CannotAccessPrivateWorkflowError,
+)
 
-from beanie.operators import Inc
 from loguru import logger
-from beanie.odm.queries.update import UpdateResponse
-from pymongo.results import UpdateResult
-from beanie import PydanticObjectId
 from fastapi import HTTPException, status
 from typing import Optional, Tuple
-from pymongo.errors import PyMongoError, DuplicateKeyError
+from sqlalchemy.ext.asyncio.session import AsyncSession
 
 
 class WorkflowService:
@@ -37,88 +32,71 @@ class WorkflowService:
         self._workflow_repo = WorkflowRepository()
         self._node_registry_repo = NodeRegistryRepository()
 
-    async def update_node_registry(self):
-        await self._node_registry_repo.delete_all()
-        await self._node_registry_repo.create_nodes(NODES_MAP.values())
-
-    async def create_new_workflow_run(
-        self, workflow_id: str, user_id: str
-    ) -> Tuple[Workflows, WorkflowRuns]:
-
-        workflow = await self._workflow_repo.get_workflow_by_id(workflow_id)
-        if workflow is None:
-            raise AppError(WorkflowNotFoundError(data=None))
-
-        workflow_run: WorkflowRuns | None = (
-            await self._workflow_repo.create_worflow_run(
-                workflow_id=workflow_id, user_id=user_id
-            )
+    async def update_node_registry(self, session: AsyncSession):
+        await self._node_registry_repo.delete_all(session=session)
+        await self._node_registry_repo.create_nodes(
+            session=session, nodes=NODES_MAP.values()
         )
 
-        if workflow_run is None:
-            raise PyMongoError("Result None during normal insert_one operation.")
+    # async def create_new_workflow_run(
+    #     self, session: AsyncSession, workflow_id: str, user_id: str
+    # ) -> Tuple[Workflows, WorkflowRuns]:
 
-        return workflow, workflow_run
+    #     workflow = await self._workflow_repo.get_workflow_by_id(workflow_id)
+    #     if workflow is None:
+    #         raise AppError(WorkflowNotFoundError(data=None))
 
-    async def star_workflow(self, workflow_id: str, user_id: str) -> Workflows | None:
-        wf_id_obj = PydanticObjectId(workflow_id)
-        user_id_obj = PydanticObjectId(user_id)
+    #     workflow_run: WorkflowRuns | None = (
+    #         await self._workflow_repo.create_worflow_run(
+    #             workflow_id=workflow_id, user_id=user_id
+    #         )
+    #     )
 
-        result: UpdateResult = await WorkflowsStars.find_one(
-            WorkflowsStars.workflow_id == wf_id_obj,
-            WorkflowsStars.user_id == user_id_obj,
-        ).update(
-            {
-                "$setOnInsert": {
-                    "workflow_id": wf_id_obj,
-                    "user_id": user_id_obj,
-                }
-            },
-            upsert=True,
-        )
+    #     if workflow_run is None:
+    #         raise PyMongoError("Result None during normal insert_one operation.")
 
-        if result.upserted_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Workflow already starred by this user",
-            )
+    #     return workflow, workflow_run
 
-        updated_workflow = await Workflows.find_one(Workflows.id == wf_id_obj).update(
-            Inc({Workflows.stars: 1}), response_type=UpdateResponse.NEW_DOCUMENT
-        )
+    async def create_new_workflow(
+        self, session: AsyncSession, workflow: CreateNewWorkflowModel, user_id: str
+    ) -> Workflows:
 
-        if not updated_workflow:
-            await WorkflowsStars.find_one(
-                WorkflowsStars.workflow_id == wf_id_obj,
-                WorkflowsStars.user_id == user_id_obj,
-            ).delete()
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found"
-            )
-
-        return updated_workflow
-
-    async def create_new_workflow(self, workflow: CreateNewWorkflowModel, user_id: str):
-
-        doc: Workflows = Workflows(
+        new_workflow = await self._workflow_repo.create_workflow(
+            session=session,
+            user_id=user_id,
             name=workflow.name,
             description=workflow.description,
             nodes=workflow.nodes,
             edges=workflow.edges,
             visibility=workflow.visibility,
-            created_by=user_id,
         )
-        new_workflow = await Workflows.insert_one(doc)
         return new_workflow
 
+    async def star_workflow(
+        self, session: AsyncSession, workflow_id: str, user_id: str
+    ) -> Workflows:
+        workflow = await self._workflow_repo.get_workflow_by_id(
+            session=session, workflow_id=workflow_id
+        )
+        if workflow is None:
+            raise AppError(WorkflowNotFoundError(data=None))
+
+        workflow = await self._workflow_repo.star_workflow(
+            session=session, workflow=workflow, user_id=user_id
+        )
+        if workflow is None:
+            raise AppError(WorkflowAlreadyStarredError(data=None))
+        
+        return workflow
+
     async def _attach_node_schemas(
-        self, workflow: SingleWorkflowResponseModel
+        self, session: AsyncSession, workflow: SingleWorkflowResponseModel
     ) -> SingleWorkflowResponseModel:
         """Helper to attach input_model and output_model from registry to workflow nodes."""
         for node in workflow.nodes:
             if not node.input_model or not node.output_model:
-                registry_item = await NodesRegistry.find_one(
-                    NodesRegistry.fn_key == node.key
+                registry_item = await self._node_registry_repo.get_node(
+                    session=session, fn_key=node.key
                 )
                 if registry_item:
                     if not node.input_model:
@@ -128,18 +106,15 @@ class WorkflowService:
         return workflow
 
     async def get_workflow_data(
-        self, workflow_id: str, user_id: str
+        self, session: AsyncSession, workflow_id: str, user_id: str
     ) -> SingleWorkflowResponseModel:
         workflow: Workflows = await self._workflow_repo.get_workflow_by_id(workflow_id)
         if not workflow:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Workflow not found"
-            )
+            raise AppError(WorkflowNotFoundError(data=None))
+
         if workflow.visibility == "private" and str(workflow.created_by) != user_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You do not have permission to access this workflow",
-            )
+            raise AppError(CannotAccessPrivateWorkflowError(data=None))
+
         workflow_data = SingleWorkflowResponseModel(
             workflow_id=str(workflow.id),
             name=workflow.name,
@@ -176,7 +151,6 @@ class WorkflowService:
 
     def _format_node_list_item(self, node: NodesRegistry) -> NodesRegistryListItemModel:
         return NodesRegistryListItemModel(
-            node_id=str(node.id),
             name=node.name,
             description=node.description,
             type=node.type,
@@ -202,7 +176,11 @@ class WorkflowService:
         )
 
     async def get_all_workflows(
-        self, page: int = 1, page_size: int = 10, user_id: str | None = None
+        self,
+        session: AsyncSession,
+        page: int = 1,
+        page_size: int = 10,
+        user_id: str | None = None,
     ) -> PaginatedWorkflowsResponse:
         """
         Fetch all workflows with pagination.
@@ -220,6 +198,7 @@ class WorkflowService:
             page_size = 10
 
         workflows, total = await self._workflow_repo.get_workflows(
+            session=session,
             projection_model=WorkflowListItemModel,
             page=page,
             page_size=page_size,
@@ -231,7 +210,12 @@ class WorkflowService:
         return PaginatedWorkflowsResponse(data=workflows, pagination=pagination)
 
     async def search_workflows(
-        self, query: str, page: int = 1, page_size: int = 10, user_id: str | None = None
+        self,
+        session: AsyncSession,
+        query: str,
+        page: int = 1,
+        page_size: int = 10,
+        user_id: str | None = None,
     ) -> PaginatedWorkflowsResponse:
         """
         Search workflows by name with pagination.
@@ -255,6 +239,7 @@ class WorkflowService:
             )
 
         workflows, total = await self._workflow_repo.get_workflows(
+            session=session,
             projection_model=WorkflowListItemModel,
             query=query.strip(),
             page=page,
@@ -264,18 +249,14 @@ class WorkflowService:
         pagination = self._create_pagination_metadata(total, page, page_size)
         return PaginatedWorkflowsResponse(data=workflows, pagination=pagination)
 
-    async def get_all_nodes(self, page: int, page_size: int):
+    async def get_all_nodes(self, session: AsyncSession, page: int, page_size: int):
         if page < 1:
             page = 1
         if page_size < 1 or page_size > 100:
             page_size = 10
 
-        total = await NodesRegistry.find().count()
-        nodes = (
-            await NodesRegistry.find_all()
-            .skip((page - 1) * page_size)
-            .limit(page_size)
-            .to_list()
+        nodes, total = await self._node_registry_repo.get_all_nodes(
+            session=session, page=page, page_size=page_size
         )
 
         formatted_nodes = [self._format_node_list_item(node) for node in nodes]
@@ -285,6 +266,7 @@ class WorkflowService:
 
     async def get_nodes_by_type_and_service(
         self,
+        session: AsyncSession,
         node_type: NodesTypeEnum,
         page: int,
         page_size: int,
@@ -295,7 +277,7 @@ class WorkflowService:
         if page_size < 1 or page_size > 100:
             page_size = 10
 
-        nodes, total = await self._workflow_repo.search_nodes_by_type_and_service(
+        nodes, total = await self._workflow_repo.get(
             node_type=node_type, service=service, page=page, page_size=page_size
         )
 

@@ -1,66 +1,67 @@
 from fastapi import Request, Depends
-from fastapi.security import APIKeyCookie
-import jwt
-
-from src.core.security import decode_jwt_tokens
+from typing import AsyncGenerator, Self
+from sqlalchemy.ext.asyncio.session import AsyncSession
+from src.db.postgres.schemas import Users
 from src.core.response import AppError
-from src.domains.users.repository import UserRepository, Users
-from .exceptions import JwtTokenExpiredError, InvalidJwtTokenError
+from src.domains._shared.exceptions import (
+    EmptySessionTokenError,
+    InvalidSessionTokenError,
+    SessionTokenExpiredError,
+)
+from src.core.security import hash_session_token
+from src.db.postgres.main import AsyncSessionLocal
+from src.domains.users.repository import SessionRepository
+from loguru import logger
+from src.core.response import AppError
+from pydantic import BaseModel, ConfigDict
+from src.domains._shared.constants import SESSION_COOKIE_NAME
 
 
-class RefreshTokenBearer(APIKeyCookie):
-    def __init__(self):
-        super().__init__(name="refresh_token", auto_error=False)
-
-    async def __call__(self, request: Request):
-        refresh_token = await super().__call__(request=request)
-        if refresh_token is None:
-            raise AppError(InvalidJwtTokenError(data=None))
-        try:
-            decoded_token = decode_jwt_tokens(jwt_token=refresh_token)
-        except jwt.ExpiredSignatureError:
-            raise AppError(JwtTokenExpiredError(data=None))
-        except jwt.InvalidJwtTokenError:
-            raise AppError(InvalidJwtTokenError(data=None))
-
-        return decoded_token
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    try:
+        session = AsyncSessionLocal()
+        yield session
+        logger.info("Closing the session.")
+    except Exception as e:
+        await session.rollback()
+        raise e
+    finally:
+        await session.close()
 
 
-class AccessTokenBearer(APIKeyCookie):
-    def __init__(self):
-        super().__init__(name="access_token", auto_error=False)
+class UserAndSessionData(BaseModel):
+    user: Users
+    session: AsyncSession
 
-    async def __call__(self, request: Request):
-        access_token = await super().__call__(request=request)
-        if access_token is None:
-            raise AppError(InvalidJwtTokenError(data=None))
-        try:
-            decoded_token = decode_jwt_tokens(jwt_token=access_token)
-        except jwt.ExpiredSignatureError:
-            raise AppError(JwtTokenExpiredError(data=None))
-        except jwt.InvalidJwtTokenError:
-            raise AppError(InvalidJwtTokenError(data=None))
-        return decoded_token
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    def get_user(self) -> Users:
+        if not self.user:
+            raise AppError()
+        return self.user
+
+    def get_session(self) -> AsyncSession:
+        if not self.session:
+            raise AppError()
+        return self.session
 
 
-async def get_current_user(
-    token_data=Depends(AccessTokenBearer()),
+async def get_user_and_session(
+    request: Request,
+    session_repo: SessionRepository = Depends(SessionRepository),
+    session: AsyncSession = Depends(get_session),
 ):
-    user_uid = token_data["sub"]
-    result: Users | None = await UserRepository().get_user_by_id(user_id=user_uid)
-    if result is not None:
-        return result
+    logger.info(f"Running DI")
 
-    raise AppError()
+    token = request.cookies.get(SESSION_COOKIE_NAME)
 
+    if not token:
+        raise AppError(EmptySessionTokenError(data=None))
 
-# class RoleChecker:
-#     def __init__(self, allowed_roles: list[str]):
-#         self.allowed_roles = allowed_roles
+    token_hash = hash_session_token(token)
+    user = await session_repo.get_user_by_token(session, token_hash)
 
-#     def __call__(self, user: Users = Depends(get_current_user)):
-#         if user.role not in self.allowed_roles:
-#             raise AppError(data=None, detail=AuthErrors.PERMISSION_DENIED_ERROR.value)
+    if not user:
+        raise AppError(InvalidSessionTokenError(data=None))
 
-
-# admin_checker = RoleChecker(["admin"])
+    return UserAndSessionData(user=user, session=session)

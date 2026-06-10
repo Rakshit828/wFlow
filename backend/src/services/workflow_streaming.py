@@ -7,10 +7,12 @@ from temporalio.contrib.workflow_streams import (
     TopicHandle,
 )
 from loguru import logger
-from src.domains.workflows.models import WorkflowRunStatus
+
 
 NodeResultType: TypeAlias = Dict[str, Any]
 
+class WorkflowRunStatus:
+    pass 
 
 class WorkflowStatusResultType(TypedDict):
     status: WorkflowRunStatus

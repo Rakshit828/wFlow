@@ -12,14 +12,17 @@ def app_error_handler(request: Request, exc: AppError):
         f"Status: {exc.error_response.status_code}, "
         f"Path: {request.url.path}"
     )
+    err_response = exc.error_response.model_dump()
+    err_response.pop("error")
     return JSONResponse(
         status_code=exc.error_response.status_code,  # This status code is of the JSONResponse itself
-        content=exc.error_response.model_dump(),  # Our response resides here
+        content=err_response,  # Our response resides here
     )
 
 
 def validation_exception_handler(request: Request, exc: RequestValidationError):
     # Convert Pydantic errors into your structure
+    raise exc
     error_msg = ""
     missing_fields = ""
     for error in exc.errors():

@@ -1,27 +1,50 @@
-from src.domains.users.repository import UserRepository, OAuthAccountRepository
-from src.domains.users.models import Users, OAuthAccounts
-from src.domains.users.schemas import LoginResponse
-from src.integrations.googlecloud import GoogleOAuthInterface, GoogleAuthResponse
-from src.core.security import create_jwt_tokens
-from src.core.security import encrypt_token
-from src.utils.utils import set_cookies
+from src.domains.users.repository import (
+    UserRepository,
+    OAuthAccountRepository,
+    SessionRepository,
+)
+from src.integrations.services.Google import GoogleOAuthInterface, GoogleAuthResponse
+from src.utils.utils import set_cookie
 from src.db.redis import Redis
 from src.core.response import AppError
+from src.db.postgres.schemas import Users, OAuthAccounts, LoginProvidersEnum, Session
+from src.config import CONFIG
+from src.core.security import hash_session_token
+from src.utils.utils import _parse_expiry
+from src.integrations.services.Google.scopes import GOOGLE_OPENID_SCOPE
 
-from datetime import timedelta, datetime, timezone
+import secrets
 from loguru import logger
 from fastapi import Response
+from datetime import timedelta, datetime
+from sqlalchemy.ext.asyncio.session import AsyncSession
+from src.domains._shared.constants import SESSION_COOKIE_NAME
 
 
 class UserService:
     def __init__(self):
         self.user_repo = UserRepository()
+        self.session_repo = SessionRepository()
         self.oauth_repo = OAuthAccountRepository()
         self.google_oauth = GoogleOAuthInterface()
 
+    async def google_login_url(self, redis: Redis, login_redirect: bool = True) -> str:
+        url = await self.google_oauth.create_authorization_url(
+            db=redis,
+            login_redirect=login_redirect,
+            scopes_requested=GOOGLE_OPENID_SCOPE,
+        )
+        return url
+
     async def google_login_callback(
-        self, code: str, state: str, response: Response, redis: Redis
-    ) -> LoginResponse:
+        self,
+        session: AsyncSession,
+        *,
+        code: str,
+        state: str,
+        response: Response,
+        redis: Redis,
+    ):
         tokens: dict[str, str] = await self.google_oauth.exchange_for_code(
             db=redis, code=code, state=state
         )
@@ -29,8 +52,8 @@ class UserService:
             await self.google_oauth.get_openid_auth_payload(tokens)
         )
 
-        user = await self.user_repo.get_user_by_email(
-            auth_response.decoded_id_token.email
+        user: Users | None = await self.user_repo.get_user_by_email(
+            session=session, email=auth_response.decoded_id_token.email
         )
 
         if not user:
@@ -39,51 +62,38 @@ class UserService:
                 full_name=auth_response.decoded_id_token.name,
                 username=auth_response.decoded_id_token.email.split("@")[0],
                 avatar_url=str(auth_response.decoded_id_token.picture),
-                is_verified=auth_response.decoded_id_token.email_verified,
+                email_verified=auth_response.decoded_id_token.email_verified,
             )
-            new_user: Users | None = await self.user_repo.create_user(user)
+            new_user: Users | None = await self.user_repo.create_user(session, user)
 
             if new_user is None:
                 raise AppError()
-
-            access_token_enc = encrypt_token(auth_response.access_token)
-            refresh_token_enc = encrypt_token(auth_response.refresh_token)
-            now = datetime.now(timezone.utc)
-            refresh_token_expiry = None
-            access_token_expiry = now + timedelta(seconds=auth_response.expires_in)
+            user = new_user
 
             oauth_acc = OAuthAccounts(
-                user=user.id,
-                provider="google",
+                user_id=new_user.id,
+                provider=LoginProvidersEnum.GOOGLE,
                 provider_email=auth_response.decoded_id_token.email,
                 provider_sub_id=auth_response.decoded_id_token.sub,
-                is_email_verified=auth_response.decoded_id_token.email_verified,
-                scopes=auth_response.scopes if auth_response.scopes else [],
-                access_token_enc=access_token_enc,
-                refresh_token_enc=refresh_token_enc,
-                access_token_expiry=access_token_expiry,
-                refresh_token_expiry=refresh_token_expiry,
             )
-            oauth_acc = await self.oauth_repo.create_oauth_account(oauth_account=oauth_acc)
+            oauth_acc = await self.oauth_repo.create_oauthaccount(
+                session=session, oauth_acc=oauth_acc
+            )
 
             if oauth_acc is None:
                 raise AppError()
 
-
-        tokens = await create_jwt_tokens(user.id, is_login=True)
-        logger.info(f"Tokens are : {tokens}")
-        set_cookies(
-            response=response,
-            tokens={
-                "access_token": tokens["access_token"],
-                "refresh_token": tokens["refresh_token"],
-            },
+        token = secrets.token_urlsafe(32)
+        token_expiry: timedelta = _parse_expiry(CONFIG.SESSION_TOKEN_EXPIRY)
+        set_cookie(
+            response=response, key=SESSION_COOKIE_NAME, value=token, expiry=token_expiry
         )
 
-        return LoginResponse(
+        new_session = Session(
             user_id=user.id,
-            email=user.email,
-            created_at=user.created_at,
+            token_hash=hash_session_token(token),
+            expires_at=datetime.now() + token_expiry,
         )
+        await self.session_repo.create_session(session, new_session)
 
         # return RedirectResponse("http://localhost:8000/docs")

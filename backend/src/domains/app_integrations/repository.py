@@ -1,174 +1,89 @@
-from beanie.odm.operators.update.general import Set
-from beanie.odm.operators.update.array import AddToSet
-from beanie import PydanticObjectId
-from bson import ObjectId
-from datetime import datetime
-from loguru import logger
-from typing import TypeVar, Optional, Union, Type
+from typing import TypeVar, Any, Dict, TypedDict, Literal
 from pydantic import BaseModel
+from sqlalchemy import select, update, delete
 
-from src.db.models import AppIntegrations
-from src.core.security import encrypt_token
-from src.domains.app_integrations.schemas import CredentialsAndDataForApiClient
+from src.db.postgres.schemas import UsersIntegrations
+from src.domains.app_integrations.schemas import MetadataFiltersOptions
+from sqlalchemy.ext.asyncio.session import AsyncSession
 
 ProjectionModelT = TypeVar("ProjectionModelT", bound=BaseModel)
 
 
-class AppIntegrationsRepository:
+class MetadataFiltersOption(TypedDict):
+    criteria: Literal["eq", "lt", "lte", "gt", "gte", "neq"]
+    value: str | int | float
 
-    async def find_app_integration_by_id(
-        self,
-        integration_id: str,
-        projection_model: Optional[Type[ProjectionModelT]] = None,
-    ) -> Optional[Union[AppIntegrations, CredentialsAndDataForApiClient]]:
-        integration = await AppIntegrations.find_one(
-            AppIntegrations.id == PydanticObjectId(integration_id),
-            projection_model=projection_model if projection_model else AppIntegrations,
-        )
-        logger.info(f"Integration founded is : {integration}")
-        return integration
 
-    async def update_credentials(
-        self,
-        integration_id: str,
-        access_token: str,
-        access_token_expiry: datetime,
-        refresh_token_expiry: datetime,
-    ):
-        update_response = await AppIntegrations.find_one(
-            AppIntegrations.id == PydanticObjectId(integration_id)
-        ).update(
-            Set(
-                {
-                    AppIntegrations.access_token_enc: encrypt_token(access_token),
-                    AppIntegrations.access_token_expiry: access_token_expiry,
-                    AppIntegrations.refresh_token_expiry: refresh_token_expiry,
-                }
-            ),
-        )
-        return update_response
+class UsersIntegrationsRepository:
 
-    async def find_app_integration(
-        self,
-        user_id: str,
-        provider: str,
-        service: str,
-        projection_model: Optional[Type[ProjectionModelT]] = None,
-    ) -> Optional[Union[list[AppIntegrations], list[ProjectionModelT]]]:
-        kwargs: dict = {}
-        
-        if projection_model:
-            kwargs["projection_model"] = projection_model
+    def _parse_metadata_options(self, key: str, options: MetadataFiltersOption):
+        if options["criteria"] == "eq":
+            return UsersIntegrations.meta[key] == options["value"]
+        elif options["criteria"] == "neq":
+            return UsersIntegrations.meta[key] != options["value"]
+        elif options["criteria"] == "gt":
+            return UsersIntegrations.meta[key] > options["value"]
+        elif options["criteria"] == "lt":
+            return UsersIntegrations.meta[key] < options["value"]
+        elif options["criteria"] == "lte":
+            return UsersIntegrations.meta[key] <= options["value"]
+        elif options["criteria"] == "gte":
+            return UsersIntegrations.meta[key] >= options["value"]
         else:
-            kwargs["projection_model"] = AppIntegrations
+            raise
 
-        integration = await AppIntegrations.find(
-            AppIntegrations.user_id == PydanticObjectId(user_id),
-            AppIntegrations.provider == provider,
-            AppIntegrations.service == service,
-            **kwargs,
-        ).to_list()
-        logger.info(
-            f"Integrations found are :  {integration}. Count: {len(integration)}"
-        )
-        return integration
-
-    async def update_google_app_integration(
-        self,
-        user_id: str | PydanticObjectId | ObjectId,
-        provider: str,
-        service: str,
-        email: str,
-        scopes: list[str],
-        access_token: str,
-        refresh_token: str,
-        access_token_expiry: datetime,
-        refresh_token_expiry: datetime,
+    async def remove_integrations(
+        self, session: AsyncSession, user_id: str, service: str
     ):
-        if isinstance(user_id, str):
-            user_id = PydanticObjectId(user_id)
-
-        update_result = await AppIntegrations.find(
-            AppIntegrations.user_id == PydanticObjectId(user_id),
-            AppIntegrations.provider == provider,
-            AppIntegrations.service == service,
-            AppIntegrations.metadata.email == email,
-        ).update(
-            Set(
-                {
-                    AppIntegrations.access_token_enc: encrypt_token(access_token),
-                    AppIntegrations.refresh_token_enc: encrypt_token(refresh_token),
-                    AppIntegrations.access_token_expiry: access_token_expiry,
-                    AppIntegrations.refresh_token_expiry: refresh_token_expiry,
-                }
-            ),
-            AddToSet({AppIntegrations.scopes: {"$each": scopes}}),
+        stmt = delete(UsersIntegrations).where(
+            UsersIntegrations.user_id == user_id, UsersIntegrations.service == service
         )
-        if update_result.matched_count == 0:
-            return False
+        result = await session.execute(stmt)
         return True
 
-    async def update_app_integration(
+    async def update_integration(
         self,
-        integration: AppIntegrations,
-        access_token: str,
-        refresh_token: str,
-        access_token_expiry: datetime,
-        refresh_token_expiry: datetime,
-        scopes: list[str],
-    ) -> bool:
-
-        if integration is None:
-            return False
-        update_response = await integration.update(
-            Set(
-                {
-                    AppIntegrations.access_token_enc: encrypt_token(access_token),
-                    AppIntegrations.refresh_token_enc: encrypt_token(refresh_token),
-                    AppIntegrations.access_token_expiry: access_token_expiry,
-                    AppIntegrations.refresh_token_expiry: refresh_token_expiry,
-                }
-            ),
-            AddToSet({AppIntegrations.scopes: {"$each": scopes}}),
-        )
-        logger.info(f"Updated response is : {update_response}")
-
-        return True
-
-    async def add_new_integration(
-        self,
-        user_id: str | PydanticObjectId | ObjectId,
-        access_token: str,
-        access_token_expiry: datetime,
-        provider: str,
+        session: AsyncSession,
+        user_id: str,
         service: str,
-        refresh_token: str | None,
-        refresh_token_expiry: datetime | None = None,
-        scopes: list[str] | None = None,
-        metadata: dict | None = None,
-    ):
-        if not isinstance(user_id, str):
-            user_id = PydanticObjectId(user_id)
+        update_values: Dict[str, Any],
+        metadata_filters: Dict[str, MetadataFiltersOptions] | None = None,
+    ) -> UsersIntegrations | None:
+        metadata_filters = []
+        if metadata_filters is not None:
+            metadata_filters = [
+                UsersIntegrations.meta[key]
+                == self._parse_metadata_options(key, options)
+                for key, options in metadata_filters.items()
+            ]
 
-        if scopes is None:
-            scopes = []
-
-        encrypted_access_token = encrypt_token(access_token)
-        encrypted_refresh_token = (
-            encrypt_token(refresh_token) if refresh_token else None
-        )
-
-        integration: AppIntegrations | None = await AppIntegrations.insert_one(
-            AppIntegrations(
-                user_id=user_id,
-                provider=provider,
-                service=service,
-                scopes=scopes,
-                access_token_enc=encrypted_access_token,
-                access_token_expiry=access_token_expiry,
-                refresh_token_enc=encrypted_refresh_token,
-                refresh_token_expiry=refresh_token_expiry,
-                metadata=metadata,
+        stmt = (
+            update(UsersIntegrations)
+            .values(update_values)
+            .where(
+                UsersIntegrations.user_id == user_id,
+                UsersIntegrations.service == service,
+                *metadata_filters
             )
-        )
+        ).returning(UsersIntegrations)
+
+        result = await session.execute(stmt)
+        updated_integration = result.scalar_one_or_none()
+        return updated_integration
+
+    async def create_new_integration(
+        self, session: AsyncSession, integration: UsersIntegrations
+    ) -> UsersIntegrations:
+        session.add(integration)
+        integration = await session.commit(integration)
+        await session.refresh(integration)
         return integration
+
+    async def find_integration_by_id(
+        self,
+        session: AsyncSession,
+        integration_id: str,
+    ) -> UsersIntegrations | None:
+        stmt = select(UsersIntegrations).where(UsersIntegrations.id == integration_id)
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()

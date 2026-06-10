@@ -1,8 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
-from bson import ObjectId
 from typing import List, Optional, Literal, Dict, Any
 from src.workflows.types import Node, Edge, NodesTypeEnum
-
+from src.db.postgres.schemas import WorkflowVisibilityEnum
 
 
 class CreateNewWorkflowModel(BaseModel):
@@ -10,7 +9,13 @@ class CreateNewWorkflowModel(BaseModel):
     description: str
     nodes: List[Node]
     edges: List[Edge]
-    visibility: Literal["public", "private"]
+    visibility: WorkflowVisibilityEnum
+
+    @field_validator("visibility", mode="before")
+    @classmethod
+    def to_upr_case(cls, v: str):
+        return v.upper()
+
 
 
 class WorkflowResponseModel(BaseModel):
@@ -19,7 +24,7 @@ class WorkflowResponseModel(BaseModel):
     description: str
     nodes: List[Node]
     edges: List[Edge]
-    visibility: Literal["public", "private"]
+    visibility: WorkflowVisibilityEnum
     stars: Optional[int] = None
     created_by: str
 
@@ -34,7 +39,7 @@ class SingleWorkflowResponseModel(BaseModel):
     description: str
     nodes: List[NodeFullResponse]
     edges: List[Edge]
-    visibility: Literal["public", "private"]
+    visibility: WorkflowVisibilityEnum
     stars: Optional[int] = None
     created_by: str
 
@@ -48,16 +53,16 @@ class WorkflowListItemModel(BaseModel):
     workflow_id: str
     name: str
     description: str
-    visibility: Literal["public", "private"]
+    visibility: WorkflowVisibilityEnum
     stars: int
     created_by: str
 
-    @field_validator("workflow_id", mode="before")
-    @classmethod
-    def convert_objectid(cls, v):
-        if isinstance(v, ObjectId):
-            return str(v)
-        return v
+    # @field_validator("workflow_id", mode="before")
+    # @classmethod
+    # def convert_objectid(cls, v):
+    #     if isinstance(v, ObjectId):
+    #         return str(v)
+    #     return v
 
 
 

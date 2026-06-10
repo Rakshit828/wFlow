@@ -8,7 +8,7 @@ from typing import Any, Optional, Union, get_args, get_origin
 
 from .nodes import NODES_MAP
 from .types import Workflow, Node
-from src.integrations.googlecloud.resolvers import GoogleNodeConfigResolver
+from src.integrations.services.Google.resolvers import GoogleNodeConfigResolver
 
 logger = logging.getLogger(__name__)
 
