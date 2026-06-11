@@ -86,7 +86,7 @@ class WorkflowService:
         )
         if workflow is None:
             raise AppError(WorkflowAlreadyStarredError(data=None))
-        
+
         return workflow
 
     async def _attach_node_schemas(
@@ -108,12 +108,16 @@ class WorkflowService:
     async def get_workflow_data(
         self, session: AsyncSession, workflow_id: str, user_id: str
     ) -> SingleWorkflowResponseModel:
-        workflow: Workflows = await self._workflow_repo.get_workflow_by_id(workflow_id)
+        workflow: Workflows = await self._workflow_repo.get_workflow_by_id(
+            session=session, workflow_id=workflow_id
+        )
         if not workflow:
             raise AppError(WorkflowNotFoundError(data=None))
 
         if workflow.visibility == "private" and str(workflow.created_by) != user_id:
             raise AppError(CannotAccessPrivateWorkflowError(data=None))
+
+        logger.info(f"THe workflow is : {workflow}")
 
         workflow_data = SingleWorkflowResponseModel(
             workflow_id=str(workflow.id),
@@ -121,12 +125,12 @@ class WorkflowService:
             description=workflow.description,
             nodes=[
                 NodeFullResponse(
-                    key=node.key,
-                    name=node.name,
-                    type=node.type,
-                    inputs=node.inputs,
-                    config=node.config,
-                    outputs=node.outputs,
+                    key=node.get("key", ""),
+                    name=node.get("name", ""),
+                    type=node.get("type", "").upper(),
+                    inputs=node.get("inputs", {}),
+                    config=node.get("config", {}),
+                    outputs=node.get("ouputs", {}),
                 )
                 for node in workflow.nodes
             ],
@@ -135,7 +139,7 @@ class WorkflowService:
             stars=workflow.stars,
             created_by=user_id,
         )
-        await self._attach_node_schemas(workflow_data)
+        await self._attach_node_schemas(session=session, workflow=workflow_data)
         return workflow_data
 
     def _format_workflow_list_item(self, workflow: Workflows) -> WorkflowListItemModel:
@@ -277,7 +281,7 @@ class WorkflowService:
         if page_size < 1 or page_size > 100:
             page_size = 10
 
-        nodes, total = await self._workflow_repo.get(
+        nodes, total = await self._node_registry_repo.search_nodes_by_type_and_service(session=session,
             node_type=node_type, service=service, page=page, page_size=page_size
         )
 

@@ -139,8 +139,8 @@ class Workflows(Base):
 
     name: Mapped[str] = mapped_column(pg.TEXT, index=True)
     description: Mapped[str] = mapped_column(pg.TEXT)
-    nodes: Mapped[List[Node]] = mapped_column(pg.JSONB)
-    edges: Mapped[List[Edge]] = mapped_column(pg.JSONB)
+    nodes: Mapped[List[Node]] = mapped_column(pg.ARRAY(pg.JSONB))
+    edges: Mapped[List[Edge]] = mapped_column(pg.ARRAY(pg.JSONB))
 
     visibility: Mapped[WorkflowVisibilityEnum] = mapped_column(
         pg.ENUM(WorkflowVisibilityEnum, name="workflow_visibility_enum")
