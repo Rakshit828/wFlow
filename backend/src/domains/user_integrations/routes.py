@@ -5,8 +5,8 @@ from typing import Literal
 
 from src.db.redis import Redis, get_redis
 from src.domains._shared.dependencies import get_user_and_session, UserAndSessionData
-from src.domains.app_integrations.dependency import get_google_integration_service
-from src.domains.app_integrations.service import GoogleIntegrationService
+from src.domains.user_integrations.dependency import get_google_integration_service
+from src.domains.user_integrations.service import GoogleIntegrationService
 from src.core.response import SuccessResponse
 from src.db.postgres.schemas import Users
 
@@ -42,7 +42,8 @@ async def grant_new_scope(
     ),
 ):
     user: Users = current_user.get_user()
+    session: AsyncSession = current_user.get_session()
     users_integration = await integration_repo.grant_new_scope_callback_google(
-        user_id=str(user.id), code=code, state=state, redis=redis
+        session=session, user_id=str(user.id), code=code, state=state, redis=redis
     )
     return SuccessResponse[None](message="Service Integrated Successfully.")

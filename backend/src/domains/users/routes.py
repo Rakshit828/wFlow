@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio.session import AsyncSession
 from src.db.redis import Redis, get_redis
 from src.db.postgres.schemas import Users
 from src.integrations.services.Google.oauth2 import GoogleOAuthInterface
-from src.domains.users.schemas import UserSessionResponse
+from src.domains.users.types import UserSessionResponse
 from src.domains.users.dependency import get_user_service
 from src.domains._shared.dependencies import get_session
 from src.domains.users.serivce import UserService

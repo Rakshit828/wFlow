@@ -7,22 +7,13 @@ from typing import Dict, List, Any, Tuple
 from enum import Enum
 
 from .main import Base
+from ...types.db_types import (
+    WorkflowExecutionStatusEnum,
+    WorkflowVisibilityEnum,
+    CredentialsTypeEnum,
+    LoginProvidersEnum,
+)
 from src.workflows.types import Node, Edge, NodesTypeEnum
-
-
-class LoginProvidersEnum(str, Enum):
-    GOOGLE = "GOOGLE"
-    GITHUB = "GITHUB"
-
-
-class CredentialsTypeEnum(str, Enum):
-    OAUTH2 = "OAUTH2"
-    API_KEY = "API_KEY"
-
-
-class WorkflowVisibilityEnum(str, Enum):
-    PUBLIC = "PUBLIC"
-    PRIVATE = "PRIVATE"
 
 
 class Users(Base):
@@ -106,10 +97,12 @@ class UsersIntegrations(Base):
     id: Mapped[UUID] = mapped_column(
         pg.UUID(as_uuid=True), primary_key=True, default=uuid4
     )
-    user_id: Mapped[UUID] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    service: Mapped[str] = mapped_column(pg.TEXT)
+
+    scopes: Mapped[List[str]] = mapped_column(
+        pg.ARRAY(item_type=pg.TEXT), nullable=True
     )
-    service: Mapped[str] = mapped_column(pg.TEXT, index=True)
     credentials_type: Mapped[CredentialsTypeEnum] = mapped_column(
         pg.ENUM(CredentialsTypeEnum, name="credentials_type_enum")
     )
@@ -122,6 +115,8 @@ class UsersIntegrations(Base):
     updated_at: Mapped[datetime] = mapped_column(
         pg.TIMESTAMP(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+    __table_args__ = (Index("idx_user_id_and_service", "user_id", "service"),)
 
     # The service: str will be in the form of google.gmail, google.drive or simply discord
     def get_provider_and_service(self) -> Tuple[str, str]:
@@ -164,6 +159,20 @@ class WorkflowsStars(Base):
     # 2. It optimizes the searching with only user_id because of leftmost rule of composite
     #    indexes. However, we cannot efficiently search with only workflow_id.
     #    If we have a usecase for searching with workflow_id, we can apply single index on that column.
+
+
+class WorkflowExecutions(Base):
+    __tablename__ = "workflow_executions"
+    id: Mapped[UUID] = mapped_column(
+        pg.UUID(as_uuid=True), primary_key=True, default=uuid4
+    )
+    workflow_id: Mapped[UUID] = mapped_column(
+        ForeignKey("workflows.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[WorkflowExecutionStatusEnum] = mapped_column(
+        pg.ENUM(WorkflowExecutionStatusEnum, name="wf_execution_status_enum"),
+        nullable=False,
+    )
 
 
 class NodesRegistry(Base):

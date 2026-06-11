@@ -1,7 +1,7 @@
 from src.integrations.services.Google import GoogleAPIClient, CredentialsModel
 from src.integrations.services.Google.gmail.webhook import watch_gmail, get_history
 from src.domains.app_integrations.repository import AppIntegrationsRepository
-from src.domains.app_integrations.schemas import CredentialsAndDataForApiClient
+from src.domains.app_integrations.types import CredentialsAndDataForApiClient
 from src.integrations.services.Google.gmail.types import (
     WatchGmailInput,
     GetGmailHistoryInput,

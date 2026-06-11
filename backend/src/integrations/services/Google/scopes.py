@@ -1,11 +1,13 @@
 GOOGLE_OPENID_SCOPE = ["openid", "email", "profile"]
 GOOGLE_EMAIL_ONLY_OPENID_SCOPE = ["openid", "email"]
+
 GOOGLE_SERVICES = {"mail", "gmail", "drive", "sheets", "forms"}
 SERVICE_MAPPINGS = {"mail": "gmail"}
 
 
 GOOGLE_SCOPES = {
     # Gmail service.
+    "email": "https://www.googleapis.com/auth/userinfo.email",
     "gmail.fullaccess": "https://mail.google.com/",
     "gmail.readonly": "https://www.googleapis.com/auth/gmail.readonly",
     "gmail.modify": "https://www.googleapis.com/auth/gmail.modify",

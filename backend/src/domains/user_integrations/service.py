@@ -1,10 +1,10 @@
 import json
 from loguru import logger
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Literal
 from sqlalchemy.ext.asyncio.session import AsyncSession
 
-from src.domains.app_integrations.repository import UsersIntegrationsRepository
+from src.db.repository.users_integrations_repository import UsersIntegrationsRepository
 from src.domains.users.repository import UserRepository
 
 from src.integrations.services.Google import (
@@ -14,6 +14,7 @@ from src.integrations.services.Google import (
 from src.integrations.services.Google.scopes import (
     INITIAL_SCOPES_FOR_SERVICE,
     GOOGLE_EMAIL_ONLY_OPENID_SCOPE,
+    GOOGLE_SCOPES,
 )
 from src.core.security import encrypt_payload
 from src.db.redis import Redis
@@ -37,7 +38,9 @@ class GoogleIntegrationService:
         self, user_id: str, service: Literal["gmail", "drive", "sheets"], redis: Redis
     ) -> str:
         logger.info(f"Scope is being requested for {service} by user: {user_id}")
-        scopes = GOOGLE_EMAIL_ONLY_OPENID_SCOPE + INITIAL_SCOPES_FOR_SERVICE[service]
+        scopes = GOOGLE_EMAIL_ONLY_OPENID_SCOPE + [
+            GOOGLE_SCOPES[scope] for scope in INITIAL_SCOPES_FOR_SERVICE[service]
+        ]
 
         url: str = await self.google_oauth.create_authorization_url(
             db=redis, scopes_requested=scopes, login_redirect=False
@@ -57,20 +60,29 @@ class GoogleIntegrationService:
             await self.google_oauth.get_openid_payload_new_authorization(tokens)
         )
         now = datetime.now(timezone.utc)
-
-        # Search app integrations by, user_id, service and email(metadata)
+        access_token_expiry = now + timedelta(seconds=new_scope_response.expires_in)
+        refresh_token_expiry = now + timedelta(
+            seconds=new_scope_response.refresh_token_expires_in
+        )
         credentials_payload = {
             "access_token": new_scope_response.access_token,
             "refresh_token": new_scope_response.refresh_token,
-            "access_token_expiry": new_scope_response.expires_in,
-            "refresh_token_expiry": new_scope_response.refresh_token_expires_in,
+            "access_token_expiry": access_token_expiry.isoformat(),
+            "refresh_token_expiry": refresh_token_expiry.isoformat(),
         }
+
+        service = "google" + "." + new_scope_response.service
+
         encrypted_payload = encrypt_payload(json.dumps(credentials_payload))
+        logger.info(f"new_scope_response: {new_scope_response}")
         updated = await self.integration_repo.update_integration(
             session=session,
             user_id=user_id,
-            service=new_scope_response.service,
-            update_values={"credentials": encrypted_payload},
+            service=service,
+            update_values={
+                "credentials": encrypted_payload,
+                "scopes": new_scope_response.scopes,
+            },
             metadata_filters={
                 "email": {
                     "criteria": "eq",
@@ -78,19 +90,22 @@ class GoogleIntegrationService:
                 }
             },
         )
-
         if updated:
+            logger.info(f"Updated integration is : {updated}")
             return updated
 
+        logger.info(f"Did not found integration, creating new one:")
         integration = UsersIntegrations(
             user_id=user_id,
-            service=new_scope_response.service,
+            service=service,
             credentials_type=self.credentials_type,
             credentials=encrypted_payload,
+            scopes=new_scope_response.scopes,
             meta={"email": new_scope_response.decoded_id_token.email},
         )
-        new_integration = self.integration_repo.create_new_integration(
+        new_integration = await self.integration_repo.create_new_integration(
             session=session, integration=integration
         )
+        logger.info(f"Integration created: {new_integration}")
 
         return new_integration

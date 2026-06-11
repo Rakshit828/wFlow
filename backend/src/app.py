@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from src.config import CONFIG
 from src.domains.users.routes import auth_router
 
-# from src.domains.app_integrations.routes import integration_router
+from src.domains.user_integrations.routes import integration_router
 from src.domains.workflows.routes import workflow_router
 from src.domains.webhooks.routes import webhooks_router
 from src.core.response import AppError
@@ -35,9 +35,9 @@ app.add_middleware(
 )
 
 app.include_router(auth_router, prefix="/api/auth", tags=["Authentication"])
-# app.include_router(
-#     integration_router, prefix="/api/integration", tags=["App Integration"]
-# )
+app.include_router(
+    integration_router, prefix="/api/integration", tags=["App Integration"]
+)
 app.include_router(workflow_router, prefix="/api/workflows", tags=["Workflows"])
 app.include_router(webhooks_router, prefix="/webhooks", tags=["Webhooks"])
 

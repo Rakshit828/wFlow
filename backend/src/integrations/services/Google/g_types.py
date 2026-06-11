@@ -4,11 +4,13 @@ from src.integrations.services.Google.scopes import (
     GOOGLE_EMAIL_ONLY_OPENID_SCOPE,
     GOOGLE_SERVICES,
     SERVICE_MAPPINGS,
+    GOOGLE_SCOPES,
 )
 from src.config import CONFIG
 from datetime import datetime
 from typing import TypedDict, List
 from enum import Enum
+from loguru import logger
 
 SERVICE_THAT_SHOULD_BE_REPLACED_BY_IN_BASE_URL: list = ["gmail", "gsheets"]
 
@@ -121,15 +123,24 @@ class GoogleNewScopeResponse(BaseModel):
     @computed_field()
     @property
     def scopes(self) -> list[str]:
-        return self.scope.split(" ")
+        scopes_list = self.scope.split(" ")
+        return scopes_list
 
     @computed_field
     @property
     def service(self) -> str:
         """Identifies the service from the scopes."""
-        scope_str = self.scope.replace(GOOGLE_EMAIL_ONLY_OPENID_SCOPE, "")
+        logger.info(f"Scope: {self.scope}, Scopes: {self.scopes}")
+        for scope in GOOGLE_EMAIL_ONLY_OPENID_SCOPE:
+            if scope in self.scope:
+                self.scope.replace(scope, "")
+            elif GOOGLE_SCOPES[scope] in self.scope:
+                self.scope.replace(GOOGLE_SCOPES[scope], "")
+
+        self.scope = self.scope.strip()
+
         for service in GOOGLE_SERVICES:
-            if service in scope_str:
+            if service in self.scope:
                 if service in SERVICE_MAPPINGS:
                     return SERVICE_MAPPINGS[service]
                 return service

@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 from src.integrations.services.Google.api_client import GoogleAPIClient
 from src.integrations.services.Google.g_types import CredentialsModel
-from src.domains.app_integrations.repository import UsersIntegrations
+from src.db.repository.users_integrations_repository import UsersIntegrationsRepository
 
 
 class CommonBaseModel(BaseModel):
@@ -17,7 +17,7 @@ class CommonGoogleConfigModel(CommonBaseModel):
     def get_google_api_client(self) -> GoogleAPIClient:
         return GoogleAPIClient(
             credentials=self.credentials,
-            integration_repo=UsersIntegrations(),
+            integration_repo=UsersIntegrationsRepository(),
             service=self.service,
             req_timeout=30.0,
             base_url="https://www.googleapis.com",

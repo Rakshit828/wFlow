@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 from src.domains._shared.dependencies import UserAndSessionData
 from src.config import CONFIG
 from src.utils.file_uploads import AsyncLocalStorageClient
-from src.domains.workflows.schema import (
+from src.domains.workflows.types import (
     CreateNewWorkflowModel,
     WorkflowResponseModel,
     StarWorkflowResponseModel,

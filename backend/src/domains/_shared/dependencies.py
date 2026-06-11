@@ -23,6 +23,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         yield session
         logger.info("Closing the session.")
     except Exception as e:
+        logger.info("Doing rollback.")
         await session.rollback()
         raise e
     finally:

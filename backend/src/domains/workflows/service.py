@@ -1,6 +1,6 @@
 from src.domains.workflows.repository import WorkflowRepository, NodeRegistryRepository
 from src.domains.users.repository import UserRepository
-from src.domains.workflows.schema import (
+from src.domains.workflows.types import (
     CreateNewWorkflowModel,
     WorkflowListItemModel,
     PaginationMetadata,

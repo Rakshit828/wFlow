@@ -1,34 +1,19 @@
-from typing import TypeVar, Any, Dict, TypedDict, Literal
-from pydantic import BaseModel
-from sqlalchemy import select, update, delete
+from typing import Any, Dict, Tuple
+from sqlalchemy import update, delete, select
 
 from src.db.postgres.schemas import UsersIntegrations
-from src.domains.app_integrations.schemas import MetadataFiltersOptions
+from src.types.db_types import CredentialsTypeEnum
+from src.domains.user_integrations.types import MetadataFiltersOptions
 from sqlalchemy.ext.asyncio.session import AsyncSession
-
-ProjectionModelT = TypeVar("ProjectionModelT", bound=BaseModel)
-
-
-class MetadataFiltersOption(TypedDict):
-    criteria: Literal["eq", "lt", "lte", "gt", "gte", "neq"]
-    value: str | int | float
 
 
 class UsersIntegrationsRepository:
 
-    def _parse_metadata_options(self, key: str, options: MetadataFiltersOption):
+    def _parse_metadata_options(self, key: str, options: MetadataFiltersOptions):
         if options["criteria"] == "eq":
-            return UsersIntegrations.meta[key] == options["value"]
+            return UsersIntegrations.meta[key].as_string() == options["value"]
         elif options["criteria"] == "neq":
-            return UsersIntegrations.meta[key] != options["value"]
-        elif options["criteria"] == "gt":
-            return UsersIntegrations.meta[key] > options["value"]
-        elif options["criteria"] == "lt":
-            return UsersIntegrations.meta[key] < options["value"]
-        elif options["criteria"] == "lte":
-            return UsersIntegrations.meta[key] <= options["value"]
-        elif options["criteria"] == "gte":
-            return UsersIntegrations.meta[key] >= options["value"]
+            return UsersIntegrations.meta[key].as_string() != options["value"]
         else:
             raise
 
@@ -49,11 +34,10 @@ class UsersIntegrationsRepository:
         update_values: Dict[str, Any],
         metadata_filters: Dict[str, MetadataFiltersOptions] | None = None,
     ) -> UsersIntegrations | None:
-        metadata_filters = []
+        meta_filters = []
         if metadata_filters is not None:
-            metadata_filters = [
-                UsersIntegrations.meta[key]
-                == self._parse_metadata_options(key, options)
+            meta_filters = [
+                self._parse_metadata_options(key, options)
                 for key, options in metadata_filters.items()
             ]
 
@@ -63,7 +47,7 @@ class UsersIntegrationsRepository:
             .where(
                 UsersIntegrations.user_id == user_id,
                 UsersIntegrations.service == service,
-                *metadata_filters
+                *meta_filters
             )
         ).returning(UsersIntegrations)
 
@@ -75,15 +59,38 @@ class UsersIntegrationsRepository:
         self, session: AsyncSession, integration: UsersIntegrations
     ) -> UsersIntegrations:
         session.add(integration)
-        integration = await session.commit(integration)
+        await session.commit()
         await session.refresh(integration)
         return integration
 
-    async def find_integration_by_id(
+    async def load_encrypted_credentials(
         self,
         session: AsyncSession,
-        integration_id: str,
-    ) -> UsersIntegrations | None:
-        stmt = select(UsersIntegrations).where(UsersIntegrations.id == integration_id)
-        result = await session.execute(stmt)
-        return result.scalar_one_or_none()
+        user_id: str,
+        service: str,
+        metadata_filters: Dict[str, MetadataFiltersOptions],
+    ) -> Tuple[CredentialsTypeEnum, str]:
+        """Returns the pair of CredentialsType and Encrypted Credentials as string."""
+        metadata_filters = []
+        if metadata_filters is not None:
+            metadata_filters = [
+                UsersIntegrations.meta[key]
+                == self._parse_metadata_options(key, options)
+                for key, options in metadata_filters.items()
+            ]
+
+        stmt = select(
+            UsersIntegrations.credentials_type, UsersIntegrations.credentials
+        ).where(
+            UsersIntegrations.user_id == user_id,
+            UsersIntegrations.service == service,
+            *metadata_filters
+        )
+        result = (await session.execute(stmt)).all()
+
+        if len(result) != 1:
+            raise
+
+        row = result[0]
+
+        return row[0], row[1]
