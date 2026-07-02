@@ -15,7 +15,7 @@ class AsyncLocalStorageClient:
             await path.mkdir(parents=True, exist_ok=True)
 
     async def upload(
-        self, file_id: str, file_bytes: bytes, content_type: str = None
+        self, file_id: str, file_bytes: bytes, content_type: str | None = None
     ) -> str:
         """Writes binary bytes to the disk asynchronously."""
         await self._ensure_dir()

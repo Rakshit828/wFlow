@@ -1,6 +1,7 @@
 import secrets
 import hashlib
 import base64
+from typing import Any
 from abc import ABC, abstractmethod
 
 
@@ -21,6 +22,6 @@ class OAuthInterface(ABC):
         pass
 
     @abstractmethod
-    async def exchange_for_code(self) -> dict:
+    async def exchange_for_code(self) -> dict[str, Any]:
         pass
 

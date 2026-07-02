@@ -12,4 +12,4 @@ async def safely_run(coroutine: Awaitable[T]) -> T:
         return await coroutine
     except exc.SQLAlchemyError as e:
         logger.error(f"Error during DB operation occurred. {e}")
-        raise AppError(UnexpectedDatabaseError(data=None))
+        raise AppError(UnexpectedDatabaseError[None](data=None))

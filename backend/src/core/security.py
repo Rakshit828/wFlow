@@ -1,6 +1,5 @@
 from cryptography.fernet import Fernet
 import hashlib
-from loguru import logger
 from src.config import CONFIG
 
 from src.config import CONFIG

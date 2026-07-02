@@ -1,14 +1,41 @@
-from src.config import CONFIG
 from datetime import timedelta
 from fastapi import Response
-from loguru import logger
 import time
+from typing import Callable, TypeVar
+from collections.abc import Awaitable, Callable
+from typing import Any
 import functools
 
+from src.db.postgres.main import AsyncSessionLocal
 
-def timer(func):
+R = TypeVar("R")
+
+
+async def wrap_in_session(
+    func: Callable[..., Awaitable[R]], *args: Any, **kwargs: Any
+) -> R:
+    if "session" in kwargs:
+        raise ValueError("Session should not be provided.")
+    async with AsyncSessionLocal() as session:
+        kwargs["session"] = session
+        return await func(*args, **kwargs)
+
+
+async def wrap_in_transaction(
+    func: Callable[..., Awaitable[Any]],
+    *args: tuple[Any],
+    **kwargs: dict[str, Any],
+) -> Any:
+    if "session" in kwargs:
+        raise ValueError("Session should not be provided.")
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            return await func(*args, **kwargs, session=session)
+
+
+def timer(func: Callable[..., Any]):
     @functools.wraps(func)
-    async def wrapper(*args, **kwargs):
+    async def wrapper(*args: tuple[Any], **kwargs: dict[str, Any]):
         start = time.perf_counter()
         result = await func(*args, **kwargs)
         end = time.perf_counter()
@@ -18,7 +45,7 @@ def timer(func):
     return wrapper
 
 
-def _parse_expiry(raw: str) -> timedelta:
+def parse_expiry(raw: str) -> timedelta:
     """Convert human-friendly expiry strings to timedelta.
 
     Supports: 30s, 15m, 1h, 7d

@@ -1,18 +1,16 @@
-from pydantic import BaseModel, EmailStr, HttpUrl, Field, ConfigDict, computed_field
-from typing import Optional, List, Literal
+from pydantic import BaseModel, EmailStr, HttpUrl, ConfigDict, computed_field
+from typing import Optional, List
 from src.integrations.services.Google.scopes import (
     GOOGLE_EMAIL_ONLY_OPENID_SCOPE,
     GOOGLE_SERVICES,
     SERVICE_MAPPINGS,
     GOOGLE_SCOPES,
 )
-from src.config import CONFIG
-from datetime import datetime
 from typing import TypedDict, List
 from enum import Enum
 from loguru import logger
 
-SERVICE_THAT_SHOULD_BE_REPLACED_BY_IN_BASE_URL: list = ["gmail", "gsheets"]
+SERVICE_THAT_SHOULD_BE_REPLACED_BY_IN_BASE_URL: list[str] = ["gmail", "gsheets"]
 
 
 class GoogleApiErrorDetail(TypedDict):
@@ -45,21 +43,6 @@ class GoogleApiErrorResponse(TypedDict):
     message: str
     errors: List[GoogleApiErrorDetail]
     status: GoogleErrorStatus
-
-
-class CredentialsModel(BaseModel):
-    integration_id: str
-    user_id: str
-    access_token: str
-    service: str
-    refresh_token: str
-    client_id: str | None = Field(default=CONFIG.GOOGLE_CLIENT_ID)
-    client_secret: str | None = Field(default=CONFIG.GOOGLE_CLIENT_SECRET)
-    scopes: list[str]
-    access_token_expiry: datetime
-    refresh_token_expiry: datetime
-
-    model_config = ConfigDict(extra="ignore")
 
 
 class GoogleIDTokenPayload(BaseModel):

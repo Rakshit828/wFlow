@@ -1,121 +1,225 @@
+from datetime import datetime, timedelta, timezone
 import httpx
-from typing import Tuple, Any, Dict
 from loguru import logger
-
-from src.integrations.services.Google import (
-    CredentialsModel,
-    SERVICE_THAT_SHOULD_BE_REPLACED_BY_IN_BASE_URL,
-)
-from src.integrations.services.Google import GoogleErrorStatus, GoogleApiErrorResponse
-from src.integrations.interfaces.service_api_client import ServiceApiClientInterface
+from src.integrations.components.service_client import ServiceRequestHandler
+from src.integrations.components.api_client import ApiClient
+from src.integrations.components.credentials import CredentialsManager
+from src.integrations.components.api_client import RequestOptions
 
 
-class GoogleAPIClient(ServiceApiClientInterface):
+class GoogleRequestHandler(ServiceRequestHandler):
+ 
+    TOKEN_URL = "https://oauth2.googleapis.com/token"
+    GMAIL_BASE_URL = "https://gmail.googleapis.com/gmail/v1"
+    DRIVE_BASE_URL = "https://www.googleapis.com/drive/v3"
+ 
+    # Refresh proactively if the token expires within this window.
+    _EXPIRY_SKEW = timedelta(seconds=60)
+ 
     def __init__(
-        self,
-        credentials: CredentialsModel,
-        service: str,
-        req_timeout: float = 30.0,
-        base_url: str = "https://www.googleapis.com",
-        **kwargs,
-    ):
-        self.__client = httpx.AsyncClient(timeout=req_timeout, **kwargs)
-        self.__credentials: CredentialsModel = credentials
-        self.base_url = (
-            base_url.replace("www", service)
-            if service in SERVICE_THAT_SHOULD_BE_REPLACED_BY_IN_BASE_URL
-            else base_url
-        )
-
+        self, api_client: ApiClient, creds_manager: CredentialsManager
+    ) -> None:
+        super().__init__(api_client, creds_manager)
+ 
+    @property
     def service(self) -> str:
         return "GOOGLE"
-
-    def _set_authorization_header(self, headers: dict) -> None:
-        headers["Authorization"] = f"Bearer {self.__credentials.access_token}"
-        return headers
-
-    def _safe_json(self, response: httpx.Response) -> Dict[str, Any]:
-        try:
-            return response.json()
-        except Exception:
-            return {}
-
-    async def request(
+ 
+    # ------------------------------------------------------------------ #
+    # Generic authenticated request
+    # ------------------------------------------------------------------ #
+ 
+    async def handle(
         self,
         method: str,
         endpoint: str,
-        requires_bearer_token: bool,
-        use_base_url: str = True,
-        is_refresh: bool = False,
-        is_retried_call: bool = False,
-        **kwargs,
-    ) -> Tuple[httpx.Response, dict[str, Any]]:
-
-        if requires_bearer_token:
-            headers = kwargs.get("headers", {})
-
-            if not is_refresh:
-                headers = self._set_authorization_header(headers)
-
-            kwargs["headers"] = headers
-
-        url = f"{self.base_url}/{endpoint.lstrip('/')}" if use_base_url else endpoint
-        response = await self.__client.request(method, url, **kwargs)
-
-        json_response = self._safe_json(response)
-
-        logger.info(f"Requested url is : {response.url}")
-
-        if response.is_error:
-            json_error_body: GoogleApiErrorResponse = json_response.get("error")
-
-            logger.error(response)
-            if (
-                response.status_code == 401
-                and requires_bearer_token
-                and json_error_body["status"] == GoogleErrorStatus.UNAUTHENTICATED
-            ):
-                if is_retried_call:
-                    raise Exception("Refresh token has also been expired.")
-
-                logger.info(f"Performing refresh.")
-                await self.do_refresh_actions()
-                response, json_response = await self.request(
-                    method,
-                    endpoint,
-                    requires_bearer_token,
-                    is_retried_call=True,
-                    **kwargs,
+        user_id: str,
+        options: RequestOptions | None = None,
+        *,
+        _retrying: bool = False,
+    ) -> httpx.Response:
+        """Perform an authenticated request against a Google API (Gmail, Drive, ...).
+ 
+        Proactively refreshes the token if it's near expiry, and reactively
+        refreshes + retries once on a 401. Raises typed exceptions for
+        rate limiting, auth failures, and other non-2xx responses.
+        """
+        try:
+            credentials = await self._creds_manager.get_credentials(user_id, self.service)
+        except CredentialsNotFoundError:
+            raise
+ 
+        if self._is_token_expired(credentials) and not _retrying:
+            credentials = await self.refetch_credentials(user_id)
+ 
+        merged_options: RequestOptions = dict(options or {})  # type: ignore[assignment]
+        headers = dict(merged_options.get("headers") or {})
+        headers["Authorization"] = f"Bearer {credentials.access_token}"
+        merged_options["headers"] = headers
+ 
+        response = await self._api_client.request(method, endpoint, merged_options)
+ 
+        if response.status_code == 401 and not _retrying:
+            logger.warning(
+                f"Got 401 from Google API for user={user_id}; refreshing token and retrying once"
+            )
+            await self.refetch_credentials(user_id)
+            return await self.handle(method, endpoint, user_id, options, _retrying=True)
+ 
+        if response.status_code == 401:
+            raise GoogleAuthenticationError(
+                f"Google API request to {endpoint} still unauthorized after token refresh"
+            )
+ 
+        if response.status_code == 429:
+            retry_after = response.headers.get("Retry-After")
+            raise GoogleRateLimitError(
+                f"Rate limited by Google API on {endpoint}",
+                retry_after=float(retry_after) if retry_after else None,
+            )
+ 
+        if response.status_code >= 400:
+            try:
+                payload = response.json()
+            except Exception:
+                payload = response.text
+            logger.error(f"Google API error {response.status_code} on {endpoint}: {payload}")
+            raise GoogleAPIRequestError(
+                f"Google API request to {endpoint} failed with status {response.status_code}",
+                status_code=response.status_code,
+                payload=payload,
+            )
+ 
+        return response
+ 
+    # ------------------------------------------------------------------ #
+    # Token refresh
+    # ------------------------------------------------------------------ #
+ 
+    async def refetch_credentials(self, user_id: str) -> CredentialsModel:
+        credentials = await self._creds_manager.get_credentials(user_id, self.service)
+ 
+        refresh_token = getattr(credentials, "refresh_token", None)
+        client_id = getattr(credentials, "client_id", None)
+        client_secret = getattr(credentials, "client_secret", None)
+ 
+        if not refresh_token:
+            raise CredentialsRevokedError(
+                f"No refresh token stored for user={user_id}; user must re-authorize Google access"
+            )
+ 
+        body = {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh_token,
+            "client_id": client_id,
+            "client_secret": client_secret,
+        }
+ 
+        try:
+            response = await self._api_client.request(
+                "POST",
+                self.TOKEN_URL,
+                {
+                    "data": body,
+                    "json": None,
+                    "params": None,
+                    "headers": {"Content-Type": "application/x-www-form-urlencoded"},
+                    "timeout": 15,
+                },
+                is_refresh=True,
+            )
+        except GoogleAPIConnectionError as exc:
+            raise TokenRefreshError(
+                f"Network error refreshing Google token for user={user_id}"
+            ) from exc
+ 
+        if response.status_code != 200:
+            try:
+                error_payload = response.json()
+            except Exception:
+                error_payload = {"error": response.text}
+ 
+            error_code = error_payload.get("error")
+            logger.error(f"Token refresh failed for user={user_id}: {error_payload}")
+ 
+            if error_code in ("invalid_grant", "unauthorized_client"):
+                raise CredentialsRevokedError(
+                    f"Google refresh token for user={user_id} was revoked or expired; "
+                    "user must re-authorize"
                 )
-                return response, json_response
-
-            elif (
-                response.status_code == 401
-                and is_refresh
-                and json_error_body["status"] == GoogleErrorStatus.UNAUTHENTICATED
-            ):
-                logger.error(f"Your refresh token has been expired too. Please retry.")
-                raise Exception(
-                    "Your refresh token has been expired too. Please retry."
-                )
-            elif (
-                response.status_code == 403
-                and json_error_body["status"] == GoogleErrorStatus.PERMISSION_DENIED
-            ):
-                logger.error(
-                    f"Current access token has not enough permissions for this action.\n {json_error_body}"
-                )
-                raise Exception(json_error_body["message"])
-
-            elif response.status_code == 404 and json_error_body is None:
-                logger.error(f"Url: {url} not found.")
-                raise Exception("Resource/URL not found.")
-
-            else:
-                logger.error(f"Error.\n {json_error_body}")
-
-        return response, json_response
-
-
-    async def close(self):
-        await self.__client.aclose()
+            raise TokenRefreshError(
+                f"Google token refresh failed for user={user_id}: {error_payload}"
+            )
+ 
+        token_data = response.json()
+        new_access_token = token_data.get("access_token")
+        expires_in = token_data.get("expires_in", 3600)
+ 
+        if not new_access_token:
+            raise TokenRefreshError(
+                f"Google token refresh response for user={user_id} missing access_token"
+            )
+ 
+        updated_data = credentials.model_dump()
+        updated_data["access_token"] = new_access_token
+        # Google does not always return a new refresh_token; keep the old one if absent.
+        if token_data.get("refresh_token"):
+            updated_data["refresh_token"] = token_data["refresh_token"]
+        updated_data["expiry"] = (
+            datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+        ).isoformat()
+ 
+        new_credentials = self._creds_manager.credentials_model.model_validate(updated_data)
+        await self._creds_manager.update_credentials(user_id, self.service, new_credentials)
+        return new_credentials
+ 
+    # ------------------------------------------------------------------ #
+    # Helpers
+    # ------------------------------------------------------------------ #
+ 
+    @staticmethod
+    def _is_token_expired(credentials: CredentialsModel) -> bool:
+        expiry = getattr(credentials, "expiry", None)
+        if not expiry:
+            return False
+        if isinstance(expiry, str):
+            try:
+                expiry = datetime.fromisoformat(expiry)
+            except ValueError:
+                return False
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+        return datetime.now(timezone.utc) + GoogleRequestHandler._EXPIRY_SKEW >= expiry
+ 
+    # ------------------------------------------------------------------ #
+    # Convenience wrappers for Gmail / Drive
+    # ------------------------------------------------------------------ #
+ 
+    async def list_gmail_messages(
+        self, user_id: str, query: str | None = None, max_results: int = 25
+    ) -> Dict[str, Any]:
+        params: Dict[str, str] = {"maxResults": str(max_results)}
+        if query:
+            params["q"] = query
+        response = await self.handle(
+            "GET",
+            f"{self.GMAIL_BASE_URL}/users/me/messages",
+            user_id,
+            {"data": None, "json": None, "params": params, "headers": None, "timeout": None},
+        )
+        return response.json()
+ 
+    async def list_drive_files(
+        self, user_id: str, query: str | None = None, page_size: int = 25
+    ) -> Dict[str, Any]:
+        params: Dict[str, str] = {"pageSize": str(page_size)}
+        if query:
+            params["q"] = query
+        response = await self.handle(
+            "GET",
+            f"{self.DRIVE_BASE_URL}/files",
+            user_id,
+            {"data": None, "json": None, "params": params, "headers": None, "timeout": None},
+        )
+        return response.json()
+ 

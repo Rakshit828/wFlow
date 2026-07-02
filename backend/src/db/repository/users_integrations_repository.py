@@ -23,7 +23,7 @@ class UsersIntegrationsRepository:
         stmt = delete(UsersIntegrations).where(
             UsersIntegrations.user_id == user_id, UsersIntegrations.service == service
         )
-        result = await session.execute(stmt)
+        await session.execute(stmt)
         return True
 
     async def update_integration(
@@ -68,14 +68,13 @@ class UsersIntegrationsRepository:
         session: AsyncSession,
         user_id: str,
         service: str,
-        metadata_filters: Dict[str, MetadataFiltersOptions],
+        metadata_filters: Dict[str, MetadataFiltersOptions] | None,
     ) -> Tuple[CredentialsTypeEnum, str]:
         """Returns the pair of CredentialsType and Encrypted Credentials as string."""
-        metadata_filters = []
+        filters: list[Any] = []
         if metadata_filters is not None:
-            metadata_filters = [
-                UsersIntegrations.meta[key]
-                == self._parse_metadata_options(key, options)
+            filters = [
+                self._parse_metadata_options(key, options)
                 for key, options in metadata_filters.items()
             ]
 
@@ -84,7 +83,7 @@ class UsersIntegrationsRepository:
         ).where(
             UsersIntegrations.user_id == user_id,
             UsersIntegrations.service == service,
-            *metadata_filters
+            *filters
         )
         result = (await session.execute(stmt)).all()
 
