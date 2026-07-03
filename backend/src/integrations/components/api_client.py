@@ -1,16 +1,8 @@
-from typing import Any, TypedDict, Dict
+from typing import Any, Dict
 from loguru import logger
 import httpx
 from .exceptions import ConnectionError
-
-
-class RequestOptions(TypedDict):
-    data: Dict[str, Any] | None  # Data to be sent for post request www-url-from-encoded
-    json: Dict[str, Any] | None  # Data to be sent for post request json-encoded.
-    params: Dict[str, str] | None  # Query parameters to send
-    headers: Dict[str, Any] | None
-    timeout: int | None  # Timeout for the request
-
+from .types import RequestOptions
 
 class ApiClient:
 

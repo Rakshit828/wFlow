@@ -93,3 +93,17 @@ class UsersIntegrationsRepository:
         row = result[0]
 
         return row[0], row[1]
+
+    async def save_encrypted_credentials(
+        self, session: AsyncSession, user_id: str, service: str, encrypted_payload: str
+    ):
+        stmt = (
+            update(UsersIntegrations)
+            .where(
+                UsersIntegrations.user_id == user_id,
+                UsersIntegrations.service == service,
+            )
+            .values({"credentials": encrypted_payload})
+        )
+        await session.execute(stmt)
+        return None

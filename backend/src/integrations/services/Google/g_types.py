@@ -13,6 +13,12 @@ from loguru import logger
 SERVICE_THAT_SHOULD_BE_REPLACED_BY_IN_BASE_URL: list[str] = ["gmail", "gsheets"]
 
 
+class GoogleApis(str, Enum):
+    GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+    GMAIL_BASE_URL = "https://gmail.googleapis.com/gmail/v1"
+    DRIVE_BASE_URL = "https://www.googleapis.com/drive/v3"
+
+
 class GoogleApiErrorDetail(TypedDict):
     message: str
     domain: str

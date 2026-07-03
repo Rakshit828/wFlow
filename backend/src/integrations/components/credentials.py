@@ -1,18 +1,14 @@
 import json
-from typing import TypeAlias, Type
+from typing import Type
 from sqlalchemy.ext.asyncio.session import AsyncSession
-from src.types.db_types import (
-    OAuth2CredentialsModel,
-    ApiKeyCredentialsModel,
-    CredentialsTypeEnum,
-)
+from src.types.db_types import CredentialsTypeEnum
+
 from src.db.repository.users_integrations_repository import UsersIntegrationsRepository
 from src.utils.utils import wrap_in_session
 from src.core.security import decrypt_payload, encrypt_payload
 from loguru import logger
 from .exceptions import CredentialsNotFoundError
-
-CredentialsModel: TypeAlias = OAuth2CredentialsModel | ApiKeyCredentialsModel
+from .types import CredentialsModel
 
 
 class CredentialsManager:
@@ -78,7 +74,6 @@ class CredentialsManager:
             credentials=new_credentials,
         )
 
-
     async def _save_credentials(
         self,
         session: AsyncSession,
@@ -93,7 +88,6 @@ class CredentialsManager:
                 session=session,
                 user_id=user_id,
                 service=service,
-                credentials_type=CredentialsTypeEnum.OAUTH2,
                 encrypted_payload=encrypted_payload,
             )
         except Exception as exc:

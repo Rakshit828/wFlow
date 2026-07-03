@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from src.integrations.components.api_client import ApiClient
 from src.integrations.components.credentials import CredentialsManager
 import httpx
-from .api_client import RequestOptions
+from .types import RequestOptions, CredentialsModel
 
 
 class ServiceRequestHandler(ABC):
@@ -23,7 +23,7 @@ class ServiceRequestHandler(ABC):
     ) -> httpx.Response: ...
 
     @abstractmethod
-    async def refetch_credentials(self, user_id: str): ...
+    async def refetch_credentials(self, user_id: str) -> CredentialsModel: ...
 
     @property
     @abstractmethod
