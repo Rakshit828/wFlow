@@ -1,5 +1,5 @@
 from pydantic import BaseModel, ConfigDict, Field
-from src.integrations.services.Google.api_client import GoogleAPIClient
+from src.integrations.services.Google.service_client import GoogleAPIClient
 from src.integrations.services.Google.g_types import CredentialsModel
 from src.db.repository.users_integrations_repository import UsersIntegrationsRepository
 

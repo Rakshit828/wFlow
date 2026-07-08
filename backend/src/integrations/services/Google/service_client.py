@@ -1,11 +1,20 @@
 from datetime import datetime, timedelta, timezone
 import httpx
+from typing import cast
 from loguru import logger
 from src.integrations.components.service_client import ServiceRequestHandler
 from src.integrations.components.api_client import ApiClient
 from src.integrations.components.credentials import CredentialsManager
 from src.integrations.components.api_client import RequestOptions
-from src.integrations.components.exceptions import CredentialsRevokedError
+from src.integrations.components.exceptions import (
+    AuthenticationError,
+    AuthorizationError,
+    RateLimitingError,
+)
+from src.integrations.services.Google.g_types import (
+    GoogleApiErrorResponse,
+    GoogleErrorStatus,
+)
 from src.integrations.components.credentials import CredentialsModel
 from src.config import CONFIG
 from .g_types import GoogleApis
@@ -24,10 +33,6 @@ class GoogleRequestHandler(ServiceRequestHandler):
     @property
     def service(self) -> str:
         return "GOOGLE"
-
-    # ------------------------------------------------------------------ #
-    # Generic authenticated request
-    # ------------------------------------------------------------------ #
 
     async def handle(
         self,
@@ -55,40 +60,50 @@ class GoogleRequestHandler(ServiceRequestHandler):
         headers["Authorization"] = f"Bearer {credentials.access_token}"
         merged_options["headers"] = headers
 
-        response = await self._api_client.request(method, endpoint, merged_options)
+        response, response_json = await self._api_client.request(
+            method, endpoint, merged_options
+        )
+        response_body: GoogleApiErrorResponse = cast(
+            GoogleApiErrorResponse, response_json
+        )
 
-        if response.status_code == 401 and not _retrying:
+        if response_body["code"] == 401 and not _retrying:
             logger.warning(
                 f"Got 401 from Google API for user={user_id}; refreshing token and retrying once"
             )
             await self.refetch_credentials(user_id)
             return await self.handle(method, endpoint, user_id, options, _retrying=True)
 
-        # if response.status_code == 401:
-        #     raise GoogleAuthenticationError(
-        #         f"Google API request to {endpoint} still unauthorized after token refresh"
-        #     )
+        if (
+            response_body["code"] == 401
+            and response_body["status"] == GoogleErrorStatus.UNAUTHENTICATED
+        ):
+            logger.error(f"[ERROR]: {response_body}")
+            raise AuthenticationError(
+                f"Google API request to {endpoint} still unauthorized after token refresh"
+            )
 
-        # if response.status_code == 429:
-        #     retry_after = response.headers.get("Retry-After")
-        #     raise GoogleRateLimitError(
-        #         f"Rate limited by Google API on {endpoint}",
-        #         retry_after=float(retry_after) if retry_after else None,
-        #     )
+        if (
+            response_body["code"] == 429
+            and response_body["status"] == GoogleErrorStatus.RESOURCE_EXHAUSTED
+        ):
+            logger.error(f"[ERROR]: {response_body}")
+            retry_after = response.headers.get("Retry-After")
+            raise RateLimitingError(
+                f"Rate limited by Google API on {endpoint}",
+                meta={"retry_after": float(retry_after) if retry_after else None},
+            )
 
-        # if response.status_code >= 400:
-        #     try:
-        #         payload = response.json()
-        #     except Exception:
-        #         payload = response.text
-        #     logger.error(
-        #         f"Google API error {response.status_code} on {endpoint}: {payload}"
-        #     )
-        #     raise GoogleAPIRequestError(
-        #         f"Google API request to {endpoint} failed with status {response.status_code}",
-        #         status_code=response.status_code,
-        #         payload=payload,
-        #     )
+        if response_body["status"] == GoogleErrorStatus.PERMISSION_DENIED:
+            logger.error(f"[ERROR]: {response_body}")
+            raise AuthorizationError(
+                message=response_body["message"],
+                meta={"errors": response_body["errors"]},
+            )
+
+        if response.status_code >= 400:
+            logger.error(f"Google API error [ERROR]: {response_body}")
+            raise
 
         return response
 
@@ -99,8 +114,8 @@ class GoogleRequestHandler(ServiceRequestHandler):
         refresh_token: str | None = getattr(credentials, "refresh_token", None)
 
         if not refresh_token:
-            raise CredentialsRevokedError(
-                f"No refresh token stored for user={user_id}; user must re-authorize Google access"
+            raise AuthenticationError(
+                message=f"No refresh token stored for user={user_id}; user must re-authorize Google access"
             )
 
         body = {
@@ -110,7 +125,7 @@ class GoogleRequestHandler(ServiceRequestHandler):
             "client_secret": CONFIG.GOOGLE_CLIENT_SECRET,
         }
 
-        response = await self._api_client.request(
+        response, response_json = await self._api_client.request(
             "POST",
             GoogleApis.GOOGLE_TOKEN_URL,
             {
@@ -122,24 +137,20 @@ class GoogleRequestHandler(ServiceRequestHandler):
             },
             is_refresh=True,
         )
-        
+        response_body: GoogleApiErrorResponse = cast(
+            GoogleApiErrorResponse, response_json
+        )
 
-        if response.status_code != 200:
-            try:
-                error_payload = response.json()
-            except Exception:
-                error_payload = {"error": response.text}
+        if response_body["code"] != 200:
 
-            error_code = error_payload.get("error")
-            logger.error(f"Token refresh failed for user={user_id}: {error_payload}")
-
-            if error_code in ("invalid_grant", "unauthorized_client"):
-                raise CredentialsRevokedError(
+            if response_body["status"] == GoogleErrorStatus.UNAUTHENTICATED:
+                raise AuthenticationError(
                     f"Google refresh token for user={user_id} was revoked or expired; "
                     "user must re-authorize"
                 )
+
             raise Exception(
-                f"Google token refresh failed for user={user_id}: {error_payload}"
+                f"Google token refresh failed for user={user_id}: {response_body}"
             )
 
         token_data = response.json()

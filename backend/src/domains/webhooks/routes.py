@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from src.integrations.services.Google.api_client import GoogleAPIClient
+from src.integrations.services.Google.service_client import GoogleAPIClient
 from fastapi import status, Request
 import base64
 import json
