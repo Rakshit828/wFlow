@@ -7,12 +7,13 @@ from src.db.repository.users_integrations_repository import UsersIntegrationsRep
 from src.utils.utils import wrap_in_session
 from src.core.security import decrypt_payload, encrypt_payload
 from loguru import logger
-from .exceptions import CredentialsNotFoundError
+from .exceptions import DatabaseError
 from .types import CredentialsModel
 
 
 class CredentialsManager:
-    def __init__(self, credentials_model: Type[CredentialsModel]) -> None:
+    def __init__(self, user_id: str, credentials_model: Type[CredentialsModel]) -> None:
+        self.user_id: str = user_id
         self._integrations_repo = UsersIntegrationsRepository()
         self.credentials_model: Type[CredentialsModel] = credentials_model
         self._credentials: CredentialsModel | None = None
@@ -40,12 +41,12 @@ class CredentialsManager:
             logger.error(
                 f"Failed loading credentials for user={user_id} service={service}: {exc}"
             )
-            raise CredentialsNotFoundError(
+            raise DatabaseError(
                 f"No credentials found for user={user_id} service={service}"
             ) from exc
 
         if not data:
-            raise CredentialsNotFoundError(
+            raise DatabaseError(
                 f"No credentials found for user={user_id} service={service}"
             )
 
@@ -58,7 +59,7 @@ class CredentialsManager:
             logger.error(
                 f"Failed decoding/validating credentials for user={user_id} service={service}: {exc}"
             )
-            raise CredentialsNotFoundError(
+            raise DatabaseError(
                 f"Stored credentials for user={user_id} service={service} are corrupt or invalid"
             ) from exc
 

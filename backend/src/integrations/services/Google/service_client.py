@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import httpx
-from typing import cast
+from typing import cast, Any
 from loguru import logger
 from src.integrations.components.service_client import ServiceRequestHandler
 from src.integrations.components.api_client import ApiClient
@@ -38,17 +38,17 @@ class GoogleRequestHandler(ServiceRequestHandler):
         self,
         method: str,
         endpoint: str,
-        user_id: str,
         options: RequestOptions | None = None,
         *,
         _retrying: bool = False,
-    ) -> httpx.Response:
+    ) -> tuple[httpx.Response, dict[str, Any]]:
         """Perform an authenticated request against a Google API (Gmail, Drive, ...).
 
         Proactively refreshes the token if it's near expiry, and reactively
         refreshes + retries once on a 401. Raises typed exceptions for
         rate limiting, auth failures, and other non-2xx responses.
         """
+        user_id: str = self._creds_manager.user_id
 
         credentials = await self._creds_manager.get_credentials(user_id, self.service)
 
@@ -72,7 +72,7 @@ class GoogleRequestHandler(ServiceRequestHandler):
                 f"Got 401 from Google API for user={user_id}; refreshing token and retrying once"
             )
             await self.refetch_credentials(user_id)
-            return await self.handle(method, endpoint, user_id, options, _retrying=True)
+            return await self.handle(method, endpoint, options, _retrying=True)
 
         if (
             response_body["code"] == 401
@@ -105,7 +105,7 @@ class GoogleRequestHandler(ServiceRequestHandler):
             logger.error(f"Google API error [ERROR]: {response_body}")
             raise
 
-        return response
+        return response, response_json
 
     async def refetch_credentials(self, user_id: str) -> CredentialsModel:
         """Refetch the credentials, save in the database using CredentialsManager and return the CredentialsModel."""

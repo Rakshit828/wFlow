@@ -1,7 +1,6 @@
-from pydantic import BaseModel, Field, ConfigDict, computed_field, PrivateAttr
+from pydantic import BaseModel, Field, ConfigDict, computed_field
 from typing import Optional, List
 from src.config import CONFIG
-from datetime import datetime
 from typing import List, Literal
 from enum import Enum
 import base64

@@ -9,6 +9,9 @@ class BaseError(Exception):
         self.message = message
         self.meta = meta or {}
 
+class DatabaseError(BaseError):
+    pass 
+
 class ApiConnectionError(BaseError):
     """Raised when establishing connection to service client is not happening."""
 

@@ -7,9 +7,9 @@ from .types import RequestOptions
 
 class ApiClient:
 
-    def __init__(self, base_url: str):
+    def __init__(self, base_url: str | None = None):
         self.__client = httpx.AsyncClient()
-        self._base_url: str = base_url.rstrip("/")
+        self._base_url: str | None = base_url.rstrip("/") if base_url else base_url
 
     def _resolve_url(self, endpoint: str) -> str:
         if endpoint.startswith("http://") or endpoint.startswith("https://"):

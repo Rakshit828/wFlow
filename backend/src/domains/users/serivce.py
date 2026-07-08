@@ -10,7 +10,7 @@ from src.core.response import AppError
 from src.db.postgres.schemas import Users, OAuthAccounts, LoginProvidersEnum, Session
 from src.config import CONFIG
 from src.core.security import hash_session_token
-from src.utils.utils import _parse_expiry
+from src.utils.utils import parse_expiry
 from src.integrations.services.Google.scopes import GOOGLE_OPENID_SCOPE
 
 import secrets
@@ -84,7 +84,7 @@ class UserService:
                 raise AppError()
 
         token = secrets.token_urlsafe(32)
-        token_expiry: timedelta = _parse_expiry(CONFIG.SESSION_TOKEN_EXPIRY)
+        token_expiry: timedelta = parse_expiry(CONFIG.SESSION_TOKEN_EXPIRY)
         set_cookie(
             response=response, key=SESSION_COOKIE_NAME, value=token, expiry=token_expiry
         )

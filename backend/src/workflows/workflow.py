@@ -5,13 +5,12 @@ workflow.py — Temporal DynamicWorkflow backed by the ExecutionPlan engine.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from datetime import timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from temporalio import activity, workflow as Tworkflow
-from temporalio.contrib.workflow_streams import WorkflowStream, WorkflowStreamClient
+from temporalio.contrib.workflow_streams import WorkflowStream
 
 with Tworkflow.unsafe.imports_passed_through():
     from src.workflows.parser import parse_workflow

@@ -10,56 +10,76 @@ from src.integrations.services.Google.gsheets.types import (
     UpdateCellValuesInput,
     UpdateCellValuesResponse,
 )
-from src.integrations.services.Google import GoogleAPIClient
+from typing import Any
+from src.integrations.services.Google import GoogleRequestHandler
+from src.integrations.components.types import RequestOptions
 from loguru import logger
 from temporalio import activity
 
 
-
-async def get_sheets_metadata(node_input: ReadSheetMetadataInput) -> dict:
-    api_client: GoogleAPIClient = node_input.config.get_google_api_client()
-    _, resposne_json = await api_client.request(
+async def get_sheets_metadata(node_input: ReadSheetMetadataInput) -> dict[str, Any]:
+    api_client: GoogleRequestHandler = node_input.config.service_handler
+    _, response_json = await api_client.handle(
         "GET",
         GoogleSheetsApis.GET_SHEETS_METADATA.format(
             spreadsheetId=node_input.spreadsheet_id
         ),
-        requires_bearer_token=True,
     )
-    return resposne_json
+    return response_json
+
 
 @activity.defn
 async def create_google_sheet(
     node_input: CreateGoogleSheetInput,
 ) -> CreateGoogleSheetResponse:
-    api_client: GoogleAPIClient = node_input.config.get_google_api_client()
-    _, resposne_json = await api_client.request(
+    json = {"properties": node_input.model_dump(by_alias=True)}
+    options: RequestOptions = {
+        "json": json,
+        "data": None,
+        "params": None,
+        "headers": None,
+        "timeout": None,
+    }
+    api_client: GoogleRequestHandler = node_input.config.service_handler
+    _, response_json = await api_client.handle(
         "POST",
         endpoint=GoogleSheetsApis.CREATE_NEW_SPREADSHEET,
-        requires_bearer_token=True,
-        json={"properties": node_input.model_dump(by_alias=True)},
+        options=options,
     )
-    return CreateGoogleSheetResponse(**resposne_json)
+    return CreateGoogleSheetResponse.model_validate(response_json)
+
 
 @activity.defn
 async def read_cell_values(node_input: ReadCellValuesInput) -> ReadCellValuesResponse:
-    api_client: GoogleAPIClient = node_input.config.get_google_api_client()
-    _, resposne_json = await api_client.request(
+    api_client: GoogleRequestHandler = node_input.config.service_handler
+    _, response_json = await api_client.handle(
         "GET",
         GoogleSheetsApis.READ_CELL_VALUES.format(
             spreadsheetId=node_input.spreadsheet_id, range=node_input.range
         ),
-        requires_bearer_token=True,
     )
-    return ReadCellValuesResponse(**resposne_json)
+    return ReadCellValuesResponse(**response_json)
+
 
 @activity.defn
 async def append_cell_values(
     node_input: AppendCellValuesInput,
 ) -> AppendCellValuesResponse:
-    api_client: GoogleAPIClient = node_input.config.get_google_api_client()
-    json = {
+    api_client: GoogleRequestHandler = node_input.config.service_handler
+    json: dict[str, Any] = {
         "range": node_input.range,
         "values": node_input.values,
+    }
+    params = {
+        "valueInputOption": node_input.value_input_option,
+        "insertDataOption": node_input.insert_data_option,
+    }
+    options: RequestOptions = {
+        "json": json,
+        "params": params,
+        "data": None,
+        "headers": None,
+        "timeout": None,
     }
 
     if node_input.major_dimension is not None:
@@ -67,29 +87,35 @@ async def append_cell_values(
 
     logger.debug(f"The json body is : {json}")
 
-    _, resposne_json = await api_client.request(
+    _, response_json = await api_client.handle(
         "POST",
         GoogleSheetsApis.APPEND_CELL_VALUES.format(
             spreadsheetId=node_input.spreadsheed_id, range=node_input.range
         ),
-        requires_bearer_token=True,
-        params={
-            "valueInputOption": node_input.value_input_option,
-            "insertDataOption": node_input.insert_data_option,
-        },
-        json=json,
+        options=options,
     )
-    print("Response : ", resposne_json)
-    return AppendCellValuesResponse(**resposne_json)
+    print("Response : ", response_json)
+    return AppendCellValuesResponse(**response_json)
+
 
 @activity.defn
 async def update_cell_values(
     node_input: UpdateCellValuesInput,
 ) -> UpdateCellValuesResponse:
-    api_client: GoogleAPIClient = node_input.config.get_google_api_client()
-    json = {
+    api_client: GoogleRequestHandler = node_input.config.service_handler
+    json: dict[str, Any] = {
         "range": node_input.range,
         "values": node_input.values,
+    }
+    params = {
+        "valueInputOption": node_input.value_input_option,
+    }
+    options: RequestOptions = {
+        "json": json,
+        "params": params,
+        "data": None,
+        "headers": None,
+        "timeout": None,
     }
 
     if node_input.major_dimension is not None:
@@ -97,18 +123,12 @@ async def update_cell_values(
 
     logger.debug(f"The json body is : {json}")
 
-    _, response_json = await api_client.request(
+    _, response_json = await api_client.handle(
         "PUT",
         GoogleSheetsApis.UPDATE_CELL_VALUES.format(
             spreadsheetId=node_input.spreadsheet_id, range=node_input.range
         ),
-        requires_bearer_token=True,
-        params={
-            "valueInputOption": node_input.value_input_option,
-        },
-        json=json,
+        options=options,
     )
     print("Response : ", response_json)
     return UpdateCellValuesResponse(**response_json)
-
-

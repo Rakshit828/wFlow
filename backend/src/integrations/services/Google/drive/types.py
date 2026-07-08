@@ -2,14 +2,10 @@ from pydantic import (
     BaseModel,
     Field,
     ConfigDict,
-    computed_field,
-    PrivateAttr,
     model_validator,
 )
-from typing import Optional, List
-from src.config import CONFIG
-from datetime import datetime
-from typing import List, Literal, Self
+from typing import Optional
+from typing import Self
 from enum import Enum
 
 

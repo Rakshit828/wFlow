@@ -8,12 +8,21 @@ from src.integrations.services.Google.drive.types import (
     UploadFileDriveResponse,
 )
 from src.config import CONFIG
+from src.integrations.components.types import RequestOptions
 
 
 @activity.defn
 async def upload_file_on_drive(
     node_input: UploadFileDriveInput,
 ) -> UploadFileDriveResponse:
+
+    options: RequestOptions = {
+        "params": None,
+        "data": None,
+        "headers": None,
+        "json": None,
+        "timeout": None,
+    }
 
     if node_input.content_ref:
         file_bytes: bytes = node_input.content_ref.encode("utf-8")
@@ -27,7 +36,7 @@ async def upload_file_on_drive(
     else:
         file_bytes: bytes = node_input.file_content
 
-    google_api_client = node_input.config.get_google_api_client()
+    google_api_client = node_input.config.service_handler
     filename = node_input.filename
     mime_type = node_input.mime_type
 
@@ -54,13 +63,14 @@ async def upload_file_on_drive(
 
     params = {"uploadType": "multipart"}
 
-    _, json_response = await google_api_client.request(
+    options["params"] = params
+    options["data"] = request_body
+    options["headers"] = headers
+
+    _, json_response = await google_api_client.handle(
         method="POST",
         endpoint=GDriveApis.UPLOAD_FILE,
-        requires_bearer_token=True,
-        headers=headers,
-        params=params,
-        data=request_body,
+        options=options
     )
 
     logger.info(f"The original response is : {json_response}")

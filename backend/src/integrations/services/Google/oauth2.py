@@ -8,7 +8,7 @@ from fastapi.concurrency import run_in_threadpool
 import httpx
 from typing import Literal
 
-from src.integrations.interfaces.oauth2 import OAuthInterface
+from src.integrations.components.oauth2 import OAuthInterface
 from src.config import CONFIG
 from src.db.redis import Redis
 from src.integrations.services.Google.g_types import (
@@ -17,7 +17,6 @@ from src.integrations.services.Google.g_types import (
     GoogleNewScopeResponse,
     GoogleIDTokenPayloadOnlyEmail,
 )
-
 
 
 class GoogleOAuthInterface(OAuthInterface):

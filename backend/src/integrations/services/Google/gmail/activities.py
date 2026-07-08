@@ -1,7 +1,7 @@
 import base64
-
+from typing import Any
 from src.utils.utils import timer
-from src.integrations.services.Google import GoogleAPIClient
+from src.integrations.services.Google import GoogleRequestHandler
 from src.integrations.services.Google.gmail.types import (
     GmailApis,
     ReadEmailsIdModel,
@@ -15,6 +15,7 @@ from src.integrations.services.Google.gmail.types import (
     SendAndDraftEmailInput,
     SendAndDraftEmailResponse,
 )
+from src.integrations.components.types import RequestOptions
 from src.integrations.services.Google.gmail.helpers import EmailMIMEBuilder
 from temporalio import activity
 
@@ -28,7 +29,7 @@ def decode_base64(text: str) -> str:
 
 @activity.defn
 async def get_gmail_user_profile(
-    api_client: GoogleAPIClient,
+    service_client: GoogleRequestHandler,
 ) -> GetUserProfileResponse:
     """
     Fetch the authenticated user's Gmail profile.
@@ -36,7 +37,7 @@ async def get_gmail_user_profile(
     Includes email address, message counts, and storage usage metadata.
 
     Args:
-        api_client: Authenticated GoogleAPIClient instance.
+        service_client: Authenticated GoogleRequestHandler instance.
 
     Returns:
         GetUserProfileResponse: Parsed Gmail profile response.
@@ -46,10 +47,9 @@ async def get_gmail_user_profile(
         Exception: Propagates API/network errors.
     """
 
-    response, response_json = await api_client.request(
+    _, response_json = await service_client.handle(
         "GET",
         GmailApis.GET_PROFILE,
-        requires_bearer_token=True,
     )
 
     if not response_json:
@@ -71,12 +71,11 @@ async def get_gmail_label_data(
     Returns:
         SingleLabelsResponse: Parsed response containing label metadata.
     """
-    api_client: GoogleAPIClient = node_input.config.get_google_api_client()
+    service_client: GoogleRequestHandler = node_input.config.service_handler
 
-    _, response_json = await api_client.request(
+    _, response_json = await service_client.handle(
         "GET",
         GmailApis.GET_LABEL.format(id=node_input.label_id),
-        requires_bearer_token=True,
     )
 
     if not response_json:
@@ -88,13 +87,13 @@ async def get_gmail_label_data(
 
 @activity.defn
 async def list_gmail_labels(
-    node_input: ListAllLabelsInput | None = None,
+    node_input: ListAllLabelsInput,
 ) -> ListLabelsResponse:
     """
     Fetch all labels for the authenticated Gmail user.
 
     Args:
-        api_client: Authenticated GoogleAPIClient instance.
+        service_client: Authenticated GoogleRequestHandler instance.
         include_label_ids: Filter labels by specific label IDs.
         max_results: Maximum number of labels to return.
         page_token: Token for paginated results.
@@ -102,8 +101,16 @@ async def list_gmail_labels(
     Returns:
         ListLabelsResponse: Parsed response containing label metadata.
     """
-    api_client: GoogleAPIClient = node_input.gmail_api_client
-    params = {}
+    service_client: GoogleRequestHandler = node_input.config.service_handler
+
+    params: dict[str, Any] = {}
+    options: RequestOptions = {
+        "params": params,
+        "data": None,
+        "headers": None,
+        "json": None,
+        "timeout": None
+    }
 
     if node_input.include_label_ids:
         params["includeLabelIds"] = node_input.include_label_ids
@@ -114,11 +121,12 @@ async def list_gmail_labels(
     if node_input.page_token:
         params["pageToken"] = node_input.page_token
 
-    _, response_json = await api_client.request(
+    
+
+    _, response_json = await service_client.handle(
         "GET",
         GmailApis.LIST_LABELS,
-        requires_bearer_token=True,
-        params=params if params else None,
+        options=options,
     )
 
     if not response_json:
@@ -132,7 +140,7 @@ async def send_email(
     node_input: SendAndDraftEmailInput,
 ):
     email_builder = EmailMIMEBuilder()
-    api_client: GoogleAPIClient = node_input.config.get_google_api_client()
+    service_client: GoogleRequestHandler = node_input.config.service_handler
 
     email_builder.add_to(node_input.to)
     email_builder.add_cc(node_input.cc)
@@ -147,11 +155,10 @@ async def send_email(
     email_builder.build()
 
     payload = email_builder.to_gmail_payload(node_input.thread_id)
-    _, response_json = await api_client.request(
+    _, response_json = await service_client.handle(
         "POST",
         GmailApis.SEND_MESSAGE,
-        requires_bearer_token=True,
-        json=payload,
+        options={"json": payload}
     )
     print(response_json)
 
@@ -161,7 +168,7 @@ async def send_email(
 @activity.defn
 async def create_email_draft(node_input: SendAndDraftEmailInput):
     email_builder = EmailMIMEBuilder()
-    api_client: GoogleAPIClient = node_input.config.get_google_api_client()
+    service_client: GoogleRequestHandler = node_input.config.service_handler
 
     email_builder.add_to(node_input.to)
     email_builder.add_cc(node_input.cc)
@@ -178,11 +185,10 @@ async def create_email_draft(node_input: SendAndDraftEmailInput):
     raw = email_builder.to_gmail_payload(node_input.thread_id)
     payload = {"message": raw}
 
-    _, response_json = await api_client.request(
+    _, response_json = await service_client.handle(
         "POST",
         GmailApis.DRAFT_EMAIL,
-        requires_bearer_token=True,
-        json=payload,
+        options={"json": payload}
     )
     print(response_json)
 
@@ -190,7 +196,7 @@ async def create_email_draft(node_input: SendAndDraftEmailInput):
 
 
 async def get_email(
-    api_client: GoogleAPIClient,
+    service_client: GoogleRequestHandler,
     message_id: str,
     format: str = "full",
 ) -> GmailRawResponse | GmailFullMessage:
@@ -198,11 +204,10 @@ async def get_email(
 
     params = {"format": format}
 
-    response, response_json = await api_client.request(
+    response, response_json = await service_client.handle(
         "GET",
         endpoint=endpoint,
-        requires_bearer_token=True,
-        params=params,
+        options={"params": params}
     )
 
     if format == "full":
@@ -212,7 +217,7 @@ async def get_email(
 
 
 async def list_emails(
-    api_client: GoogleAPIClient,
+    service_client: GoogleRequestHandler,
     query: str | None = None,
     max_results: int = 10,
     label_ids: list[str] | None = None,
@@ -227,10 +232,9 @@ async def list_emails(
     if label_ids:
         params["labelIds"] = label_ids
 
-    _, response_json = await api_client.request(
+    _, response_json = await service_client.handle(
         "GET",
         GmailApis.LIST_MESSAGES,
-        requires_bearer_token=True,
-        params=params,
+        options={"params": params}
     )
     return ReadEmailsIdModel(**response_json)
